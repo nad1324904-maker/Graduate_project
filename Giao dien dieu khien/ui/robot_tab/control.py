@@ -199,6 +199,8 @@ class ControlMixin:
         else:
             hint = ""
         self.jog_hint_label.configure(text=hint)
+        self.move_xyz_btn.configure(state="normal" if jog_ok else "disabled")
+        self.xyz_fill_btn.configure(state="normal" if connected else "disabled")
 
         manual_ok = connected and self._manual_action_allowed() and not self.backend.is_homing()
         self.home_btn.configure(state="normal" if manual_ok else "disabled")

@@ -141,6 +141,7 @@ Mỗi 1 ms, ngắt TIM9 chạy lần lượt cho từng trục:
 |---|---|
 | **JOG** | Di chuyển từng khớp theo bước (độ/mm). Chỉ hoạt động ở chế độ JOG và sau khi đã HOME |
 | **Operation Monitor** | Vị trí đặt và vị trí thực của từng khớp; TCP (X, Y, Z, θ) theo động học thuận; trạng thái robot, home, pause, kẹp |
+| **Move to XYZθ** | Nhập tọa độ đầu công tác (nút "⤓ Hiện tại" điền sẵn vị trí đang đứng), GUI tính động học ngược ra góc khớp rồi di chuyển |
 | **Points** | Teach Point (lưu vị trí thực hiện tại), Save Position, đổi tên, xóa (bị chặn nếu Program đang dùng điểm đó), Move to Reference |
 | **Program** | Tạo chương trình gồm các Step: **MOVE** (tới một Point), **GRIP ON/OFF**, **DELAY** (0.1–60 s) |
 | **Control** | START / PAUSE–RESUME / STOP (phanh gấp, không tự về home) / RESET (xóa FAULT bằng `CLEAR`) |
@@ -155,6 +156,25 @@ y =      l1·sin θ1 + l2·sin(θ1 + θ2)
 z = d_Z − h2
 θ = θ1 + θ2 + θ3   (bọc về [−180°, 180°))
 ```
+
+**Động học ngược** (cùng file, hàm `inverse_kinematics`), có lời giải đóng:
+
+```
+x' = x − h1
+cos θ2 = (x'² + y² − l1² − l2²) / (2·l1·l2)      → |cos θ2| > 1: điểm ngoài vùng với tới
+θ2 = ± arccos(cos θ2)                            → 2 nghiệm: khuỷu θ2 > 0 và θ2 < 0
+θ1 = atan2(y, x') − atan2(l2·sin θ2, l1 + l2·cos θ2)
+θ3 = θ − θ1 − θ2
+d_Z = z + h2
+```
+
+- **Vùng với tới:** điểm phải cách trục J1 một khoảng nằm trong [|l1 − l2|, l1 + l2]. Đúng tại trục J1 là điểm kỳ dị (J1 có vô số nghiệm) nên bị từ chối.
+- **Chọn nghiệm:**
+  - Mỗi góc được xét cả các giá trị tương đương ±360° để tìm giá trị nằm trong giới hạn khớp.
+  - Trong 2 nghiệm khuỷu tay, nghiệm vượt giới hạn bị loại.
+  - Nếu cả 2 đều hợp lệ thì chọn nghiệm **gần tư thế hiện tại nhất** (tổng |Δθ| của J1, J2, J3 nhỏ nhất).
+- **Báo lỗi** rõ lý do: quá xa, quá gần, Z ngoài giới hạn, hoặc cả 2 nghiệm đều vượt giới hạn khớp nào.
+- **Kiểm chứng:** 20 000 tư thế ngẫu nhiên trong giới hạn khớp đều cho kết quả FK(IK(p)) = p.
 
 **Chống nhận nhầm "Step đã xong":** trạng thái chỉ chuyển BUSY → READY khi mọi lệnh đã nhận `OK` **và** đã nhận thêm ít nhất một dòng `S` sau `OK` cuối cùng.
 
@@ -202,7 +222,8 @@ python main.py --scale 0.85    # thu nhỏ giao diện (máy yếu / màn hình 
    - Bấm **HOME** ở Quick Action. Các trục chạy chậm về cảm biến và dừng; vị trí được đặt bằng giá trị Home trong Settings.
    - Chờ Log báo `HOME_DONE`.
    - Chưa HOME thì GUI chặn JOG và START. Có công tắc *"Bỏ qua kiểm tra HOME"* nhưng chỉ dùng khi debug.
-3. **Dạy điểm:** ở chế độ **JOG**, đưa robot tới vị trí cần lưu, đặt tên rồi bấm **Teach Point**.
+3. **Dạy điểm:** ở chế độ **JOG**, đưa robot tới vị trí cần lưu (JOG từng khớp, hoặc nhập tọa độ ở **Move to XYZθ**),
+   đặt tên rồi bấm **Teach Point**.
 4. **Soạn chương trình:** tạo Program, thêm các Step MOVE / GRIP / DELAY. Nên thêm DELAY sau GRIP để kẹp kịp đóng hoặc mở.
 5. **Chạy:** chuyển sang chế độ **Program**, chọn chương trình và bấm **START**. Có thể PAUSE/RESUME hoặc STOP bất kỳ lúc nào.
 6. **Khi có FAULT:**
@@ -273,7 +294,11 @@ python "Giao dien dieu khien/tools/uart_tool.py" COM5        # gõ lệnh trực
 
 ## 10. Giới hạn hiện tại và hướng phát triển
 
-- Chỉ có **động học thuận**; chưa có động học ngược (IK), nên chưa thể ra lệnh theo tọa độ X/Y/Z.
-- Các trục chạy độc lập theo quỹ đạo riêng, chưa đồng bộ để cùng tới đích một lúc, chưa nội suy đường thẳng.
+- **Đường đi khi Move XYZθ / MOVE chưa phải đường thẳng.** Đã có động học ngược để đi tới đúng điểm đích, nhưng các
+  trục chạy độc lập theo quỹ đạo riêng và tới đích vào thời điểm khác nhau, nên đầu công tác đi theo đường cong.
+  Hướng phát triển:
+  - đồng bộ thời gian các trục để cùng tới đích một lúc;
+  - nội suy đường thẳng trong không gian Descartes (PC chia nhỏ quãng đường, gửi liên tục, firmware nhận nhiều điểm).
+- Chưa có JOG theo trục X/Y và Teach Point bằng tọa độ.
 - Kẹp không có cảm biến phản hồi; Step GRIP báo xong ngay khi STM32 xác nhận lệnh, nên cần DELAY để chờ kẹp đóng/mở.
 - Giao thức UART không có checksum; dòng hỏng chỉ bị bỏ qua.

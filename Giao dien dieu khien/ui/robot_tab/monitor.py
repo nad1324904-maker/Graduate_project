@@ -1,12 +1,13 @@
-"""monitor.py — Header status badge + OPERATION MONITOR (actual/target/TCP/mini badge)."""
+"""monitor.py — Header status badge + OPERATION MONITOR (actual/target/TCP/Move to XYZθ/mini badge)."""
 
 import customtkinter as ctk
 
 from comm.backend_base import RobotStatus
-from core.kinematics import forward_kinematics
+from comm.errors import UartError
+from core.kinematics import IKError, forward_kinematics, inverse_kinematics
 from ui.theme import (
-    AXES, COL_ACCENT, COL_ACCENT_HOVER, COL_AMBER, COL_GREEN, COL_INPUT, COL_TEXT,
-    COL_TEXT_DIM, COL_TEXT_DISABLED, STATUS_COLOR, STATUS_LABEL, UNITS
+    AXES, COL_ACCENT, COL_ACCENT_HOVER, COL_AMBER, COL_BG as COL_BG_ENTRY, COL_BTN_DARK, COL_BTN_DARK_HOVER,
+    COL_GREEN, COL_INPUT, COL_TEXT, COL_TEXT_DIM, COL_TEXT_DISABLED, STATUS_COLOR, STATUS_LABEL, UNITS
 )
 from ui.widgets import Card
 
@@ -91,9 +92,35 @@ class MonitorMixin:
                                             command=self._on_move_to_reference)
         self.move_here_btn.pack(side="right")
 
+        # ---- Move to XYZθ (động học ngược) ----
+        xyz_row = ctk.CTkFrame(body, fg_color=COL_INPUT, corner_radius=10)
+        xyz_row.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        ctk.CTkLabel(xyz_row, text="🧭 Move to", font=("Segoe UI Semibold", 11),
+                     text_color=COL_TEXT).pack(side="left", padx=(10, 6), pady=8)
+        self.xyz_entries = {}
+        for name, unit in (("X", "mm"), ("Y", "mm"), ("Z", "mm"), ("θ", "°")):
+            ctk.CTkLabel(xyz_row, text=name, font=("Segoe UI Semibold", 11),
+                         text_color=COL_TEXT_DIM).pack(side="left", padx=(4, 2))
+            entry = ctk.CTkEntry(xyz_row, width=62, height=28, fg_color=COL_BG_ENTRY, border_width=0,
+                                  justify="center", font=("Segoe UI", 11), text_color=COL_TEXT,
+                                  placeholder_text=unit)
+            entry.pack(side="left", padx=(0, 2))
+            entry.bind("<Return>", lambda _e: self._on_move_xyz())
+            self.xyz_entries[name] = entry
+        self.move_xyz_btn = ctk.CTkButton(xyz_row, text="▶ Move", width=70, height=28, corner_radius=8,
+                                           fg_color=COL_ACCENT, hover_color=COL_ACCENT_HOVER,
+                                           font=("Segoe UI Semibold", 11), state="disabled",
+                                           command=self._on_move_xyz)
+        self.move_xyz_btn.pack(side="right", padx=(4, 10))
+        self.xyz_fill_btn = ctk.CTkButton(xyz_row, text="⤓ Hiện tại", width=78, height=28, corner_radius=8,
+                                           fg_color=COL_BTN_DARK, hover_color=COL_BTN_DARK_HOVER,
+                                           font=("Segoe UI", 11), state="disabled",
+                                           command=self._on_fill_xyz_from_actual)
+        self.xyz_fill_btn.pack(side="right", padx=4)
+
         # ---- Mini status badges ----
         mini_row = ctk.CTkFrame(body, fg_color="transparent")
-        mini_row.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+        mini_row.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(10, 0))
         for i in range(4):
             mini_row.grid_columnconfigure(i, weight=1)
         self.mini_status = self._mini_badge(mini_row, "📶", "Robot Status", 0)
@@ -101,6 +128,44 @@ class MonitorMixin:
         self.mini_paused = self._mini_badge(mini_row, "⏸", "Motion Paused", 2)
         self.mini_gripper = self._mini_badge(mini_row, "🦾", "Gripper", 3)
         return card
+
+    # ---------------- Move to XYZθ ----------------
+    def _on_fill_xyz_from_actual(self):
+        """Điền ô X/Y/Z/θ bằng vị trí TCP thực hiện tại (FK) — tiện để sửa 1 trục rồi Move."""
+        if not self._connected():
+            return
+        a = self.backend.get_actual_position()
+        values = dict(zip(("X", "Y", "Z", "θ"), forward_kinematics(a["J1"], a["J2"], a["J3"], a["Z"])))
+        for name, entry in self.xyz_entries.items():
+            entry.delete(0, "end")
+            entry.insert(0, f"{values[name]:.2f}")
+
+    def _on_move_xyz(self):
+        """Động học ngược: tọa độ TCP -> góc khớp (trong giới hạn, nghiệm gần tư thế hiện tại nhất) -> GOTO.
+        Các trục chạy độc lập nên robot tới ĐÚNG điểm đích nhưng đường đi ở giữa KHÔNG phải đường thẳng."""
+        if not self._jog_allowed():
+            self._log("Bị chặn: Move XYZθ chỉ hoạt động khi đã kết nối, đã HOME, ở Chế độ JOG và không chạy chương trình.", "WARN")
+            return
+        try:
+            target = {name: float(entry.get().replace(",", ".")) for name, entry in self.xyz_entries.items()}
+        except ValueError:
+            self._log("Move XYZθ: nhập đủ X, Y, Z (mm) và θ (°) dạng số — bấm '⤓ Hiện tại' để điền sẵn vị trí đang đứng.", "WARN")
+            return
+        try:
+            joints = inverse_kinematics(target["X"], target["Y"], target["Z"], target["θ"],
+                                        limits=getattr(self.backend, "joint_limits", None),
+                                        current=self.backend.get_actual_position())
+        except IKError as e:
+            self._log(f"Move XYZθ: {e}", "ERROR")
+            return
+        try:
+            self.backend.send_absolute_target(joints)
+        except UartError as e:
+            self._log(str(e), "ERROR")
+            return
+        self._log(f"Move XYZθ → X={target['X']:g} Y={target['Y']:g} Z={target['Z']:g} θ={target['θ']:g}°  ⇒  "
+                  + "  ".join(f"{a}={joints[a]:.2f}{UNITS[a]}" for a in AXES))
+        self._program_just_completed = False
 
     def _mini_badge(self, parent, icon, label, col):
         box = ctk.CTkFrame(parent, fg_color=COL_INPUT, corner_radius=8)
