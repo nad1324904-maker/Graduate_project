@@ -98,6 +98,7 @@ class MonitorMixin:
         ctk.CTkLabel(xyz_row, text="🧭 Move to", font=("Segoe UI Semibold", 11),
                      text_color=COL_TEXT).pack(side="left", padx=(10, 6), pady=8)
         self.xyz_entries = {}
+        self._xyz_exact = {}          # name -> (chuỗi đã điền, giá trị chính xác) do nút '⤓ Hiện tại' ghi
         for name, unit in (("X", "mm"), ("Y", "mm"), ("Z", "mm"), ("θ", "°")):
             ctk.CTkLabel(xyz_row, text=name, font=("Segoe UI Semibold", 11),
                          text_color=COL_TEXT_DIM).pack(side="left", padx=(4, 2))
@@ -131,14 +132,28 @@ class MonitorMixin:
 
     # ---------------- Move to XYZθ ----------------
     def _on_fill_xyz_from_actual(self):
-        """Điền ô X/Y/Z/θ bằng vị trí TCP thực hiện tại (FK) — tiện để sửa 1 trục rồi Move."""
+        """Điền ô X/Y/Z/θ bằng vị trí TCP thực hiện tại (FK) — tiện để sửa 1 trục rồi Move.
+        Ô chỉ hiện 2 chữ số thập phân, nhưng giá trị CHÍNH XÁC được nhớ lại: ô nào người dùng không sửa thì Move dùng
+        giá trị chính xác, tránh sai số làm tròn (gần tư thế duỗi thẳng, 0.005 mm có thể làm khớp xoay cả độ)."""
         if not self._connected():
             return
         a = self.backend.get_actual_position()
         values = dict(zip(("X", "Y", "Z", "θ"), forward_kinematics(a["J1"], a["J2"], a["J3"], a["Z"])))
+        self._xyz_exact = {}
         for name, entry in self.xyz_entries.items():
+            text = f"{values[name]:.2f}"
             entry.delete(0, "end")
-            entry.insert(0, f"{values[name]:.2f}")
+            entry.insert(0, text)
+            self._xyz_exact[name] = (text, values[name])
+
+    def _read_xyz_target(self):
+        """Đọc 4 ô nhập. Ô còn nguyên chuỗi do '⤓ Hiện tại' điền -> dùng giá trị chính xác đã nhớ. Raise ValueError."""
+        target = {}
+        for name, entry in self.xyz_entries.items():
+            text = entry.get().strip()
+            saved = self._xyz_exact.get(name)
+            target[name] = saved[1] if saved and text == saved[0] else float(text.replace(",", "."))
+        return target
 
     def _on_move_xyz(self):
         """Động học ngược: tọa độ TCP -> góc khớp (trong giới hạn, nghiệm gần tư thế hiện tại nhất) -> GOTO.
@@ -147,7 +162,7 @@ class MonitorMixin:
             self._log("Bị chặn: Move XYZθ chỉ hoạt động khi đã kết nối, đã HOME, ở Chế độ JOG và không chạy chương trình.", "WARN")
             return
         try:
-            target = {name: float(entry.get().replace(",", ".")) for name, entry in self.xyz_entries.items()}
+            target = self._read_xyz_target()
         except ValueError:
             self._log("Move XYZθ: nhập đủ X, Y, Z (mm) và θ (°) dạng số — bấm '⤓ Hiện tại' để điền sẵn vị trí đang đứng.", "WARN")
             return
@@ -158,12 +173,16 @@ class MonitorMixin:
         except IKError as e:
             self._log(f"Move XYZθ: {e}", "ERROR")
             return
+        actual = self.backend.get_actual_position()
+        if all(abs(joints[a] - actual[a]) < 1e-6 for a in AXES):         # đích trùng vị trí đang đứng -> không gửi lệnh
+            self._log("Move XYZθ: robot đã ở đúng vị trí này — không gửi lệnh.")
+            return
         try:
             self.backend.send_absolute_target(joints)
         except UartError as e:
             self._log(str(e), "ERROR")
             return
-        self._log(f"Move XYZθ → X={target['X']:g} Y={target['Y']:g} Z={target['Z']:g} θ={target['θ']:g}°  ⇒  "
+        self._log(f"Move XYZθ → X={target['X']:.2f} Y={target['Y']:.2f} Z={target['Z']:.2f} θ={target['θ']:.2f}°  ⇒  "
                   + "  ".join(f"{a}={joints[a]:.2f}{UNITS[a]}" for a in AXES))
         self._program_just_completed = False
 

@@ -80,6 +80,8 @@ class IKError(ValueError):
 
 
 _EPS = 1e-6
+REACH_TOL_MM = 0.01   # điểm vượt biên tầm với ít hơn mức này (do làm tròn số nhập) vẫn được nhận, coi như nằm đúng biên
+ANGLE_TOL_DEG = 0.01  # góc khớp vượt giới hạn ít hơn mức này (do làm tròn) vẫn được nhận và KẸP về đúng giới hạn
 
 
 def _wrap180(angle):
@@ -87,13 +89,16 @@ def _wrap180(angle):
 
 
 def _fit_angle(angle, lo, hi, ref):
-    """Trong các góc tương đương angle + k·360°, chọn góc nằm trong [lo, hi] và gần `ref` nhất. None nếu không có."""
+    """Trong các góc tương đương angle + k·360°, chọn góc nằm trong [lo, hi] (dung sai ANGLE_TOL_DEG) và gần `ref`
+    nhất. Kết quả luôn được kẹp vào [lo, hi]. None nếu không có."""
     best = None
     base = _wrap180(angle)
     for k in range(-2, 3):
         a = base + 360.0 * k
-        if lo - _EPS <= a <= hi + _EPS and (best is None or abs(a - ref) < abs(best - ref)):
-            best = min(max(a, lo), hi)          # kẹp phần sai số làm tròn (≤ _EPS) về đúng biên
+        if lo - ANGLE_TOL_DEG <= a <= hi + ANGLE_TOL_DEG:
+            a = min(max(a, lo), hi)             # kẹp phần vượt do làm tròn về đúng biên
+            if best is None or abs(a - ref) < abs(best - ref):
+                best = a
     return best
 
 
@@ -126,22 +131,22 @@ def inverse_kinematics(x, y, z, theta, params=None, limits=None, current=None):
 
     # ---- Z (độc lập với X, Y) ----
     zj = float(z) + h2
-    if not (lim["Z"][0] - _EPS <= zj <= lim["Z"][1] + _EPS):
+    if not (lim["Z"][0] - REACH_TOL_MM <= zj <= lim["Z"][1] + REACH_TOL_MM):     # sát biên trong dung sai -> kẹp ở dưới
         raise IKError(f"Z = {z:g} mm cần trục Z = {zj:g} mm, ngoài giới hạn [{lim['Z'][0]:g}, {lim['Z'][1]:g}] mm.")
 
     # ---- Vùng với tới trên mặt phẳng XY ----
     xp, yp = float(x) - h1, float(y)
     r = math.hypot(xp, yp)
     r_min, r_max = abs(l1 - l2), l1 + l2
-    if r > r_max + _EPS:
+    if r > r_max + REACH_TOL_MM:
         raise IKError(f"Điểm ({x:g}, {y:g}) quá xa: cách khớp J1 {r:.2f} mm > tầm với tối đa l1 + l2 = {r_max:g} mm.")
-    if r < r_min - _EPS:
+    if r < r_min - REACH_TOL_MM:
         raise IKError(f"Điểm ({x:g}, {y:g}) quá gần: cách khớp J1 {r:.2f} mm < tầm với tối thiểu |l1 − l2| = {r_min:g} mm.")
     if r < _EPS:
         raise IKError("Điểm trùng trục khớp J1 (điểm kỳ dị): J1 có vô số nghiệm — hãy chọn điểm lệch khỏi tâm.")
 
     c2 = (r * r - l1 * l1 - l2 * l2) / (2.0 * l1 * l2)
-    c2 = max(-1.0, min(1.0, c2))
+    c2 = max(-1.0, min(1.0, c2))         # điểm vượt biên trong REACH_TOL_MM -> kẹp về biên (tay duỗi / gập hết)
 
     candidates, rejected = [], []
     for sign in (1.0, -1.0):

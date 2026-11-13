@@ -141,7 +141,7 @@ Mỗi 1 ms, ngắt TIM9 chạy lần lượt cho từng trục:
 |---|---|
 | **JOG** | Di chuyển từng khớp theo bước (độ/mm). Chỉ hoạt động ở chế độ JOG và sau khi đã HOME |
 | **Operation Monitor** | Vị trí đặt và vị trí thực của từng khớp; TCP (X, Y, Z, θ) theo động học thuận; trạng thái robot, home, pause, kẹp |
-| **Move to XYZθ** | Nhập tọa độ đầu công tác (nút "⤓ Hiện tại" điền sẵn vị trí đang đứng), GUI tính động học ngược ra góc khớp rồi di chuyển |
+| **Move to XYZθ** | Nhập tọa độ đầu công tác, GUI tính động học ngược ra góc khớp rồi di chuyển. Nút "⤓ Hiện tại" điền sẵn vị trí đang đứng; ô nào không sửa thì dùng giá trị chính xác (không bị sai số làm tròn), và nếu đích trùng vị trí hiện tại thì không gửi lệnh |
 | **Points** | Teach Point (lưu vị trí thực hiện tại), Save Position, đổi tên, xóa (bị chặn nếu Program đang dùng điểm đó), Move to Reference |
 | **Program** | Tạo chương trình gồm các Step: **MOVE** (tới một Point), **GRIP ON/OFF**, **DELAY** (0.1–60 s) |
 | **Control** | START / PAUSE–RESUME / STOP (phanh gấp, không tự về home) / RESET (xóa FAULT bằng `CLEAR`) |
@@ -169,6 +169,8 @@ d_Z = z + h2
 ```
 
 - **Vùng với tới:** điểm phải cách trục J1 một khoảng nằm trong [|l1 − l2|, l1 + l2]. Đúng tại trục J1 là điểm kỳ dị (J1 có vô số nghiệm) nên bị từ chối.
+- **Dung sai làm tròn:** điểm vượt biên tầm với hoặc trục Z dưới 0.01 mm, hoặc góc vượt giới hạn khớp dưới 0.01°, vẫn được nhận nhưng **kẹp đúng về biên**, nên không bao giờ ra lệnh vượt giới hạn.
+- **Gần tư thế duỗi thẳng (J2 ≈ 0°):** động học ngược rất nhạy, sai lệch tọa độ rất nhỏ cũng làm góc khớp đổi đáng kể. Đây là đặc tính của SCARA ở gần điểm kỳ dị.
 - **Chọn nghiệm:**
   - Mỗi góc được xét cả các giá trị tương đương ±360° để tìm giá trị nằm trong giới hạn khớp.
   - Trong 2 nghiệm khuỷu tay, nghiệm vượt giới hạn bị loại.
