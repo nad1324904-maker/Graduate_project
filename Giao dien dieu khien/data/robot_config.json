@@ -1,0 +1,116 @@
+{
+  "kinematics": {
+    "h1": 0.0,
+    "l1": 120.0,
+    "l2": 100.0,
+    "h2": 50.0
+  },
+  "joint_limits": {
+    "J1": {
+      "min": -90.0,
+      "max": 90.0
+    },
+    "J2": {
+      "min": -120.0,
+      "max": 120.0
+    },
+    "J3": {
+      "min": 0.0,
+      "max": 180.0
+    },
+    "Z": {
+      "min": 150.0,
+      "max": 350.0
+    }
+  },
+  "home_position": {
+    "J1": 30.0,
+    "J2": 30.0,
+    "J3": 0.0,
+    "Z": 300.0
+  },
+  "encoder": {
+    "J1": {
+      "ppr": 436800,
+      "gear_ratio": "3:1",
+      "direction": "Normal"
+    },
+    "J2": {
+      "ppr": 436800,
+      "gear_ratio": "3:1",
+      "direction": "Normal"
+    },
+    "J3": {
+      "ppr": 76500,
+      "gear_ratio": "1:1",
+      "direction": "Normal"
+    },
+    "Z": {
+      "ppr": 436800,
+      "gear_ratio": "8",
+      "direction": "Normal"
+    }
+  },
+  "motion_profile": {
+    "J1": {
+      "vmax": 30.0,
+      "amax": 50.0
+    },
+    "J2": {
+      "vmax": 50.0,
+      "amax": 50.0
+    },
+    "J3": {
+      "vmax": 10.0,
+      "amax": 50.0
+    },
+    "Z": {
+      "vmax": 7.0,
+      "amax": 50.0
+    }
+  },
+  "pid": {
+    "J1": {
+      "kp": 4.2,
+      "ki": 1.2,
+      "kd": 0.01,
+      "deadband": 10
+    },
+    "J2": {
+      "kp": 4.2,
+      "ki": 1.2,
+      "kd": 0.01,
+      "deadband": 10
+    },
+    "J3": {
+      "kp": 12.0,
+      "ki": 0.0,
+      "kd": 0.0,
+      "deadband": 10
+    },
+    "Z": {
+      "kp": 12.0,
+      "ki": 0.0,
+      "kd": 0.0,
+      "deadband": 50
+    }
+  },
+  "fault_limits": {
+    "J1": {
+      "trip": 20.0,
+      "home_trip": 1.6
+    },
+    "J2": {
+      "trip": 20.0,
+      "home_trip": 1.6
+    },
+    "J3": {
+      "trip": 20.0,
+      "home_trip": 5.0
+    },
+    "Z": {
+      "trip": 1.4,
+      "home_trip": 0.11
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "TEST": {
+    "description": "",
+    "steps": [
+      {
+        "type": "MOVE",
+        "point": "P0"
+      },
+      {
+        "type": "DELAY",
+        "seconds": 3.0
+      },
+      {
+        "type": "MOVE",
+        "point": "P1"
+      },
+      {
+        "type": "DELAY",
+        "seconds": 3.0
+      },
+      {
+        "type": "MOVE",
+        "point": "P3"
+      },
+      {
+        "type": "DELAY",
+        "seconds": 3.0
+      },
+      {
+        "type": "MOVE",
+        "point": "HOME"
+      }
+    ]
+  }
+}

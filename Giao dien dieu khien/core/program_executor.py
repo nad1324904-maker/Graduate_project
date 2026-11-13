@@ -1,0 +1,224 @@
+"""
+program_executor.py — Điều phối chạy Program tuần tự (Phase 4).
+------------------------------------------------------------------------
+Đây là lớp "PC-side coordinator": nó KHÔNG phải GUI, cũng KHÔNG phải
+backend — nó đứng giữa, đọc Step từ ProgramStore + Point từ PointStore,
+rồi tuần tự gửi lệnh xuống RobotBackendBase và chờ hoàn thành mới gửi
+Step kế tiếp (mục 16: "The PC sends only ONE Step at a time... Wait for
+STEP_DONE... send next Step").
+
+Tách riêng khỏi gui.py để:
+  - Logic điều phối Program không phụ thuộc CustomTkinter, dễ test độc lập
+    (xem test ở cuối phiên làm việc).
+  - Đúng yêu cầu Phase 6 "Separate GUI logic from the simulation backend"
+    — executor này chỉ phụ thuộc vào backend_base.RobotBackendBase, point_
+    store, program_store, không phụ thuộc gui.py.
+
+GUI chỉ cần: tạo ProgramExecutor, gọi start()/pause()/resume()/stop()/
+reset(), và đăng ký callback để cập nhật hiển thị — không tự sequencing.
+"""
+
+from enum import Enum
+
+from comm.backend_base import RobotStatus
+from core.program_store import describe_step
+
+
+class ExecState(str, Enum):
+    IDLE = "IDLE"
+    RUNNING = "RUNNING"
+    PAUSED = "PAUSED"
+    STOPPED = "STOPPED"
+    COMPLETED = "COMPLETED"
+    ERROR = "ERROR"
+
+
+class ExecutorError(Exception):
+    pass
+
+
+class ProgramExecutor:
+    def __init__(self, backend, point_store, program_store):
+        self.backend = backend
+        self.point_store = point_store
+        self.program_store = program_store
+
+        self.program_name = None
+        self.steps = []
+        self.current_index = -1          # -1 = chưa bắt đầu
+        self.state = ExecState.IDLE
+
+        self._waiting_step_done = False  # đã gửi Step, đang chờ robot BUSY->READY
+        self._delay_left = 0.0           # giây còn lại của Step DELAY đang chạy
+        self.error_message = ""          # lý do của ExecState.ERROR gần nhất
+        self._on_step_started = None     # callback(index, step)
+        self._on_step_done = None        # callback(index, step)
+        self._on_state_change = None     # callback(old_state, new_state)
+
+        # Backend báo BUSY->READY nghĩa là Step vừa gửi đã xong (STEP_DONE)
+        self.backend.set_status_change_callback(self._on_backend_status_change)
+
+    # ---------------- Callback đăng ký từ GUI ----------------
+    def set_callbacks(self, on_step_started=None, on_step_done=None, on_state_change=None):
+        self._on_step_started = on_step_started
+        self._on_step_done = on_step_done
+        self._on_state_change = on_state_change
+
+    # ---------------- Điều khiển vòng đời (mục 17-20) ----------------
+    def start(self, program_name):
+        """START (mục 17): validate trước, rồi bắt đầu gửi Step đầu tiên."""
+        is_valid, missing = self.program_store.validate(program_name, self.point_store)
+        if not is_valid:
+            raise ExecutorError(
+                f"Không thể START: chương trình tham chiếu Point không tồn tại: {missing}")
+
+        prog = self.program_store.get(program_name)
+        if not prog["steps"]:
+            raise ExecutorError("Không thể START: chương trình chưa có Step nào.")
+
+        self.program_name = program_name
+        self.steps = prog["steps"]
+        self.current_index = -1
+        self._set_state(ExecState.RUNNING)
+        self._send_next_step()
+
+    def pause(self):
+        """PAUSE (mục 18): yêu cầu robot controller giữ nguyên vị trí
+        NGAY LẬP TỨC (không chỉ ngừng gửi Step mới), đồng thời ngừng gửi
+        Step kế tiếp và giữ nguyên Step/trạng thái hiện tại."""
+        if self.state != ExecState.RUNNING:
+            return
+        self.backend.pause_motion()
+        self._set_state(ExecState.PAUSED)
+
+    def resume(self):
+        if self.state != ExecState.PAUSED:
+            return
+        self.backend.resume_motion()
+        self._set_state(ExecState.RUNNING)
+        if not self._waiting_step_done:
+            self._send_next_step()
+
+    def stop(self):
+        """STOP (mục 19): hủy NGAY chuyển động hiện tại (không giữ để
+        resume như PAUSE), dừng hẳn tiến trình Program, KHÔNG tự động
+        HOME. Muốn chạy lại phải RESET rồi START lại từ đầu."""
+        if self.state not in (ExecState.RUNNING, ExecState.PAUSED):
+            return
+        # QUAN TRỌNG: đặt cờ/trạng thái TRƯỚC khi gọi abort_motion(), vì
+        # abort_motion() có thể bắn callback status-change ĐỒNG BỘ ngay
+        # trong lệnh gọi này (BUSY->READY) — nếu chưa đặt cờ trước, executor
+        # sẽ tưởng đó là STEP_DONE của Step đang dang dở và tự gửi Step kế
+        # tiếp, dù người dùng vừa bấm STOP.
+        self._waiting_step_done = False
+        self._set_state(ExecState.STOPPED)
+        self.backend.abort_motion()
+
+    def fail(self, reason=""):
+        """Dừng chương trình vì LỖI từ robot (STM32 từ chối lệnh / báo fault) — khác stop() ở chỗ
+        state = ERROR để GUI phân biệt được. Không tự HOME."""
+        if self.state not in (ExecState.RUNNING, ExecState.PAUSED):
+            return
+        self.error_message = reason
+        self._waiting_step_done = False
+        self._set_state(ExecState.ERROR)
+        try:
+            self.backend.abort_motion()
+        except Exception:
+            pass   # best-effort: có thể đang mất kết nối; STM32 cũng tự dừng bằng watchdog
+
+    def reset(self):
+        """RESET (mục 20): reset trạng thái điều phối, KHÔNG tự động
+        HOME — RESET không phải lệnh homing."""
+        self.program_name = None
+        self.steps = []
+        self.current_index = -1
+        self._waiting_step_done = False
+        self.error_message = ""
+        self._set_state(ExecState.IDLE)
+
+    # ---------------- Nội bộ: gửi Step / nhận STEP_DONE ----------------
+    def _send_next_step(self):
+        if self.state != ExecState.RUNNING:
+            return
+        self.current_index += 1
+        if self.current_index >= len(self.steps):
+            self._set_state(ExecState.COMPLETED)
+            return
+
+        step = self.steps[self.current_index]
+        self._waiting_step_done = True
+        if self._on_step_started:
+            self._on_step_started(self.current_index, step)
+
+        if step["type"] == "MOVE":
+            point = self.point_store.get(step["point"])
+            self.backend.send_absolute_target(point)
+        elif step["type"] == "GRIP":
+            self.backend.grip(step["action"])
+        elif step["type"] == "DELAY":
+            self._delay_left = float(step["seconds"])
+            return  # hết giờ do update(dt) quyết định, không chờ backend
+        else:
+            raise ExecutorError(f"Loại Step không hợp lệ: {step['type']}")
+
+        # Trường hợp Step không cần di chuyển gì (target trùng actual sẵn)
+        # thì backend có thể vẫn ở READY ngay lập tức — không đợi callback.
+        if not self.backend.is_moving():
+            self._handle_step_done()
+
+    def _on_backend_status_change(self, old_status, new_status):
+        # BUSY -> READY khi đang chờ Step hiện tại = STEP_DONE (mục 16).
+        if new_status == RobotStatus.ERROR and self.state in (ExecState.RUNNING, ExecState.PAUSED):
+            self.fail("Robot báo lỗi")
+            return
+        # Step DELAY không chờ backend — bỏ qua READY lạc tới trong lúc chờ.
+        if (self._waiting_step_done and new_status == RobotStatus.READY
+                and self.steps[self.current_index]["type"] != "DELAY"):
+            self._handle_step_done()
+
+    def _handle_step_done(self):
+        if not self._waiting_step_done:
+            return
+        self._waiting_step_done = False
+        step = self.steps[self.current_index]
+        if self._on_step_done:
+            self._on_step_done(self.current_index, step)
+        if self.state == ExecState.RUNNING:
+            self._send_next_step()
+        # Nếu đang PAUSED/STOPPED thì dừng lại đúng tại đây, không gửi tiếp.
+
+    def update(self, dt):
+        """Gọi mỗi tick từ GUI — chỉ đếm giờ cho Step DELAY. PAUSED thì
+        không đếm nên thời gian còn lại được giữ nguyên."""
+        if self.state != ExecState.RUNNING or not self._waiting_step_done:
+            return
+        if self.steps[self.current_index]["type"] != "DELAY":
+            return
+        self._delay_left -= dt
+        if self._delay_left <= 0:
+            self._delay_left = 0.0
+            self._handle_step_done()
+
+    # ---------------- Trạng thái đọc ra ----------------
+    def get_progress(self):
+        """Trả về (current_step_1_based, total_steps) — 0/total nếu
+        chưa bắt đầu."""
+        total = len(self.steps)
+        current = max(0, self.current_index + (0 if self._waiting_step_done else 1))
+        if self.state == ExecState.COMPLETED:
+            current = total
+        return current, total
+
+    def current_step_description(self):
+        if 0 <= self.current_index < len(self.steps):
+            return describe_step(self.steps[self.current_index])
+        return "—"
+
+    def _set_state(self, new_state):
+        old = self.state
+        if old == new_state:
+            return
+        self.state = new_state
+        if self._on_state_change:
+            self._on_state_change(old, new_state)

@@ -1,0 +1,17 @@
+# ---- Keil MDK-ARM: file sinh ra khi build ----
+Code STM32/MDK-ARM/Graduate_project/
+Code STM32/MDK-ARM/*.lst
+*.uvguix.*
+*.uvguix_*
+*.bak
+*.dep
+
+# ---- Python ----
+__pycache__/
+*.pyc
+
+# ---- Editor / OS ----
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
