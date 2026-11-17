@@ -186,7 +186,7 @@ class ControlMixin:
     def _refresh_enabled_states(self):
         connected = self._connected()
         jog_ok = self._jog_allowed()
-        for row in self.jog_rows.values():
+        for row in list(self.jog_rows.values()) + list(self.cart_jog_rows.values()):
             row.set_enabled(jog_ok)
         if not connected:
             hint = "⚠ Chưa kết nối STM32 — vào Settings → Communication → Connect."

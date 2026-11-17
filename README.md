@@ -139,7 +139,7 @@ Mỗi 1 ms, ngắt TIM9 chạy lần lượt cho từng trục:
 
 | Khu vực | Chức năng |
 |---|---|
-| **JOG** | Di chuyển từng khớp theo bước (độ/mm). Chỉ hoạt động ở chế độ JOG và sau khi đã HOME |
+| **JOG** | Hai kiểu, chọn bằng nút chuyển trên đầu khung: **Khớp** (J1, J2, J3, Z theo độ/mm) hoặc **Tọa độ** (X, Y, Z theo mm và θ theo độ của đầu công tác, dùng động học ngược). Chỉ hoạt động ở chế độ JOG và sau khi đã HOME |
 | **Operation Monitor** | Vị trí đặt và vị trí thực của từng khớp; TCP (X, Y, Z, θ) theo động học thuận; trạng thái robot, home, pause, kẹp |
 | **Move to XYZθ** | Nhập tọa độ đầu công tác, GUI tính động học ngược ra góc khớp rồi di chuyển. Nút "⤓ Hiện tại" điền sẵn vị trí đang đứng; ô nào không sửa thì dùng giá trị chính xác (không bị sai số làm tròn), và nếu đích trùng vị trí hiện tại thì không gửi lệnh |
 | **Points** | Teach Point (lưu vị trí thực hiện tại), Save Position, đổi tên, xóa (bị chặn nếu Program đang dùng điểm đó), Move to Reference |
@@ -177,6 +177,20 @@ d_Z = z + h2
   - Nếu cả 2 đều hợp lệ thì chọn nghiệm **gần tư thế hiện tại nhất** (tổng |Δθ| của J1, J2, J3 nhỏ nhất).
 - **Báo lỗi** rõ lý do: quá xa, quá gần, Z ngoài giới hạn, hoặc cả 2 nghiệm đều vượt giới hạn khớp nào.
 - **Kiểm chứng:** 20 000 tư thế ngẫu nhiên trong giới hạn khớp đều cho kết quả FK(IK(p)) = p.
+
+**Đồng bộ khớp** ([uart_backend.py](Giao%20dien%20dieu%20khien/comm/uart_backend.py), hàm `_sync_profiles`).
+Áp dụng cho mọi lệnh di chuyển: JOG, Move to XYZθ, Move Here và Step MOVE.
+
+- **Vấn đề:** nếu mỗi khớp chạy với Vmax/Amax riêng, các khớp tới đích vào thời điểm khác nhau và đầu công tác đi vòng. Ví dụ JOG Y +5 mm có thể lệch khỏi đường thẳng khoảng 1.9 mm.
+- **Cách làm:** PC tính một quỹ đạo hình thang **chung theo tỉ lệ quãng đường**, nhanh nhất mà không khớp nào vượt giới hạn của nó:
+  ```
+  V = min_i (Vmax_i / d_i),   A = min_i (Amax_i / d_i)      (d_i = quãng đường của khớp i, counts)
+  VMAX_i = d_i · V,           AMAX_i = d_i · A
+  ```
+  rồi gửi `VMAX`/`AMAX` cho từng khớp trước lệnh `GOTO`. Chỉ gửi giá trị nào khác với giá trị STM32 đang dùng.
+- **Kết quả:** mọi khớp có cùng hình dạng quỹ đạo, nên **cùng xuất phát và cùng tới đích** (lệch dưới 1 ms khi mô phỏng đúng thuật toán của firmware). Đầu công tác đi thẳng trong không gian khớp, rất gần đường thẳng khi bước ngắn. Ví dụ JOG Y +5 mm chỉ lệch 0.03 mm, Y +10 mm lệch 0.13 mm. Tổng thời gian bằng thời gian của khớp chậm nhất, nên không chậm hơn so với khi chạy độc lập.
+- **Trước HOMING**, Vmax/Amax của mọi trục được trả về giá trị đầy đủ, vì tốc độ tìm home tính theo phần trăm Vmax.
+- **Không cần sửa firmware:** chỉ dùng các lệnh `VMAX`/`AMAX` đã có sẵn.
 
 **Chống nhận nhầm "Step đã xong":** trạng thái chỉ chuyển BUSY → READY khi mọi lệnh đã nhận `OK` **và** đã nhận thêm ít nhất một dòng `S` sau `OK` cuối cùng.
 
@@ -224,9 +238,14 @@ python main.py --scale 0.85    # thu nhỏ giao diện (máy yếu / màn hình 
    - Bấm **HOME** ở Quick Action. Các trục chạy chậm về cảm biến và dừng; vị trí được đặt bằng giá trị Home trong Settings.
    - Chờ Log báo `HOME_DONE`.
    - Chưa HOME thì GUI chặn JOG và START. Có công tắc *"Bỏ qua kiểm tra HOME"* nhưng chỉ dùng khi debug.
-3. **Dạy điểm:** ở chế độ **JOG**, đưa robot tới vị trí cần lưu (JOG từng khớp, hoặc nhập tọa độ ở **Move to XYZθ**),
-   đặt tên rồi bấm **Teach Point**.
+3. **Dạy điểm:** ở chế độ **JOG**, đưa robot tới vị trí cần lưu. Có ba cách: JOG từng khớp, JOG theo **Tọa độ X Y Z θ**,
+   hoặc nhập tọa độ ở **Move to XYZθ**. Sau đó đặt tên rồi bấm **Teach Point**.
 4. **Soạn chương trình:** tạo Program, thêm các Step MOVE / GRIP / DELAY. Nên thêm DELAY sau GRIP để kẹp kịp đóng hoặc mở.
+   Với pick and place, mỗi vị trí gắp hoặc đặt nên có **hai Point**: một điểm phía trên (Z cao) và một điểm phía dưới.
+   Robot đi ngang ở độ cao an toàn rồi mới hạ thẳng xuống, để tránh va vào vật:
+   ```
+   MOVE P1_tren → MOVE P1_duoi → GRIP ON → DELAY → MOVE P1_tren → MOVE P2_tren → MOVE P2_duoi → GRIP OFF → DELAY → MOVE P2_tren
+   ```
 5. **Chạy:** chuyển sang chế độ **Program**, chọn chương trình và bấm **START**. Có thể PAUSE/RESUME hoặc STOP bất kỳ lúc nào.
 6. **Khi có FAULT:**
    - Kiểm tra cơ khí và encoder trước.
@@ -296,11 +315,12 @@ python "Giao dien dieu khien/tools/uart_tool.py" COM5        # gõ lệnh trực
 
 ## 10. Giới hạn hiện tại và hướng phát triển
 
-- **Đường đi khi Move XYZθ / MOVE chưa phải đường thẳng.** Đã có động học ngược để đi tới đúng điểm đích, nhưng các
-  trục chạy độc lập theo quỹ đạo riêng và tới đích vào thời điểm khác nhau, nên đầu công tác đi theo đường cong.
-  Hướng phát triển:
-  - đồng bộ thời gian các trục để cùng tới đích một lúc;
-  - nội suy đường thẳng trong không gian Descartes (PC chia nhỏ quãng đường, gửi liên tục, firmware nhận nhiều điểm).
-- Chưa có JOG theo trục X/Y và Teach Point bằng tọa độ.
+- **Chưa có nội suy đường thẳng trong không gian Descartes.** Các khớp đã được đồng bộ nên đầu công tác đi thẳng
+  trong không gian khớp. Với bước ngắn, đường đi rất gần đường thẳng (dưới 1% bước ở tư thế thường). Với quãng dài
+  (vài chục mm trở lên) đường đi vẫn hơi cong. Robot dùng cho **pick and place trong không gian thoáng**, chỉ cần tới
+  đúng điểm đích và di chuyển ngang ở độ cao an toàn, nên không cần nội suy đường thẳng. Nếu sau này cần đi thẳng
+  thật (trượt theo thanh dẫn, đưa vào khe hẹp, vẽ, dán keo…), PC phải chia nhỏ quãng đường và gửi liên tục, đồng thời
+  firmware cần thêm hàng đợi điểm.
+- **JOG theo tọa độ là JOG từng bước,** chưa có kiểu giữ nút để chạy liên tục.
 - Kẹp không có cảm biến phản hồi; Step GRIP báo xong ngay khi STM32 xác nhận lệnh, nên cần DELAY để chờ kẹp đóng/mở.
 - Giao thức UART không có checksum; dòng hỏng chỉ bị bỏ qua.

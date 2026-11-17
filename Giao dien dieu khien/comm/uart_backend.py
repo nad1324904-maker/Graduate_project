@@ -80,6 +80,11 @@ class UartRobotBackend(RobotBackendBase):
         self.joint_limits = dict(DEFAULT_JOINT_LIMITS)
         self.max_velocity = dict(DEFAULT_MAX_VELOCITY)
 
+        # Đồng bộ khớp: Vmax/Amax ĐẦY ĐỦ từng trục (độ, mm) theo Settings, và giá trị VMAX/AMAX (counts) đã gửi gần nhất.
+        mp = robot_config.get_default_config()["motion_profile"]
+        self._profile = {a: (float(mp[a]["vmax"]), float(mp[a]["amax"])) for a in AXES}     # cập nhật bởi configure()
+        self._sent_profile = {}           # axis -> (vmax_counts, amax_counts) STM32 đang dùng
+
         # Kẹp PD9 không có cảm biến: commanded = trạng thái chân output firmware báo về (OK GRIP / dòng S), actual luôn None.
         self.gripper_commanded = "OFF"
         self.gripper_actual = None
@@ -244,6 +249,8 @@ class UartRobotBackend(RobotBackendBase):
             for cmd, args in cmds:
                 self._send(cmd, m, *args, tag="cfg")
                 self._config_left += 1
+            self._profile[axis] = (float(mp["vmax"]), float(mp["amax"]))
+            self._sent_profile[axis] = (vmax, amax)
 
     def clear_fault(self):
         """Xóa FAULT đã chốt trên cả 4 động cơ (CLEAR). Motor không tự chạy lại; mốc vị trí vẫn là encoder."""
@@ -283,14 +290,58 @@ class UartRobotBackend(RobotBackendBase):
         return max(lo, min(hi, value))
 
     def send_absolute_target(self, targets: dict):
-        """GOTO tuyệt đối cho từng trục có trong `targets` (đã kẹp theo giới hạn PC-side)."""
+        """GOTO tuyệt đối cho từng trục có trong `targets` (đã kẹp theo giới hạn PC-side). Các trục được ĐỒNG BỘ:
+        cùng xuất phát và cùng tới đích (xem _sync_profiles), nên đầu công tác đi gần đường thẳng khi bước ngắn."""
+        goals = {}
         for axis, value in targets.items():
             if axis not in MOTOR_OF_AXIS:
                 continue
             value = self._clamp_joint(axis, float(value))
-            counts = robot_config.units_to_counts(axis, value, self._enc[axis])
+            goals[axis] = (value, robot_config.units_to_counts(axis, value, self._enc[axis]))
+        self._sync_profiles({axis: abs(counts - robot_config.units_to_counts(axis, self.target[axis], self._enc[axis]))
+                             for axis, (_, counts) in goals.items()})
+        for axis, (value, counts) in goals.items():
             self._send_motion("GOTO", MOTOR_OF_AXIS[axis], counts)
             self.target[axis] = value
+
+    # ==================== Đồng bộ khớp ====================
+    def _full_profile_counts(self, axis):
+        """(VMAX, AMAX) đầy đủ của trục theo Settings, đổi ra counts/s, counts/s²."""
+        vmax, amax = self._profile[axis]
+        cpu = robot_config.counts_per_unit(axis, self._enc[axis])
+        return max(1, int(round(vmax * cpu))), max(1, int(round(amax * cpu)))
+
+    def _send_profile(self, axis, vmax, amax):
+        """Gửi VMAX/AMAX (counts) cho 1 trục — chỉ gửi giá trị nào khác với giá trị STM32 đang dùng."""
+        last = self._sent_profile.get(axis, (None, None))
+        motor = MOTOR_OF_AXIS[axis]
+        if last[0] != vmax:
+            self._send("VMAX", motor, vmax)
+        if last[1] != amax:
+            self._send("AMAX", motor, amax)
+        self._sent_profile[axis] = (vmax, amax)
+
+    def _restore_full_profiles(self):
+        """Trả mọi trục về Vmax/Amax đầy đủ (vd trước HOMING: tốc độ tìm = speed_pct % của VMAX đang dùng)."""
+        for axis in AXES:
+            self._send_profile(axis, *self._full_profile_counts(axis))
+
+    def _sync_profiles(self, distances):
+        """Đồng bộ khớp: distances = {axis: quãng đường (counts)}. Tìm một quỹ đạo hình thang CHUNG theo tỉ lệ quãng
+        đường (V = phần quãng đường / s, A = phần quãng đường / s²) nhanh nhất mà không trục nào vượt Vmax/Amax của nó:
+            V = min_i (Vmax_i / d_i),   A = min_i (Amax_i / d_i)
+        rồi đặt cho trục i:  VMAX_i = d_i·V,  AMAX_i = d_i·A.
+        Mọi trục có cùng hình dạng quỹ đạo (chỉ khác tỉ lệ) -> cùng xuất phát, cùng tới đích, đi thẳng trong không gian
+        khớp. Tổng thời gian bằng thời gian của trục chậm nhất (không chậm hơn khi chạy độc lập)."""
+        moving = {a: d for a, d in distances.items() if d > 0}
+        if not moving:
+            return
+        full = {a: self._full_profile_counts(a) for a in moving}
+        v = min(full[a][0] / d for a, d in moving.items())
+        acc = min(full[a][1] / d for a, d in moving.items())
+        for a, d in moving.items():
+            self._send_profile(a, max(1, min(full[a][0], int(round(d * v)))),
+                               max(1, min(full[a][1], int(round(d * acc)))))
 
     def jog(self, axis, direction, step):
         if axis not in MOTOR_OF_AXIS:
@@ -307,6 +358,7 @@ class UartRobotBackend(RobotBackendBase):
         self._pending_home = True
         self._is_homed = False
         try:
+            self._restore_full_profiles()          # tốc độ tìm home tính theo VMAX đầy đủ, không theo VMAX đã thu nhỏ khi đồng bộ
             for motor in AXIS_OF_MOTOR:
                 self._send_motion("HOMING", motor)
         except UartError:
@@ -316,6 +368,7 @@ class UartRobotBackend(RobotBackendBase):
 
     def go_home_position(self):
         """(Cách HOME cũ, không dùng cảm biến) đi tới vị trí 0 counts = J1=J2=J3=0°, Z=300 mm bằng lệnh HOME (GOTO 0)."""
+        self._restore_full_profiles()
         for motor in AXIS_OF_MOTOR:
             self._send_motion("HOME", motor)
         self.target = dict(HOME_POSITION)
