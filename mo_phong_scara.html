@@ -12,8 +12,9 @@
       x = h1 + l1·cos θ1 + l2·cos(θ1+θ2),  y = l1·sin θ1 + l2·sin(θ1+θ2),  z = Z − h2,  θ = θ1+θ2+θ3
   Động học ngược, giới hạn khớp, cách chọn nghiệm và cách ĐỒNG BỘ khớp (comm/uart_backend.py: _sync_profiles) cũng
   giống GUI, nên chuyển động trong mô phỏng giống robot thật.
-  Dữ liệu: nhúng sẵn bản chụp data/ lúc tạo file; bấm "Nạp file JSON…" (hoặc kéo-thả) để dùng robot_config.json,
-  points.json, programs.json mới nhất trong "Giao dien dieu khien/data/".
+  Dữ liệu: nhúng sẵn bản chụp data/ lúc tạo file. Bấm "🔗 Mở thư mục data" và chọn "Giao dien dieu khien/data" (Chrome / Edge)
+  để đọc dữ liệu mới nhất; trang nhớ thư mục cho lần sau. Teach Point và soạn chương trình ngay trong trang, bấm "💾 Lưu"
+  để ghi points.json / programs.json (cùng định dạng với GUI) vào thư mục đó — trình duyệt không hỗ trợ thì tải file xuống.
 -->
 <style>
   :root {
@@ -75,6 +76,13 @@
     font: inherit; font-weight: 600; color: var(--text); cursor: pointer; }
   .chip:hover { background: var(--accent-soft); border-color: var(--accent-soft); color: var(--accent-text); }
   .chip:disabled { color: var(--faint); cursor: not-allowed; background: var(--disabled); }
+  .chip.sel { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .tag { color: var(--amber); font-size: 12px; font-weight: 700; }
+  .edit { margin-top: 2px; }
+  .sep-line { height: 1px; background: var(--border); margin: 12px 0 10px; }
+  .step { cursor: pointer; }
+  .step:hover { background: #e6edf7; }
+  .step.sel { box-shadow: inset 0 0 0 2px var(--accent); background: #fff; }
 
   .progress { height: 8px; background: var(--input); border-radius: 99px; overflow: hidden; margin-top: 10px; }
   .progress > div { height: 100%; width: 0; background: var(--green); transition: width .15s; }
@@ -153,9 +161,17 @@
     </div>
 
     <div class="card">
-      <div class="card-h"><span>📂 Dữ liệu</span><button class="btn small" id="btnLoad">Nạp file JSON…</button></div>
-      <div class="note" id="dataSource">—</div>
+      <div class="card-h"><span>📂 Dữ liệu</span><span class="tag" id="dirtyTag" hidden>● Có thay đổi chưa lưu</span></div>
+      <div class="row split" style="margin-top:0">
+        <button class="btn small primary" id="btnDir" title="Chọn thư mục Giao dien dieu khien\data: đọc dữ liệu mới nhất và lưu thẳng vào đó">🔗 Mở thư mục data</button>
+        <button class="btn small green" id="btnSave" title="Lưu points.json + programs.json">💾 Lưu</button>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button class="btn small grow" id="btnLoad" title="Mở từng file JSON (không lưu ngược lại được)">Nạp file JSON…</button>
+      </div>
+      <div class="note" id="dataSource" style="margin-top:8px">—</div>
       <div class="note" id="paramLine" style="margin-top:4px">—</div>
+      <div class="msg" id="dataMsg"></div>
       <input type="file" id="fileInput" accept=".json,application/json" multiple hidden>
     </div>
 
@@ -180,14 +196,49 @@
     </div>
 
     <div class="card">
-      <div class="card-h"><span>📍 Points</span><span class="note">bấm để đi tới</span></div>
+      <div class="card-h"><span>📍 Points (Teach)</span><span class="note" id="ptSel">bấm 1 Point để chọn</span></div>
       <div class="chips" id="pointChips"></div>
+      <div class="row split">
+        <button class="btn small primary" id="btnTeach" title="Lưu tư thế hiện tại thành Point mới">📌 Teach Point</button>
+        <button class="btn small" id="btnPtGo">▶ Đi tới</button>
+        <button class="btn small" id="btnPtSave" title="Ghi tư thế hiện tại vào Point đang chọn">⟳ Cập nhật</button>
+      </div>
+      <div class="row split" style="margin-top:6px">
+        <button class="btn small" id="btnPtRename">✎ Đổi tên</button>
+        <button class="btn small" id="btnPtDelete">🗑 Xóa</button>
+      </div>
+      <div class="msg info" id="ptMsg">JOG robot tới vị trí cần lưu rồi bấm Teach Point.</div>
     </div>
 
     <div class="card">
-      <div class="card-h"><span>▶ Chạy chương trình</span></div>
+      <div class="card-h"><span>📝 Chương trình</span><span class="note">bấm 1 Step để chọn</span></div>
       <div class="row" style="margin-top:0">
         <select id="progSelect" class="grow"></select>
+        <button class="btn small" id="btnProgNew" title="Tạo chương trình mới">＋ Mới</button>
+        <button class="btn small" id="btnProgDel" title="Xóa chương trình đang chọn">🗑</button>
+      </div>
+      <div class="steps" id="stepList"></div>
+      <div class="edit">
+        <div class="row"><select id="movePoint" class="grow"></select><button class="btn small primary" id="btnAddMove">＋ MOVE</button></div>
+        <div class="row split">
+          <button class="btn small green" id="btnAddGripOn">＋ GRIP ON</button>
+          <button class="btn small green" id="btnAddGripOff">＋ GRIP OFF</button>
+        </div>
+        <div class="row">
+          <input class="num" id="delaySec" type="number" value="0.5" min="0.1" max="60" step="0.1" style="width:76px">
+          <span class="note grow">giây</span><button class="btn small amber" id="btnAddDelay">＋ DELAY</button>
+        </div>
+        <div class="row split">
+          <button class="btn small" id="btnStepEdit" title="MOVE: đổi sang Point trong ô trên · DELAY: đổi số giây · GRIP: đảo ON/OFF">✎ Sửa</button>
+          <button class="btn small" id="btnStepUp" title="Đưa Step lên trên">▲</button>
+          <button class="btn small" id="btnStepDown" title="Đưa Step xuống dưới">▼</button>
+          <button class="btn small" id="btnStepDel">🗑 Xóa</button>
+        </div>
+        <div class="msg info" id="progMsg">Step mới được chèn ngay SAU Step đang chọn (không chọn thì thêm vào cuối).</div>
+      </div>
+      <div class="sep-line"></div>
+      <div class="row" style="margin-top:0">
+        <span class="note grow">Chạy thử</span>
         <select id="speedSelect" style="width:86px" title="Tốc độ mô phỏng">
           <option value="0.25">×0.25</option><option value="0.5">×0.5</option><option value="1" selected>×1</option>
           <option value="2">×2</option><option value="5">×5</option><option value="10">×10</option>
@@ -376,6 +427,9 @@ const S = {
   grip: 0, gripTarget: 0,                    // 0 = mở, 1 = đóng
   speed: 1,
   cartExact: {},                             // ô tọa độ do "⤓ Hiện tại" điền: { tên: [chuỗi, giá trị chính xác] }
+  selPoint: null, selStep: null,             // Point / Step đang chọn để sửa
+  dirty: false,                              // Point / chương trình đã sửa mà chưa lưu
+  dirHandle: null,                           // thư mục data đã chọn (File System Access API — Chrome / Edge)
 };
 const R = { state: "idle", name: null, steps: [], idx: -1, wait: 0 };   // bộ chạy chương trình
 const busy = () => R.state === "running" || R.state === "paused";
@@ -412,15 +466,110 @@ function applyData(d, label) {
   for (const a of AXES) S.q[a] = clamp(S.q[a], S.lim[a][0], S.lim[a][1]);
   S.qTarget = { ...S.q };
   S.cartExact = {};
-  buildRobot(); buildWorkspace(); buildPointMarkers(); buildJointUI(); buildPointChips(); buildProgramSelect();
+  if (d.points || d.programs) { S.selPoint = null; S.selStep = null; setDirty(false); }
+  buildRobot(); buildWorkspace(); buildJointUI(); refreshPointsUI(); buildProgramSelect();
   $("dataSource").textContent = S.source;
-  $("paramLine").textContent = `l1 = ${g(S.p.l1)} · l2 = ${g(S.p.l2)} · h1 = ${g(S.p.h1)} · h2 = ${g(S.p.h2)} mm · `
-    + `Z ${g(S.lim.Z[0])}…${g(S.lim.Z[1])} mm · ${Object.keys(S.points).length} Point · ${Object.keys(S.programs).length} chương trình`;
+  updateParamLine();
   clearTrail();
   invalidate();
 }
+function updateParamLine() {
+  $("paramLine").textContent = `l1 = ${g(S.p.l1)} · l2 = ${g(S.p.l2)} · h1 = ${g(S.p.h1)} · h2 = ${g(S.p.h2)} mm · `
+    + `Z ${g(S.lim.Z[0])}…${g(S.lim.Z[1])} mm · ${Object.keys(S.points).length} Point · ${Object.keys(S.programs).length} chương trình`;
+}
+function goHomePose() { S.motion = null; S.q = { ...S.home }; S.qTarget = { ...S.q }; clearTrail(); invalidate(); }
+function setDirty(v) { S.dirty = v; $("dirtyTag").hidden = !v; }
+const okToDiscard = () => !S.dirty || confirm("Point / chương trình đang có thay đổi CHƯA LƯU. Bỏ các thay đổi đó và đọc dữ liệu mới?");
+
+// ---- Thư mục data (File System Access API): đọc dữ liệu mới nhất + lưu thẳng points.json / programs.json ----
+const DATA_FILES = { config: "robot_config.json", points: "points.json", programs: "programs.json" };
+function idb() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open("scara-sim", 1);
+    r.onupgradeneeded = () => r.result.createObjectStore("kv");
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+}
+async function idbGet(k) { const db = await idb(); return new Promise(res => { const q = db.transaction("kv").objectStore("kv").get(k); q.onsuccess = () => res(q.result); q.onerror = () => res(undefined); }); }
+async function idbSet(k, v) { const db = await idb(); return new Promise(res => { const t = db.transaction("kv", "readwrite"); t.objectStore("kv").put(v, k); t.oncomplete = res; t.onerror = res; }); }
+async function readDir(h) {
+  const d = {}, names = [];
+  for (const [key, name] of Object.entries(DATA_FILES)) {
+    try { d[key] = JSON.parse(await (await (await h.getFileHandle(name)).getFile()).text()); names.push(name); }
+    catch (e) { if (e.name !== "NotFoundError") throw new Error(`${name}: ${e.message}`); }
+  }
+  return { d, names };
+}
+async function openDataDir() {
+  if (!window.showDirectoryPicker)
+    return setMsg("dataMsg", "Trình duyệt này không hỗ trợ mở thư mục — hãy dùng Chrome hoặc Edge. Vẫn có thể dùng 'Nạp file JSON…'; "
+      + "khi bấm Lưu, file sẽ được tải xuống để bạn chép vào thư mục data.", "warn");
+  if (!okToDiscard()) return;
+  try {
+    let h = S.dirHandle, granted = false;
+    if (h) granted = (await h.requestPermission({ mode: "readwrite" })) === "granted";   // thư mục đã nhớ: chỉ cần cho phép lại
+    if (!granted) { h = await window.showDirectoryPicker({ id: "scara-data", mode: "readwrite" }); }
+    const { d, names } = await readDir(h);
+    if (!names.length)
+      return setMsg("dataMsg", `Thư mục '${h.name}' không có robot_config.json / points.json / programs.json — hãy chọn thư mục `
+        + `"Giao dien dieu khien\\data".`, "err");
+    S.dirHandle = h;
+    try { await idbSet("dataDir", h); } catch (_) { /* không nhớ được thì lần sau chọn lại */ }
+    applyData(d, `📂 Thư mục '${h.name}' — đọc lúc ${new Date().toLocaleTimeString("vi-VN")} (Lưu sẽ ghi vào đây)`);
+    goHomePose(); refreshDirButton();
+    setMsg("dataMsg", `Đã đọc ${names.join(", ")}.`, "ok");
+  } catch (e) {
+    if (e.name !== "AbortError") setMsg("dataMsg", "Không mở được thư mục: " + e.message, "err");
+  }
+}
+async function restoreDataDir() {                // mở lại trang: nếu trình duyệt còn giữ quyền thì tự đọc thư mục đã chọn lần trước
+  if (!window.showDirectoryPicker) return;
+  try {
+    const h = await idbGet("dataDir");
+    if (!h) return;
+    S.dirHandle = h; refreshDirButton();
+    if ((await h.queryPermission({ mode: "readwrite" })) !== "granted") {
+      setMsg("dataMsg", `Bấm "🔗 Mở lại thư mục data" để đọc dữ liệu mới nhất từ '${h.name}'.`, "info");
+      return;
+    }
+    const { d, names } = await readDir(h);
+    if (names.length) {
+      applyData(d, `📂 Thư mục '${h.name}' — đọc lúc ${new Date().toLocaleTimeString("vi-VN")} (Lưu sẽ ghi vào đây)`);
+      goHomePose();
+    }
+  } catch (_) { /* bỏ qua: dùng dữ liệu nhúng sẵn */ }
+}
+function refreshDirButton() { $("btnDir").textContent = S.dirHandle ? "🔗 Mở lại thư mục data" : "🔗 Mở thư mục data"; }
+const toJson = obj => JSON.stringify(obj, null, 2);      // cùng kiểu thụt lề với json.dump(indent=2) của GUI
+async function saveData() {
+  const files = { "points.json": S.points, "programs.json": S.programs };
+  if (S.dirHandle) {
+    try {
+      let perm = await S.dirHandle.queryPermission({ mode: "readwrite" });
+      if (perm !== "granted") perm = await S.dirHandle.requestPermission({ mode: "readwrite" });
+      if (perm !== "granted") return setMsg("dataMsg", "Chưa được cấp quyền ghi vào thư mục data.", "err");
+      for (const [name, obj] of Object.entries(files)) {
+        const w = await (await S.dirHandle.getFileHandle(name, { create: true })).createWritable();
+        await w.write(toJson(obj)); await w.close();
+      }
+      setDirty(false);
+      return setMsg("dataMsg", `Đã lưu points.json + programs.json vào '${S.dirHandle.name}'. Nếu giao diện điều khiển đang mở, `
+        + "hãy TẮT rồi mở lại nó để thấy dữ liệu mới (GUI chỉ đọc file lúc khởi động).", "ok");
+    } catch (e) { return setMsg("dataMsg", "Không lưu được: " + e.message, "err"); }
+  }
+  for (const [name, obj] of Object.entries(files)) {                      // không có thư mục: tải file xuống
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([toJson(obj)], { type: "application/json" }));
+    a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+  setDirty(false);
+  setMsg("dataMsg", "Đã tải xuống points.json + programs.json — hãy chép đè vào thư mục \"Giao dien dieu khien\\data\". "
+    + "(Bấm 🔗 Mở thư mục data để lần sau lưu thẳng vào đó.)", "ok");
+}
 
 function readJsonFiles(files) {
+  if (!okToDiscard()) return;
   const found = {}, names = [];
   return Promise.all([...files].map(f => f.text().then(t => {
     let obj;
@@ -435,8 +584,8 @@ function readJsonFiles(files) {
     names.push(f.name);
   }))).then(() => {
     applyData(found, `Đã nạp: ${names.join(", ")} (${new Date().toLocaleTimeString("vi-VN")})`);
-    setMsg("runMsg", `Đã nạp ${names.length} file.`, "ok");
-  }).catch(e => setMsg("runMsg", e.message, "err"));
+    setMsg("dataMsg", `Đã nạp ${names.length} file.` + (S.dirHandle ? "" : " Bấm Lưu sẽ TẢI FILE XUỐNG (chưa mở thư mục data)."), "ok");
+  }).catch(e => setMsg("dataMsg", e.message, "err"));
 }
 
 async function tryAutoFetch() {
@@ -447,7 +596,7 @@ async function tryAutoFetch() {
   const [config, points, programs] = await Promise.all([get("robot_config.json"), get("points.json"), get("programs.json")]);
   const d = {};
   if (config) d.config = config; if (points) d.points = points; if (programs) d.programs = programs;
-  if (Object.keys(d).length) applyData(d, "Tự động đọc từ Giao dien dieu khien/data/ (qua http)");
+  if (Object.keys(d).length && !S.dirHandle) { applyData(d, "Tự động đọc từ Giao dien dieu khien/data/ (qua http)"); goHomePose(); }
 }
 
 // ---------------- Cảnh 3D ----------------
@@ -847,20 +996,193 @@ function moveTo(target, onDone) {
   return m;
 }
 
-// ---------------- Points ----------------
+// ---------------- Points (Teach) ----------------
+// Các hàm *Core sửa dữ liệu và trả về chuỗi lỗi (giống PointError / ProgramError của GUI) hoặc null nếu thành công.
+const jointsOf = q => ({ J1: q.J1, J2: q.J2, J3: q.J3, Z: q.Z });
+const pointRefs = name => Object.entries(S.programs)
+  .filter(([, p]) => p.steps.some(s => s.type === "MOVE" && s.point === name)).map(([n]) => n);
+function teachPointCore(name, q = S.q) {
+  name = String(name ?? "").trim();
+  if (!name) return "Tên Point không được để trống.";
+  if (S.points[name]) return `Point '${name}' đã tồn tại — chọn nó rồi bấm Cập nhật để ghi đè vị trí.`;
+  S.points[name] = jointsOf(q); S.selPoint = name;
+  return null;
+}
+function updatePointCore(name, q = S.q) {
+  if (!S.points[name]) return "Chưa chọn Point nào — bấm 1 Point để chọn, hoặc dùng Teach Point để tạo mới.";
+  S.points[name] = jointsOf(q);
+  return null;
+}
+function renamePointCore(oldName, newName) {
+  newName = String(newName ?? "").trim();
+  if (!S.points[oldName]) return "Chưa chọn Point nào để đổi tên.";
+  if (!newName) return "Tên mới không được để trống.";
+  if (newName === oldName) return null;
+  if (S.points[newName]) return `Point '${newName}' đã tồn tại.`;
+  S.points[newName] = S.points[oldName]; delete S.points[oldName];
+  for (const p of Object.values(S.programs))                       // giống rename_point_reference() của GUI
+    for (const s of p.steps) if (s.type === "MOVE" && s.point === oldName) s.point = newName;
+  S.selPoint = newName;
+  return null;
+}
+function deletePointCore(name) {
+  if (!S.points[name]) return "Chưa chọn Point nào để xóa.";
+  const refs = pointRefs(name);
+  if (refs.length) return `Không thể xóa '${name}': đang được dùng trong chương trình ${refs.join(", ")}.`;
+  delete S.points[name];
+  if (S.selPoint === name) S.selPoint = null;
+  return null;
+}
+function refreshPointsUI() { buildPointChips(); buildPointMarkers(); buildMovePointSelect(); updateParamLine(); }
+function afterPointsChange() { setDirty(true); refreshPointsUI(); buildProgramPath(); renderSteps(); refreshRunUI(); }
 function buildPointChips() {
   const box = $("pointChips"); box.innerHTML = "";
+  if (S.selPoint && !S.points[S.selPoint]) S.selPoint = null;
+  $("ptSel").textContent = S.selPoint ? `đang chọn: ${S.selPoint}` : "bấm 1 Point để chọn";
   const names = Object.keys(S.points).sort();
-  if (!names.length) { box.innerHTML = `<span class="note">Chưa có Point.</span>`; return; }
+  if (!names.length) { box.innerHTML = `<span class="note">Chưa có Point — JOG robot tới vị trí cần lưu rồi bấm Teach Point.</span>`; return; }
   for (const n of names) {
-    const b = document.createElement("button"); b.className = "chip"; b.textContent = n;
+    const b = document.createElement("button"), v = S.points[n];
+    b.className = "chip" + (n === S.selPoint ? " sel" : ""); b.textContent = n;
+    b.title = `J1 ${(+v.J1).toFixed(2)}°  J2 ${(+v.J2).toFixed(2)}°  J3 ${(+v.J3).toFixed(2)}°  Z ${(+v.Z).toFixed(2)} mm\nNhấp đúp để đi tới`;
     b.addEventListener("click", () => {
-      if (busy()) return setMsg("ikMsg", "Đang chạy chương trình — bấm Dừng trước.", "warn");
-      const m = moveTo(S.points[n]);
-      setMsg("ikMsg", `Đi tới Point ${n} (${m.T.toFixed(2)} s).`, "ok");
+      S.selPoint = n; buildPointChips(); refreshRunUI();
+      if ([...$("movePoint").options].some(o => o.value === n)) $("movePoint").value = n;   // tiện thêm MOVE tới Point vừa chọn
     });
+    b.addEventListener("dblclick", () => goToPoint(n));
     box.appendChild(b);
   }
+}
+function buildMovePointSelect() {
+  const sel = $("movePoint"), prev = sel.value, names = Object.keys(S.points).sort();
+  sel.innerHTML = "";
+  for (const n of names) { const o = document.createElement("option"); o.value = o.textContent = n; sel.appendChild(o); }
+  if (!names.length) { const o = document.createElement("option"); o.value = ""; o.textContent = "(chưa có Point)"; sel.appendChild(o); }
+  if (names.includes(prev)) sel.value = prev;
+}
+function goToPoint(n) {
+  if (busy()) return setMsg("ptMsg", "Đang chạy chương trình — bấm Dừng trước.", "warn");
+  if (!S.points[n]) return setMsg("ptMsg", "Chưa chọn Point nào — bấm 1 Point để chọn.", "warn");
+  const m = moveTo(S.points[n]);
+  setMsg("ptMsg", `Đi tới Point ${n} (${m.T.toFixed(2)} s).`, "ok");
+}
+function ptAction(err, okText) {
+  if (err) return setMsg("ptMsg", err, "err");
+  afterPointsChange(); setMsg("ptMsg", okText, "ok");
+}
+const robotStill = () => !busy() && !S.motion;
+function suggestPointName() { let i = 1; while (S.points["P" + i]) i++; return "P" + i; }
+function uiTeach() {
+  if (!robotStill()) return setMsg("ptMsg", "Robot đang di chuyển — đợi dừng hẳn rồi mới Teach.", "warn");
+  const name = prompt("Tên Point mới (VD: PICK, P1_tren):", suggestPointName());
+  if (name === null) return;
+  ptAction(teachPointCore(name), `Đã tạo Point '${String(name).trim()}' từ tư thế hiện tại.`);
+}
+function uiPtUpdate() {
+  if (!robotStill()) return setMsg("ptMsg", "Robot đang di chuyển — đợi dừng hẳn rồi mới Cập nhật.", "warn");
+  const n = S.selPoint;
+  if (!n) return setMsg("ptMsg", updatePointCore(n), "err");
+  if (!confirm(`Ghi tư thế hiện tại của robot vào Point '${n}'?`)) return;
+  ptAction(updatePointCore(n), `Đã cập nhật Point '${n}' theo tư thế hiện tại.`);
+}
+function uiPtRename() {
+  const old = S.selPoint;
+  if (!old) return setMsg("ptMsg", renamePointCore(old, ""), "err");
+  const nn = prompt(`Tên mới cho '${old}':`, old);
+  if (nn === null) return;
+  ptAction(renamePointCore(old, nn), `Đã đổi tên '${old}' → '${S.selPoint}' (đã sửa luôn mọi Step MOVE dùng tên cũ).`);
+}
+function uiPtDelete() {
+  const n = S.selPoint;
+  if (!n || pointRefs(n).length) return setMsg("ptMsg", deletePointCore(n), "err");
+  if (!confirm(`Xóa Point '${n}'?`)) return;
+  ptAction(deletePointCore(n), `Đã xóa Point '${n}'.`);
+}
+
+// ---------------- Chương trình (soạn thảo) ----------------
+const curProgName = () => $("progSelect").value;
+const curProg = () => S.programs[curProgName()];
+function newProgramCore(name) {
+  name = String(name ?? "").trim();
+  if (!name) return "Tên chương trình không được để trống.";
+  if (S.programs[name]) return `Chương trình '${name}' đã tồn tại.`;
+  S.programs[name] = { description: "", steps: [] };
+  return null;
+}
+function deleteProgramCore(name) {
+  if (!S.programs[name]) return "Chưa chọn chương trình nào.";
+  delete S.programs[name];
+  return null;
+}
+function makeStep(kind) {                                 // tạo Step từ các ô nhập; trả [step, lỗi]
+  if (kind === "MOVE") {
+    const p = $("movePoint").value;
+    if (S.points[p]) return [{ type: "MOVE", point: p }, null];
+    return [null, Object.keys(S.points).length ? "Chọn Point cho MOVE trong ô bên trái nút ＋ MOVE."
+                                               : "Chưa có Point nào để thêm MOVE — hãy Teach Point trước."];
+  }
+  if (kind === "GRIP ON" || kind === "GRIP OFF") return [{ type: "GRIP", action: kind.slice(5) }, null];
+  const s = parseFloat(String($("delaySec").value).replace(",", "."));
+  return Number.isFinite(s) && s >= 0.1 && s <= 60 ? [{ type: "DELAY", seconds: s }, null] : [null, "DELAY phải từ 0.1 đến 60 giây."];
+}
+function insertStepCore(step) {                           // chèn SAU Step đang chọn (giống insert_step của GUI)
+  const p = curProg();
+  if (!p) return "Chưa có chương trình — bấm ＋ Mới để tạo.";
+  const after = S.selStep, pos = after === null ? p.steps.length : after + 1;
+  p.steps.splice(pos, 0, step);
+  if (after !== null) S.selStep = pos;
+  return null;
+}
+function editStepCore() {                                 // giống _on_edit_step của GUI
+  const p = curProg(), i = S.selStep;
+  if (!p || i === null || !p.steps[i]) return "Chưa chọn Step nào để sửa — bấm vào 1 dòng trong danh sách trước.";
+  const st = p.steps[i];
+  if (st.type === "MOVE") { const [ns, err] = makeStep("MOVE"); if (err) return err; p.steps[i] = ns; }
+  else if (st.type === "DELAY") { const [ns, err] = makeStep("DELAY"); if (err) return err; p.steps[i] = ns; }
+  else p.steps[i] = { type: "GRIP", action: st.action === "ON" ? "OFF" : "ON" };
+  return null;
+}
+function moveStepCore(dir) {
+  const p = curProg(), i = S.selStep;
+  if (!p || i === null || !p.steps[i]) return "Chưa chọn Step nào để đổi thứ tự.";
+  const j = i + dir;
+  if (j < 0 || j >= p.steps.length) return null;
+  [p.steps[i], p.steps[j]] = [p.steps[j], p.steps[i]];
+  S.selStep = j;
+  return null;
+}
+function deleteStepCore() {
+  const p = curProg(), i = S.selStep;
+  if (!p || i === null || !p.steps[i]) return "Chưa chọn Step nào để xóa.";
+  p.steps.splice(i, 1);
+  S.selStep = null;
+  return null;
+}
+function progAction(err, okText) {
+  if (err) return setMsg("progMsg", err, "err");
+  setDirty(true); renderSteps(); buildProgramPath(); updateParamLine(); refreshRunUI();
+  if (okText) setMsg("progMsg", okText, "ok");
+}
+function uiNewProgram() {
+  const name = prompt("Tên chương trình mới:", "");
+  if (name === null) return;
+  const err = newProgramCore(name);
+  if (err) return setMsg("progMsg", err, "err");
+  S.selStep = null; buildProgramSelect(); $("progSelect").value = String(name).trim();
+  progAction(null, `Đã tạo chương trình '${String(name).trim()}' — thêm Step bằng các nút bên dưới.`);
+}
+function uiDeleteProgram() {
+  const n = curProgName();
+  if (!S.programs[n]) return setMsg("progMsg", "Chưa chọn chương trình nào.", "err");
+  if (!confirm(`Xóa chương trình '${n}' (${S.programs[n].steps.length} Step)?`)) return;
+  deleteProgramCore(n); S.selStep = null; buildProgramSelect();
+  progAction(null, `Đã xóa chương trình '${n}'.`);
+}
+function uiAddStep(kind) {
+  const [st, err] = makeStep(kind);
+  if (err) return setMsg("progMsg", err, "err");
+  const e2 = insertStepCore(st);
+  progAction(e2, e2 ? "" : `Đã thêm ${st.type} ${describe(st)}.`);
 }
 
 // ---------------- Chạy chương trình ----------------
@@ -871,21 +1193,31 @@ function buildProgramSelect() {
   for (const n of names) { const o = document.createElement("option"); o.value = o.textContent = n; sel.appendChild(o); }
   if (!names.length) { const o = document.createElement("option"); o.value = ""; o.textContent = "(chưa có chương trình)"; sel.appendChild(o); }
   if (names.includes(prev)) sel.value = prev;
+  if (sel.value !== prev) S.selStep = null;
   renderSteps(); buildProgramPath(); refreshRunUI();
 }
 function describe(st) {
   return st.type === "MOVE" ? `→ ${st.point}` : st.type === "DELAY" ? `${g(st.seconds)} s` : st.action;
 }
 function renderSteps() {
-  const box = $("stepList"), name = $("progSelect").value, prog = S.programs[name];
+  const box = $("stepList"), name = curProgName(), prog = S.programs[name];
   box.innerHTML = "";
-  if (!prog) { box.innerHTML = `<div class="note" style="padding:6px">Chưa có chương trình.</div>`; return; }
+  if (!prog) { box.innerHTML = `<div class="note" style="padding:6px">Chưa có chương trình — bấm ＋ Mới để tạo.</div>`; return; }
+  if (!prog.steps.length) { box.innerHTML = `<div class="note" style="padding:6px">Chưa có Step nào.</div>`; return; }
+  if (S.selStep !== null && S.selStep >= prog.steps.length) S.selStep = null;
   const mine = R.name === name && R.state !== "idle";
   prog.steps.forEach((st, i) => {
     const row = document.createElement("div");
-    row.className = "step" + (mine && i === R.idx && busy() ? " cur" : "") + (mine && (i < R.idx || R.state === "done") ? " done" : "");
+    row.className = "step" + (mine && i === R.idx && busy() ? " cur" : "") + (mine && (i < R.idx || R.state === "done") ? " done" : "")
+      + (!busy() && i === S.selStep ? " sel" : "");
     row.innerHTML = `<span class="no">${String(i + 1).padStart(2, "0")}</span><span class="pill ${st.type}">${st.type}</span><span></span>`;
-    row.lastChild.textContent = describe(st);
+    row.lastChild.textContent = describe(st) + (st.type === "MOVE" && !S.points[st.point] ? "  ⚠ chưa có Point" : "");
+    row.addEventListener("click", () => {
+      if (busy()) return;
+      S.selStep = S.selStep === i ? null : i; renderSteps();
+      if (st.type === "MOVE" && S.points[st.point]) $("movePoint").value = st.point;
+      if (st.type === "DELAY") $("delaySec").value = st.seconds;
+    });
     box.appendChild(row);
     if (row.classList.contains("cur")) row.scrollIntoView({ block: "nearest" });
   });
@@ -901,6 +1233,11 @@ function refreshRunUI() {
   for (const c of Object.values(ui.cart)) c.buttons.forEach(b => (b.disabled = busy()));
   for (const id of ["btnGo", "btnHome", "btnGrip"]) $(id).disabled = busy();
   document.querySelectorAll(".chip").forEach(b => (b.disabled = busy()));
+  for (const id of ["btnTeach", "btnPtGo", "btnPtSave", "btnPtRename", "btnPtDelete", "btnProgNew", "btnProgDel", "movePoint",
+                    "btnAddMove", "btnAddGripOn", "btnAddGripOff", "delaySec", "btnAddDelay", "btnStepEdit", "btnStepUp",
+                    "btnStepDown", "btnStepDel", "btnDir", "btnLoad"]) $(id).disabled = busy();
+  const p = curProg();
+  $("btnRun").disabled = !p || !p.steps.length || busy();
   const total = R.steps.length, done = R.state === "done" ? total : Math.max(0, R.idx);
   $("progBar").style.width = total ? `${(100 * done) / total}%` : "0";
   $("progText").textContent = R.state === "idle" ? "—" : `${done} / ${total}` + (busy() && R.steps[R.idx] ?
@@ -1016,7 +1353,26 @@ function setupUI() {
   $("btnGrip").addEventListener("click", () => { if (!busy()) { S.gripTarget = S.gripTarget ? 0 : 1; invalidate(); } });
   $("btnFill").addEventListener("click", () => { fillCart(forwardKinematics(S.q, S.p)); setMsg("ikMsg", "Đã điền vị trí đang đứng.", "info"); });
   $("btnGo").addEventListener("click", goToCart);
-  $("progSelect").addEventListener("change", () => { if (R.state === "done") R.state = "idle"; renderSteps(); buildProgramPath(); refreshRunUI(); });
+  $("progSelect").addEventListener("change", () => { if (R.state === "done") R.state = "idle"; S.selStep = null; renderSteps(); buildProgramPath(); refreshRunUI(); });
+  // Dữ liệu + Teach Point + soạn chương trình
+  $("btnDir").addEventListener("click", openDataDir);
+  $("btnSave").addEventListener("click", saveData);
+  $("btnTeach").addEventListener("click", uiTeach);
+  $("btnPtGo").addEventListener("click", () => goToPoint(S.selPoint));
+  $("btnPtSave").addEventListener("click", uiPtUpdate);
+  $("btnPtRename").addEventListener("click", uiPtRename);
+  $("btnPtDelete").addEventListener("click", uiPtDelete);
+  $("btnProgNew").addEventListener("click", uiNewProgram);
+  $("btnProgDel").addEventListener("click", uiDeleteProgram);
+  $("btnAddMove").addEventListener("click", () => uiAddStep("MOVE"));
+  $("btnAddGripOn").addEventListener("click", () => uiAddStep("GRIP ON"));
+  $("btnAddGripOff").addEventListener("click", () => uiAddStep("GRIP OFF"));
+  $("btnAddDelay").addEventListener("click", () => uiAddStep("DELAY"));
+  $("btnStepEdit").addEventListener("click", () => progAction(editStepCore(), "Đã sửa Step."));
+  $("btnStepUp").addEventListener("click", () => progAction(moveStepCore(-1), ""));
+  $("btnStepDown").addEventListener("click", () => progAction(moveStepCore(+1), ""));
+  $("btnStepDel").addEventListener("click", () => progAction(deleteStepCore(), "Đã xóa Step."));
+  window.addEventListener("beforeunload", e => { if (S.dirty) { e.preventDefault(); e.returnValue = ""; } });
   $("speedSelect").addEventListener("change", e => { S.speed = +e.target.value; });
   $("btnRun").addEventListener("click", runProgram);
   $("btnPause").addEventListener("click", pauseProgram);
@@ -1053,6 +1409,7 @@ function selfTestDone() {
   S.q = { ...S.home }; S.qTarget = { ...S.q }; clearTrail();
   setView("iso");
   $("loading").remove();
+  await restoreDataDir();                       // thư mục data đã chọn lần trước (nếu trình duyệt còn giữ quyền)
   tryAutoFetch();
   requestAnimationFrame(t => { last = t; frame(t); });
   if (location.hash === "#selftest") {
@@ -1060,7 +1417,9 @@ function selfTestDone() {
     S.speed = 10; $("speedSelect").value = "10";
     runProgram();
   }
-  window.__sim = { S, R, forwardKinematics, inverseKinematics, makeSyncMotion };   // để thử nhanh trong Console (F12)
+  window.__sim = { S, R, forwardKinematics, inverseKinematics, makeSyncMotion,   // để thử nhanh trong Console (F12)
+    teachPointCore, updatePointCore, renamePointCore, deletePointCore, newProgramCore, deleteProgramCore, insertStepCore,
+    editStepCore, moveStepCore, deleteStepCore, afterPointsChange, progAction, buildProgramSelect, toJson };
 })();
 </script>
 </body>

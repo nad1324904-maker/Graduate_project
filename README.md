@@ -289,14 +289,27 @@ Nhấp đúp file **`mo_phong_scara.html`** ở thư mục gốc để mở bằ
   - Kéo thanh trượt J1, J2, J3, Z.
   - Nhập tọa độ đầu công tác X, Y, Z, θ rồi bấm **Đi tới**, hoặc bấm − / + để dịch từng bước.
   - Bấm một **Point** để đi tới điểm đó; có nút Home và nút Kẹp.
+- **Teach Point:** JOG robot tới vị trí cần lưu rồi bấm **📌 Teach Point** và đặt tên. Bấm một Point để chọn, sau đó có thể
+  **Đi tới** (hoặc nhấp đúp), **Cập nhật** theo tư thế hiện tại, **Đổi tên** (tự sửa mọi Step MOVE dùng tên cũ) hoặc
+  **Xóa** (bị chặn nếu chương trình đang dùng Point đó).
+- **Soạn chương trình** giống tab Lập trình của GUI: tạo/xóa chương trình; thêm **MOVE / GRIP ON / GRIP OFF / DELAY**
+  (Step mới chèn ngay sau Step đang chọn); **Sửa**, **▲ ▼** đổi thứ tự, **Xóa** Step.
+- **💾 Lưu** ghi `points.json` + `programs.json` vào thư mục data, **cùng định dạng với GUI** nên dùng được ngay trên robot
+  thật. Chưa mở thư mục data thì Lưu sẽ tải 2 file xuống để bạn chép vào. Có dấu "● Có thay đổi chưa lưu", và trang hỏi
+  lại nếu đóng khi chưa lưu.
+  > ⚠ Giao diện điều khiển chỉ đọc các file này **lúc khởi động**. Lưu từ mô phỏng xong thì **tắt và mở lại** giao diện
+  > điều khiển. Đừng soạn Point / chương trình ở cả hai nơi cùng lúc, vì bên nào lưu sau sẽ ghi đè bên kia.
 - **Chạy thử chương trình:** chọn Program rồi bấm **Chạy**, có thể Tạm dừng / Dừng và chọn tốc độ ×0.25 tới ×10.
   Step đang chạy được tô sáng. Thời gian mỗi chuyển động tính theo Vmax/Amax trong Settings nên gần với robot thật.
 - **Hiển thị:**
   - Vùng làm việc, vết đầu công tác, các Point.
   - Đường đi dự kiến của chương trình, có số thứ tự Step.
   - Bốn góc nhìn: 3D, Trên xuống, Mặt trước, Mặt bên. Chuột trái xoay, chuột phải dời, lăn chuột phóng to.
-- **Dữ liệu:** file có sẵn bản chụp thư mục `data/` lúc tạo. Muốn dùng dữ liệu mới nhất thì bấm **Nạp file JSON…**,
-  hoặc kéo-thả `robot_config.json`, `points.json`, `programs.json` từ `Giao dien dieu khien/data/` vào trang.
+- **Dữ liệu (nên dùng Chrome / Edge):**
+  - Bấm **🔗 Mở thư mục data** và chọn thư mục `Giao dien dieu khien\data`. Trang đọc cấu hình, Point và chương trình
+    **mới nhất**, robot đứng tại Home trong Settings. Trang nhớ thư mục này: lần sau mở lại, trang tự đọc (hoặc chỉ cần
+    bấm "Mở lại thư mục data" một lần để cho phép).
+  - Chưa mở thư mục thì trang dùng bản chụp nhúng sẵn lúc tạo file. Vẫn có thể **Nạp file JSON…** hoặc kéo-thả file vào trang.
 - **Khác với robot thật:** Tạm dừng trong mô phỏng là dừng hình ngay, còn robot thật giảm tốc rồi mới dừng. Mô phỏng
   không mô phỏng PID, ma sát hay sai số bám.
 
