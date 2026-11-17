@@ -1,0 +1,468 @@
+<mxfile host="Electron">
+  <diagram name="Page-1" id="Ruxne6Qw6awFI4lwql74">
+    <mxGraphModel dx="1776" dy="1079" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="2400" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="start" parent="1" style="ellipse;whiteSpace=wrap;html=1;shapeInside=1;" value="Start" vertex="1">
+          <mxGeometry height="50" width="120" x="320" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="a1" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Khởi tạo hệ thống" vertex="1">
+          <mxGeometry height="60" width="140" x="310" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="a2" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Chờ lệnh Start" vertex="1">
+          <mxGeometry height="60" width="140" x="310" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="a3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Cấp PCB lên băng tải" vertex="1">
+          <mxGeometry height="60" width="140" x="310" y="290" as="geometry" />
+        </mxCell>
+        <mxCell id="a4" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Băng tải chạy" vertex="1">
+          <mxGeometry height="60" width="140" x="310" y="410" as="geometry" />
+        </mxCell>
+        <mxCell id="a5" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Xi lanh 1 hạ chặn PCB,&lt;br&gt;băng tải dừng" vertex="1">
+          <mxGeometry height="60" width="140" x="310" y="550" as="geometry" />
+        </mxCell>
+        <mxCell id="a6" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Raspberry chụp ảnh, xử lý ảnh kiểm tra ngoại quan" vertex="1">
+          <mxGeometry height="60" width="140" x="310" y="690" as="geometry" />
+        </mxCell>
+        <mxCell id="d3" parent="1" style="rhombus;whiteSpace=wrap;html=1;shapeInside=1;" value="Ngoại quan PCB&lt;br&gt;đạt yêu cầu?" vertex="1">
+          <mxGeometry height="90" width="220" x="270" y="810" as="geometry" />
+        </mxCell>
+        <mxCell id="a7" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Xi lanh 2 hạ xuống,&lt;br&gt;cấp nguồn cho PCB" vertex="1">
+          <mxGeometry height="60" width="140" x="310" y="960" as="geometry" />
+        </mxCell>
+        <mxCell id="a8" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Raspberry kiểm tra&lt;br&gt;chức năng PCB" vertex="1">
+          <mxGeometry height="60" width="140" x="310" y="1100" as="geometry" />
+        </mxCell>
+        <mxCell id="d4" parent="1" style="rhombus;whiteSpace=wrap;html=1;shapeInside=1;" value="PCB hoạt động&lt;br&gt;đúng chức năng?" vertex="1">
+          <mxGeometry height="90" width="220" x="270" y="1220" as="geometry" />
+        </mxCell>
+        <mxCell id="a9" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Thu xi lanh 1 và xi lanh 2&lt;br&gt;(ngắt nguồn PCB)" vertex="1">
+          <mxGeometry height="60" width="140" x="310" y="1370" as="geometry" />
+        </mxCell>
+        <mxCell id="a10" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Băng tải chạy" vertex="1">
+          <mxGeometry height="60" width="140" x="310" y="1510" as="geometry" />
+        </mxCell>
+        <mxCell id="a11" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Băng tải dừng tại&lt;br&gt;vị trí gắp PCB" vertex="1">
+          <mxGeometry height="60" width="140" x="310" y="1650" as="geometry" />
+        </mxCell>
+        <mxCell id="d6" parent="1" style="rhombus;whiteSpace=wrap;html=1;shapeInside=1;" value="Kết quả kiểm tra&lt;br&gt;của PCB?" vertex="1">
+          <mxGeometry height="90" width="220" x="270" y="1770" as="geometry" />
+        </mxCell>
+        <mxCell id="r1" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Robot gắp, phân loại PCB lỗi 1&lt;br&gt;(PC gửi lệnh, STM32 chạy chương trình 3)" vertex="1">
+          <mxGeometry height="80" width="160" x="90" y="1930" as="geometry" />
+        </mxCell>
+        <mxCell id="r2" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Robot gắp, phân loại PCB đạt&lt;br&gt;(PC gửi lệnh, STM32 chạy chương trình 1)" vertex="1">
+          <mxGeometry height="80" width="160" x="300" y="1930" as="geometry" />
+        </mxCell>
+        <mxCell id="r3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Robot gắp, phân loại PCB lỗi 2&lt;br&gt;(PC gửi lệnh, STM32 chạy chương trình 2)" vertex="1">
+          <mxGeometry height="80" width="160" x="510" y="1930" as="geometry" />
+        </mxCell>
+        <mxCell id="d7" parent="1" style="rhombus;whiteSpace=wrap;html=1;shapeInside=1;" value="Có lệnh Stop từ&lt;br&gt;người vận hành?" vertex="1">
+          <mxGeometry height="90" width="220" x="270" y="2110" as="geometry" />
+        </mxCell>
+        <mxCell id="end" parent="1" style="ellipse;whiteSpace=wrap;html=1;shapeInside=1;" value="End" vertex="1">
+          <mxGeometry height="50" width="120" x="320" y="2270" as="geometry" />
+        </mxCell>
+        <mxCell id="l1a" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="PC nhận kết quả Lỗi 1 (ngoại quan) từ Raspberry, lưu lại" vertex="1">
+          <mxGeometry height="70" width="140" x="730" y="820" as="geometry" />
+        </mxCell>
+        <mxCell id="l1b" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Thu xi lanh 1" vertex="1">
+          <mxGeometry height="60" width="140" x="730" y="930" as="geometry" />
+        </mxCell>
+        <mxCell id="l2a" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="PC nhận kết quả Lỗi 2 (chức năng) từ Raspberry, lưu lại" vertex="1">
+          <mxGeometry height="70" width="140" x="560" y="1230" as="geometry" />
+        </mxCell>
+        <mxCell id="n1" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;fontColor=#666666;" value="PC kiểm tra kết nối với PLC, Raspberry, STM32; đưa xi lanh về S1, robot về home" vertex="1">
+          <mxGeometry height="60" width="200" x="100" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="n2" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;fontColor=#666666;" value="Nút Start trên tủ điện (PLC đọc) hoặc nút Start trên phần mềm → PC ghi bit Start vào PLC" vertex="1">
+          <mxGeometry height="60" width="200" x="100" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="n4" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;fontColor=#666666;" value="PC ghi lệnh → PLC cho động cơ băng tải chạy" vertex="1">
+          <mxGeometry height="60" width="200" x="100" y="410" as="geometry" />
+        </mxCell>
+        <mxCell id="n5" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;fontColor=#666666;" value="PLC dừng băng tải ngay khi CB2 tác động (liên động tại PLC), đồng thời hạ xi lanh 1" vertex="1">
+          <mxGeometry height="60" width="200" x="100" y="550" as="geometry" />
+        </mxCell>
+        <mxCell id="n6" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;fontColor=#666666;" value="PC gửi lệnh chụp ảnh cho Raspberry" vertex="1">
+          <mxGeometry height="60" width="200" x="100" y="690" as="geometry" />
+        </mxCell>
+        <mxCell id="n7" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;fontColor=#666666;" value="PC ghi lệnh → PLC hạ xi lanh 2, cấp nguồn cho PCB" vertex="1">
+          <mxGeometry height="60" width="200" x="100" y="960" as="geometry" />
+        </mxCell>
+        <mxCell id="n8" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;fontColor=#666666;" value="PC gửi lệnh kiểm tra chức năng cho Raspberry" vertex="1">
+          <mxGeometry height="60" width="200" x="100" y="1100" as="geometry" />
+        </mxCell>
+        <mxCell id="n9" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;fontColor=#666666;" value="PC ghi lệnh → PLC thu xi lanh 2 (ngắt nguồn PCB) và xi lanh 1 về S1" vertex="1">
+          <mxGeometry height="60" width="200" x="100" y="1370" as="geometry" />
+        </mxCell>
+        <mxCell id="n10" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;fontColor=#666666;" value="PC ghi lệnh → PLC cho động cơ băng tải chạy" vertex="1">
+          <mxGeometry height="60" width="200" x="100" y="1510" as="geometry" />
+        </mxCell>
+        <mxCell id="n11" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;fontColor=#666666;" value="PLC dừng băng tải khi CB3 tác động" vertex="1">
+          <mxGeometry height="60" width="200" x="100" y="1650" as="geometry" />
+        </mxCell>
+        <mxCell id="n3d" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;fontColor=#666666;" value="Raspberry phản hồi Đạt (ngoại quan) cho PC" vertex="1">
+          <mxGeometry height="40" width="200" x="170" y="905" as="geometry" />
+        </mxCell>
+        <mxCell id="n4d" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;fontColor=#666666;" value="Raspberry phản hồi Đạt → PC lưu kết quả Đạt" vertex="1">
+          <mxGeometry height="40" width="200" x="170" y="1315" as="geometry" />
+        </mxCell>
+        <mxCell id="nd6" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontColor=#666666;" value="PC xét kết quả đã lưu" vertex="1">
+          <mxGeometry height="34" width="170" x="500" y="1775" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=2;" value="Cảm biến 1 phát hiện PCB" vertex="1">
+          <mxGeometry height="30" width="200" x="388" y="355" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=2;" value="Cảm biến 2 phát hiện PCB tới vị trí kiểm tra" vertex="1">
+          <mxGeometry height="40" width="200" x="388" y="480" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=2;" value="Xi lanh 1 ở S2 → PC đọc trạng thái PLC" vertex="1">
+          <mxGeometry height="40" width="200" x="388" y="622" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=2;" value="Xi lanh 2 ở S2 → PC đọc trạng thái PLC" vertex="1">
+          <mxGeometry height="40" width="200" x="388" y="1032" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=2;" value="Xi lanh 1, 2 ở S1 → PC đọc trạng thái PLC" vertex="1">
+          <mxGeometry height="40" width="200" x="388" y="1442" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=2;" value="Cảm biến 3 phát hiện PCB → PC đọc trạng thái PLC" vertex="1">
+          <mxGeometry height="40" width="200" x="388" y="1580" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=2;" value="Robot xong → PC nhận phản hồi từ STM32" vertex="1">
+          <mxGeometry height="34" width="200" x="388" y="2066" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=2;" value="Xi lanh 1 ở S1 → PC đọc trạng thái PLC" vertex="1">
+          <mxGeometry height="40" width="170" x="812" y="1000" as="geometry" />
+        </mxCell>
+        <mxCell id="t_d3" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=1;" value="Đạt" vertex="1">
+          <mxGeometry height="30" width="60" x="388" y="915" as="geometry" />
+        </mxCell>
+        <mxCell id="t_l1" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=1;" value="Lỗi 1" vertex="1">
+          <mxGeometry height="24" width="60" x="500" y="860" as="geometry" />
+        </mxCell>
+        <mxCell id="t_d4" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=1;" value="Đạt" vertex="1">
+          <mxGeometry height="30" width="60" x="388" y="1325" as="geometry" />
+        </mxCell>
+        <mxCell id="t_l2" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=1;" value="Lỗi 2" vertex="1">
+          <mxGeometry height="24" width="60" x="492" y="1236" as="geometry" />
+        </mxCell>
+        <mxCell id="t_r2" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=1;" value="Đạt" vertex="1">
+          <mxGeometry height="30" width="60" x="388" y="1875" as="geometry" />
+        </mxCell>
+        <mxCell id="t_r1" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;fontStyle=1;" value="Lỗi 1" vertex="1">
+          <mxGeometry height="24" width="60" x="190" y="1788" as="geometry" />
+        </mxCell>
+        <mxCell id="t_r3" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=1;" value="Lỗi 2" vertex="1">
+          <mxGeometry height="24" width="60" x="500" y="1822" as="geometry" />
+        </mxCell>
+        <mxCell id="t_yes" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;fontStyle=1;" value="Không" vertex="1">
+          <mxGeometry height="24" width="70" x="192" y="2124" as="geometry" />
+        </mxCell>
+        <mxCell id="t_no" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=1;" value="Có" vertex="1">
+          <mxGeometry height="30" width="60" x="388" y="2210" as="geometry" />
+        </mxCell>
+        <mxCell id="legend" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;dashed=1;" value="&lt;b&gt;Chú thích&lt;/b&gt;&lt;br&gt;• S1 / S2: xi lanh đã thu về / đã hạ xuống&lt;br&gt;• Lỗi 1: lỗi ngoại quan; Lỗi 2: lỗi chức năng&lt;br&gt;• &lt;i&gt;Chữ nghiêng&lt;/i&gt;: điều kiện chuyển bước&lt;br&gt;• &lt;font color=&quot;#666666&quot;&gt;Chữ xám&lt;/font&gt;: thiết bị thực hiện bước&lt;br&gt;• PC là master (ra lệnh, đọc trạng thái). PLC thực thi lệnh của PC và tự xử lý tín hiệu cần phản ứng nhanh (cảm biến dừng băng tải, E-Stop). Raspberry, STM32 chỉ phản hồi&lt;br&gt;• Mọi bước chờ cảm biến/xi lanh/phản hồi có timeout: quá thời gian → (B) PC báo lỗi, dừng hệ thống, chờ Reset&lt;br&gt;• &lt;font color=&quot;#CC0000&quot;&gt;&lt;b&gt;E-Stop tác động ở BẤT KỲ bước nào&lt;/b&gt;&lt;/font&gt;, ưu tiên cao nhất → xem lưu đồ E-Stop / Reset bên phải&lt;br&gt;• (A), (B): điểm nối với lưu đồ E-Stop / Reset" vertex="1">
+          <mxGeometry height="290" width="340" x="642" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="e_start-a1" edge="1" parent="1" source="start" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="a1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_a1-a2" edge="1" parent="1" source="a1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="a2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_a2-a3" edge="1" parent="1" source="a2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="a3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_a3-a4" edge="1" parent="1" source="a3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="a4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_a4-a5" edge="1" parent="1" source="a4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="a5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_a5-a6" edge="1" parent="1" source="a5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="a6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_a6-d3" edge="1" parent="1" source="a6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="d3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_d3-a7" edge="1" parent="1" source="d3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="a7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_a7-a8" edge="1" parent="1" source="a7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="a8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_a8-d4" edge="1" parent="1" source="a8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="d4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_d4-a9" edge="1" parent="1" source="d4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="a9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_a9-a10" edge="1" parent="1" source="a9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="a10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_a10-a11" edge="1" parent="1" source="a10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="a11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_a11-d6" edge="1" parent="1" source="a11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="d6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_d6-r2" edge="1" parent="1" source="d6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="r2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_r2-d7" edge="1" parent="1" source="r2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="d7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_d7-end" edge="1" parent="1" source="d7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="end">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_d3-l1a" edge="1" parent="1" source="d3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="l1a">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l1a-l1b" edge="1" parent="1" source="l1a" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="l1b">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l1b-a10" edge="1" parent="1" source="l1b" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="a10">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="800" y="1540" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_d4-l2a" edge="1" parent="1" source="d4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="l2a">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l2a-a9" edge="1" parent="1" source="l2a" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="a9">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="630" y="1400" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_d6-r1" edge="1" parent="1" source="d6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="r1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="170" y="1815" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_d6-r3" edge="1" parent="1" source="d6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="r3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="590" y="1815" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_r1-d7" edge="1" parent="1" source="r1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="d7">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="170" y="2060" />
+              <mxPoint x="380" y="2060" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_r3-d7" edge="1" parent="1" source="r3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="d7">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="590" y="2060" />
+              <mxPoint x="380" y="2060" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_d7-a3" edge="1" parent="1" source="d7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="a3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="40" y="2155" />
+              <mxPoint x="40" y="320" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="gqKelUJwsRsyR5UPPVh0-2" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontColor=#666666;" value="PC ghi lệnh cấp PCB → PLC cho động cơ bước quay 1 vòng" vertex="1">
+          <mxGeometry height="40" width="200" x="458" y="282" as="geometry" />
+        </mxCell>
+        <mxCell id="n_l1b" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontColor=#666666;" value="PLC thu xi lanh 1" vertex="1">
+          <mxGeometry height="60" width="110" x="876" y="930" as="geometry" />
+        </mxCell>
+        <mxCell id="n_d7" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontColor=#666666;" value="Nút Stop: hệ thống dừng sau khi hoàn tất chu kỳ hiện tại" vertex="1">
+          <mxGeometry height="50" width="220" x="500" y="2128" as="geometry" />
+        </mxCell>
+        <mxCell id="conA" parent="1" style="ellipse;whiteSpace=wrap;html=1;shapeInside=1;" value="&lt;b&gt;A&lt;/b&gt;" vertex="1">
+          <mxGeometry height="40" width="40" x="530" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="conA_t" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontColor=#666666;" value="từ lưu đồ Reset" vertex="1">
+          <mxGeometry height="20" width="120" x="500" y="252" as="geometry" />
+        </mxCell>
+        <mxCell id="e_conA-a2" edge="1" parent="1" source="conA" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="a2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="s_title" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=14;" value="&lt;b&gt;LƯU ĐỒ E-STOP / RESET&lt;/b&gt;&lt;br&gt;(PLC xử lý song song, kiểm tra ở mọi chu kỳ quét)" vertex="1">
+          <mxGeometry height="50" width="400" x="1120" y="15" as="geometry" />
+        </mxCell>
+        <mxCell id="s0" parent="1" style="ellipse;whiteSpace=wrap;html=1;shapeInside=1;" value="PLC quét chương trình" vertex="1">
+          <mxGeometry height="50" width="160" x="1240" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="sd1" parent="1" style="rhombus;whiteSpace=wrap;html=1;shapeInside=1;fillColor=#f8cecc;strokeColor=#b85450;" value="Nút E-Stop&lt;br&gt;bị nhấn?" vertex="1">
+          <mxGeometry height="90" width="220" x="1210" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="n_sd1" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;fontColor=#666666;" value="E-Stop dùng tiếp điểm NC, đấu qua relay an toàn để cắt nguồn động lực bằng phần cứng; PLC đọc trạng thái để xử lý logic" vertex="1">
+          <mxGeometry height="100" width="210" x="990" y="165" as="geometry" />
+        </mxCell>
+        <mxCell id="t_sd1_no" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=1;" value="Không" vertex="1">
+          <mxGeometry height="24" width="60" x="1436" y="185" as="geometry" />
+        </mxCell>
+        <mxCell id="t_sd1_yes" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=1;" value="Có" vertex="1">
+          <mxGeometry height="24" width="40" x="1328" y="268" as="geometry" />
+        </mxCell>
+        <mxCell id="sa1" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;spacingLeft=8;" value="&lt;b&gt;PLC dừng khẩn cấp&lt;/b&gt; (không chờ PC):&lt;br&gt;• Dừng động cơ băng tải&lt;br&gt;• Dừng động cơ bước cấp PCB&lt;br&gt;• Cắt nguồn cấp cho PCB&lt;br&gt;• Khoá van khí, xi lanh giữ nguyên vị trí&lt;br&gt;• Ngắt nguồn động lực robot&lt;br&gt;• Bật đèn đỏ/còi, set cờ E-Stop (tự giữ)" vertex="1">
+          <mxGeometry height="150" width="260" x="1190" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="sa2" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="PC đọc cờ E-Stop từ PLC: ngừng gửi lệnh, hiển thị cảnh báo, ghi log" vertex="1">
+          <mxGeometry height="80" width="200" x="1220" y="490" as="geometry" />
+        </mxCell>
+        <mxCell id="sd2" parent="1" style="rhombus;whiteSpace=wrap;html=1;shapeInside=1;" value="E-Stop đã&lt;br&gt;được nhả ra?" vertex="1">
+          <mxGeometry height="90" width="220" x="1210" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="n_sd2" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;fontColor=#666666;" value="E-Stop có tự giữ: nhả nút KHÔNG làm hệ thống tự chạy lại" vertex="1">
+          <mxGeometry height="80" width="210" x="990" y="625" as="geometry" />
+        </mxCell>
+        <mxCell id="t_sd2_no" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=1;" value="Không" vertex="1">
+          <mxGeometry height="24" width="60" x="1436" y="638" as="geometry" />
+        </mxCell>
+        <mxCell id="t_sd2_yes" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=1;" value="Có" vertex="1">
+          <mxGeometry height="24" width="40" x="1328" y="714" as="geometry" />
+        </mxCell>
+        <mxCell id="sa3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Hệ thống ở trạng thái LỖI,&lt;br&gt;chờ lệnh Reset" vertex="1">
+          <mxGeometry height="70" width="200" x="1220" y="760" as="geometry" />
+        </mxCell>
+        <mxCell id="n_sa3" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;fontColor=#666666;" value="Người vận hành khắc phục sự cố, lấy PCB dở dang ra khỏi băng tải" vertex="1">
+          <mxGeometry height="70" width="210" x="990" y="760" as="geometry" />
+        </mxCell>
+        <mxCell id="sd3" parent="1" style="rhombus;whiteSpace=wrap;html=1;shapeInside=1;" value="Có lệnh Reset?" vertex="1">
+          <mxGeometry height="90" width="220" x="1210" y="875" as="geometry" />
+        </mxCell>
+        <mxCell id="n_sd3" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;fontColor=#666666;" value="Nút Reset trên tủ điện (PLC đọc) hoặc nút Reset trên phần mềm PC" vertex="1">
+          <mxGeometry height="80" width="210" x="990" y="880" as="geometry" />
+        </mxCell>
+        <mxCell id="t_sd3_no" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=1;" value="Không" vertex="1">
+          <mxGeometry height="24" width="60" x="1436" y="893" as="geometry" />
+        </mxCell>
+        <mxCell id="t_sd3_yes" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=1;" value="Có" vertex="1">
+          <mxGeometry height="24" width="40" x="1328" y="968" as="geometry" />
+        </mxCell>
+        <mxCell id="sd4" parent="1" style="rhombus;whiteSpace=wrap;html=1;shapeInside=1;" value="Đủ điều kiện Reset?&lt;br&gt;(E-Stop đã nhả,&lt;br&gt;kết nối thiết bị OK)" vertex="1">
+          <mxGeometry height="110" width="260" x="1190" y="1010" as="geometry" />
+        </mxCell>
+        <mxCell id="t_sd4_no" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=1;" value="Không" vertex="1">
+          <mxGeometry height="24" width="60" x="1452" y="1036" as="geometry" />
+        </mxCell>
+        <mxCell id="t_sd4_yes" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=1;" value="Có" vertex="1">
+          <mxGeometry height="24" width="40" x="1328" y="1124" as="geometry" />
+        </mxCell>
+        <mxCell id="sa_rej" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="PC báo không thể Reset, hiển thị nguyên nhân" vertex="1">
+          <mxGeometry height="60" width="180" x="1520" y="1035" as="geometry" />
+        </mxCell>
+        <mxCell id="sa4" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="PLC xoá cờ E-Stop/lỗi, tắt đèn đỏ/còi; cấp lại khí, thu xi lanh 1, 2 về S1" vertex="1">
+          <mxGeometry height="80" width="240" x="1200" y="1165" as="geometry" />
+        </mxCell>
+        <mxCell id="c_sa4" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=2;" value="Xi lanh 1, 2 ở S1 → PC đọc trạng thái PLC" vertex="1">
+          <mxGeometry height="40" width="230" x="1328" y="1248" as="geometry" />
+        </mxCell>
+        <mxCell id="sa5" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="PC cấp lại nguồn robot, gửi lệnh STM32 đưa robot về home; huỷ kết quả của PCB dở dang" vertex="1">
+          <mxGeometry height="80" width="240" x="1200" y="1295" as="geometry" />
+        </mxCell>
+        <mxCell id="c_sa5" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=2;" value="Robot ở home → PC nhận phản hồi từ STM32" vertex="1">
+          <mxGeometry height="40" width="230" x="1328" y="1378" as="geometry" />
+        </mxCell>
+        <mxCell id="sEnd" parent="1" style="ellipse;whiteSpace=wrap;html=1;shapeInside=1;" value="SẴN SÀNG&lt;br&gt;→ &lt;b&gt;(A)&lt;/b&gt; về bước &quot;Chờ lệnh Start&quot;" vertex="1">
+          <mxGeometry height="70" width="220" x="1210" y="1425" as="geometry" />
+        </mxCell>
+        <mxCell id="n_sEnd" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;fontColor=#666666;" value="Sau Reset hệ thống KHÔNG tự chạy; phải nhấn Start để bắt đầu chu kỳ mới" vertex="1">
+          <mxGeometry height="70" width="210" x="990" y="1425" as="geometry" />
+        </mxCell>
+        <mxCell id="conB" parent="1" style="ellipse;whiteSpace=wrap;html=1;shapeInside=1;" value="&lt;b&gt;(B)&lt;/b&gt; Lỗi timeout / mất kết nối&lt;br&gt;(từ lưu đồ chính)" vertex="1">
+          <mxGeometry height="70" width="190" x="1540" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="fa" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="PC ghi lệnh dừng băng tải, động cơ bước cho PLC; dừng robot; cảnh báo, ghi log" vertex="1">
+          <mxGeometry height="90" width="180" x="1545" y="430" as="geometry" />
+        </mxCell>
+        <mxCell id="es1" edge="1" parent="1" source="s0" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="sd1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="es2" edge="1" parent="1" source="sd1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="s0">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1520" y="215" />
+              <mxPoint x="1520" y="105" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="es3" edge="1" parent="1" source="sd1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="sa1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="es4" edge="1" parent="1" source="sa1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="sa2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="es5" edge="1" parent="1" source="sa2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="sd2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="es6" edge="1" parent="1" source="sd2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="sd2">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1480" y="665" />
+              <mxPoint x="1480" y="600" />
+              <mxPoint x="1320" y="600" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="es7" edge="1" parent="1" source="sd2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="sa3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="es8" edge="1" parent="1" source="sa3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="sd3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="es9" edge="1" parent="1" source="sd3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="sd3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1480" y="920" />
+              <mxPoint x="1480" y="855" />
+              <mxPoint x="1320" y="855" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="es10" edge="1" parent="1" source="sd3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="sd4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="es11" edge="1" parent="1" source="sd4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="sa_rej">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="es12" edge="1" parent="1" source="sa_rej" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=1;entryY=0.75;entryDx=0;entryDy=0;" target="sa3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1610" y="812.5" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="es13" edge="1" parent="1" source="sd4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="sa4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="es14" edge="1" parent="1" source="sa4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="sa5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="es15" edge="1" parent="1" source="sa5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="sEnd">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="es16" edge="1" parent="1" source="conB" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="fa">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="es17" edge="1" parent="1" source="fa" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.3;entryDx=0;entryDy=0;" target="sa3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1635" y="781" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
