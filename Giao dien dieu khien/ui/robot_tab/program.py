@@ -46,7 +46,7 @@ class ProgramMixin:
                       command=self._on_save_description).pack(side="left")
 
         content_row = ctk.CTkFrame(body, fg_color="transparent")
-        content_row.pack(fill="x")
+        content_row.pack(fill="both", expand=True)
 
         # ---- Bảng Step (trái) ----
         table_col = ctk.CTkFrame(content_row, fg_color="transparent")
@@ -60,7 +60,7 @@ class ProgramMixin:
         ctk.CTkLabel(th_row, text="Detail", font=("Segoe UI Semibold", 10), text_color=COL_TEXT_DIM,
                      anchor="w").pack(side="left", fill="x", expand=True)
         self.step_list_frame = ctk.CTkScrollableFrame(
-            table_col, fg_color="transparent", height=180, scrollbar_button_color=COL_BTN_DARK)
+            table_col, fg_color="transparent", height=240, scrollbar_button_color=COL_BTN_DARK)
         self.step_list_frame.pack(fill="both", expand=True, pady=(2, 0))
 
         # ---- Cột nút thao tác (phải) ----
@@ -99,14 +99,12 @@ class ProgramMixin:
 
     # ---------------- Danh sách + chọn chương trình ----------------
     def _refresh_program_list(self):
+        """Cập nhật 2 ô chọn chương trình: Program Editor (tab Lập trình) và Chạy chương trình (tab Vận hành)."""
         names = self.program_store.list_names()
-        self.program_option.configure(values=names or ["(chưa có)"])
-        if self.selected_program in names:
-            self.program_option.set(self.selected_program)
-        elif names:
-            self.program_option.set(names[0])
-        else:
-            self.program_option.set("(chưa có)")
+        shown = self.selected_program if self.selected_program in names else (names[0] if names else "(chưa có)")
+        for option in (self.program_option, self.run_program_option):
+            option.configure(values=names or ["(chưa có)"])
+            option.set(shown)
 
     def _on_select_program_from_menu(self, name):
         if name == "(chưa có)":
@@ -121,7 +119,7 @@ class ProgramMixin:
         self.desc_entry.insert(0, prog["description"])
         self._refresh_program_list()
         self._refresh_step_list()
-        self._refresh_progress_display()
+        self._refresh_progress_display()     # gồm cả danh sách Step ở khung Chạy chương trình
 
     def _on_create_program(self):
         dialog = ctk.CTkInputDialog(text="Tên chương trình mới:", title="Tạo Program")
@@ -163,12 +161,17 @@ class ProgramMixin:
 
     # ---------------- Step CRUD (không có reorder; Step mới chèn SAU Step đang chọn) ----------------
     def _refresh_program_point_options(self):
+        """Cập nhật các ô chọn Point: '+ MOVE' (Program Editor) và 'Point' (tab Vận hành)."""
         names = self.point_store.list_names()
         self.move_point_option.configure(values=names or ["(chưa có Point)"])
         if names:
             self.move_point_option.set(names[0])
+        self.ref_point_option.configure(values=names or ["(chưa có Point)"])
+        ref = self.loaded_reference[0] if self.loaded_reference else None
+        self.ref_point_option.set(ref if ref in names else "— chọn Point —")
 
     def _refresh_step_list(self):
+        self._refresh_run_steps()
         for w in self.step_list_frame.winfo_children():
             w.destroy()
         if not self.selected_program:

@@ -25,30 +25,6 @@ class Card(ctk.CTkFrame):
         self.body.pack(fill="both", expand=True, padx=14, pady=(0, 12))
 
 
-class SidebarSection(ctk.CTkFrame):
-    """Một khối nút xếp dọc trong sidebar (MODE / QUICK ACTION)."""
-
-    def __init__(self, master, title=""):
-        super().__init__(master, fg_color="transparent")
-        if title:
-            ctk.CTkLabel(self, text=title, font=("Segoe UI Semibold", 11),
-                         text_color=COL_TEXT_DIM).pack(anchor="w", pady=(0, 6), padx=4)
-        self.buttons = {}
-
-    def add_button(self, key, icon, label, command, active=False, enabled=True):
-        b = ctk.CTkButton(
-            self, text=f"{icon}   {label}", anchor="w", height=52, corner_radius=10,
-            font=("Segoe UI Semibold" if active else "Segoe UI", 14),
-            fg_color=COL_ACCENT if active else "transparent",
-            hover_color=COL_ACCENT_HOVER if active else COL_BTN_DARK_HOVER,
-            text_color=COL_ON_ACCENT if active else (COL_TEXT if enabled else COL_TEXT_DISABLED),
-            state="normal" if enabled else "disabled",
-            command=command)
-        b.pack(fill="both", expand=True, pady=4)
-        self.buttons[key] = b
-        return b
-
-
 class HeaderBadge(ctk.CTkFrame):
     """1 khối trạng thái trên header: icon/dot + nhãn + giá trị."""
 
@@ -175,15 +151,6 @@ class StepTableRow(ctk.CTkFrame):
                                    text_color=COL_TEXT)
         detail_lbl.pack(side="left", fill="x", expand=True, padx=6)
         detail_lbl.bind("<Button-1>", lambda e: on_click())
-
-
-class BigActionButton(ctk.CTkButton):
-    """Nút to có icon + nhãn xếp dọc, dùng cho START/PAUSE/STOP/RESET."""
-
-    def __init__(self, master, icon, label, color, hover_color, command, **kwargs):
-        super().__init__(master, text=f"{icon}\n{label}", font=("Segoe UI Semibold", 12),
-                          fg_color=color, hover_color=hover_color, text_color=COL_ON_ACCENT,
-                          corner_radius=10, height=64, command=command, **kwargs)
 
 
 # ============================================================

@@ -1,4 +1,5 @@
-"""points.py — Bảng POINTS: Teach / Save Position / Rename / Delete / Move to reference."""
+"""points.py — Bảng POINTS (tab Lập trình): Teach / Save Position / Rename / Delete; chọn Point tham chiếu cho
+Move Here (ô chọn Point ở tab Vận hành dùng chung lựa chọn này)."""
 
 import customtkinter as ctk
 
@@ -28,7 +29,7 @@ class PointsMixin:
 
         self.point_list_frame = ctk.CTkScrollableFrame(
             body, fg_color="transparent", height=150, scrollbar_button_color=COL_BTN_DARK)
-        self.point_list_frame.pack(fill="x", pady=(2, 8))
+        self.point_list_frame.pack(fill="both", expand=True, pady=(2, 8))
 
         row1 = ctk.CTkFrame(body, fg_color="transparent")
         row1.pack(fill="x")
@@ -73,11 +74,15 @@ class PointsMixin:
         self.selected_point = name
         values = self.point_store.get(name)
         self.loaded_reference = (name, values)
-        text = ", ".join(f"{a}={values[a]:.2f}{UNITS[a]}" for a in AXES)
-        self.ref_label.configure(text=f"Tham chiếu: {name}  ({text})")
-        self.move_here_btn.configure(state="normal")
+        self.ref_point_option.set(name)
         self._refresh_point_list()
-        self._log(f"Load Position: chọn '{name}' làm tham chiếu (chưa di chuyển).")
+        self._refresh_enabled_states()
+        text = ", ".join(f"{a}={values[a]:.2f}{UNITS[a]}" for a in AXES)
+        self._log(f"Chọn Point '{name}' làm tham chiếu ({text}) — chưa di chuyển, bấm Move Here để đi tới.")
+
+    def _on_ref_point_option(self, name):
+        if self.point_store.exists(name):
+            self._select_and_load_point(name)
 
     def _on_move_to_reference(self):
         if not self.loaded_reference:
@@ -108,9 +113,8 @@ class PointsMixin:
         try:
             self.point_store.create(name, self.backend.get_actual_position())
             self._log(f"Teach Point: tạo '{name}' từ vị trí actual hiện tại.", "OK")
-            self.selected_point = name
-            self._refresh_point_list()
             self._refresh_program_point_options()
+            self._select_and_load_point(name)
         except PointError as e:
             self._log(str(e), "ERROR")
 
@@ -144,6 +148,8 @@ class PointsMixin:
             self.point_store.rename(old_name, new_name)
             self.program_store.rename_point_reference(old_name, new_name)
             self.selected_point = new_name
+            if self.loaded_reference and self.loaded_reference[0] == old_name:
+                self.loaded_reference = (new_name, self.point_store.get(new_name))
             self._log(f"Đổi tên Point '{old_name}' → '{new_name}' (đã cập nhật mọi Step MOVE tham chiếu).", "OK")
             self._refresh_point_list()
             self._refresh_program_point_options()
@@ -164,9 +170,8 @@ class PointsMixin:
             self._log(f"Đã xóa Point '{name}'.", "OK")
             self.selected_point = None
             self.loaded_reference = None
-            self.ref_label.configure(text="Chưa chọn Point tham chiếu nào.")
-            self.move_here_btn.configure(state="disabled")
             self._refresh_point_list()
             self._refresh_program_point_options()
+            self._refresh_enabled_states()
         except PointError as e:
             self._log(str(e), "ERROR")

@@ -80,17 +80,25 @@ class MonitorMixin:
                      font=("Segoe UI", 9), text_color=COL_TEXT_DISABLED,
                      wraplength=230, justify="left").pack(anchor="w", padx=10, pady=(2, 8))
 
-        # ---- Tham chiếu đã Load + Move Here ----
+        # ---- Point: chọn / Move Here / Teach (dạy điểm ngay ở tab Vận hành, không phải sang tab Lập trình) ----
         ref_row = ctk.CTkFrame(body, fg_color="transparent")
         ref_row.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(8, 0))
-        self.ref_label = ctk.CTkLabel(ref_row, text="Chưa chọn Point tham chiếu nào.",
-                                       font=("Segoe UI", 11), text_color=COL_TEXT_DIM, anchor="w")
-        self.ref_label.pack(side="left", fill="x", expand=True)
-        self.move_here_btn = ctk.CTkButton(ref_row, text="▶ Move Here", width=110, height=28, corner_radius=8,
+        ctk.CTkLabel(ref_row, text="📍 Point", font=("Segoe UI Semibold", 11), text_color=COL_TEXT).pack(side="left")
+        self.teach_quick_btn = ctk.CTkButton(ref_row, text="📌 Teach Point", width=104, height=28, corner_radius=8,
+                                             fg_color=COL_BTN_DARK, hover_color=COL_BTN_DARK_HOVER,
+                                             font=("Segoe UI", 11), state="disabled", command=self._on_teach_point)
+        self.teach_quick_btn.pack(side="right")
+        self.move_here_btn = ctk.CTkButton(ref_row, text="▶ Move Here", width=100, height=28, corner_radius=8,
                                             fg_color=COL_ACCENT, hover_color=COL_ACCENT_HOVER,
                                             font=("Segoe UI Semibold", 11), state="disabled",
                                             command=self._on_move_to_reference)
-        self.move_here_btn.pack(side="right")
+        self.move_here_btn.pack(side="right", padx=4)
+        self.ref_point_option = ctk.CTkOptionMenu(
+            ref_row, values=["(chưa có Point)"], height=28, fg_color=COL_INPUT, button_color=COL_BTN_DARK,
+            button_hover_color=COL_BTN_DARK_HOVER, font=("Segoe UI", 11), dynamic_resizing=False,
+            command=self._on_ref_point_option)
+        self.ref_point_option.set("— chọn Point —")
+        self.ref_point_option.pack(side="left", fill="x", expand=True, padx=(8, 4))
 
         # ---- Move to XYZθ (động học ngược) ----
         # 2 dòng: (1) tiêu đề + 2 nút, (2) 4 ô nhập giãn đều — 1 dòng không đủ chỗ ở màn hình 1366 px

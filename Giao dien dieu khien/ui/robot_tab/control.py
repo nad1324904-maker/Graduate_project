@@ -1,4 +1,5 @@
-"""control.py — START/PAUSE/STOP/RESET, HOME/GRIP, callback của ProgramExecutor, trạng thái nút."""
+"""control.py — Khung CHẠY CHƯƠNG TRÌNH (chế độ, START/PAUSE/RESET, Step đang chạy), STOP, HOME/GRIP,
+callback của ProgramExecutor, bật/tắt nút theo trạng thái."""
 
 import customtkinter as ctk
 
@@ -6,47 +7,90 @@ from comm.backend_base import RobotStatus
 from comm.errors import UartError
 from core.program_store import describe_step
 from core.program_executor import ExecState, ExecutorError
+from ui.robot_tab.jog import MODE_LABELS
 from ui.theme import (
-    COL_AMBER, COL_AMBER_HOVER, COL_GRAY_BTN, COL_GRAY_BTN_HOVER, COL_GREEN,
-    COL_GREEN_HOVER, COL_RED, COL_RED_HOVER, COL_TEXT, COL_TEXT_DIM
+    COL_AMBER, COL_AMBER_HOVER, COL_BTN_DARK, COL_BTN_DARK_HOVER, COL_GRAY_BTN, COL_GRAY_BTN_HOVER, COL_GREEN,
+    COL_GREEN_HOVER, COL_INPUT, COL_TEXT, COL_TEXT_DIM, SEGMENTED_STYLE
 )
-from ui.widgets import Card, BigActionButton
+from ui.widgets import Card, StepTableRow
 
 
 class ControlMixin:
     # ============================================================
-    # CONTROL (chạy chương trình)
+    # CHẠY CHƯƠNG TRÌNH (tab Vận hành)
     # ============================================================
-    def _build_control_card(self, parent):
-        card = Card(parent, "CONTROL", "▶")
+    def _build_run_card(self, parent):
+        card = Card(parent, "CHẠY CHƯƠNG TRÌNH", "▶")
         body = card.body
 
-        ctk.CTkLabel(body, text="Progress", font=("Segoe UI", 11),
-                     text_color=COL_TEXT_DIM, anchor="w").pack(fill="x")
+        row = ctk.CTkFrame(body, fg_color="transparent")
+        row.pack(fill="x", pady=(0, 8))
+        ctk.CTkLabel(row, text="Chế độ", font=("Segoe UI", 11), text_color=COL_TEXT_DIM, width=70,
+                     anchor="w").pack(side="left")
+        self.mode_seg = ctk.CTkSegmentedButton(row, values=list(MODE_LABELS.values()), command=self._on_mode_seg,
+                                               height=30, font=("Segoe UI Semibold", 11), **SEGMENTED_STYLE)
+        self.mode_seg.set(MODE_LABELS[self.mode])
+        self.mode_seg.pack(side="left", fill="x", expand=True)
+
+        row = ctk.CTkFrame(body, fg_color="transparent")
+        row.pack(fill="x", pady=(0, 8))
+        ctk.CTkLabel(row, text="Program", font=("Segoe UI", 11), text_color=COL_TEXT_DIM, width=70,
+                     anchor="w").pack(side="left")
+        self.run_program_option = ctk.CTkOptionMenu(
+            row, values=["(chưa có)"], fg_color=COL_INPUT, button_color=COL_BTN_DARK,
+            button_hover_color=COL_BTN_DARK_HOVER, height=30, font=("Segoe UI Semibold", 12),
+            command=self._on_select_program_from_menu)
+        self.run_program_option.pack(side="left", fill="x", expand=True)
+
         self.progress_bar = ctk.CTkProgressBar(body, height=10, progress_color=COL_GREEN)
         self.progress_bar.set(0)
-        self.progress_bar.pack(fill="x", pady=(4, 2))
-        self.progress_label = ctk.CTkLabel(body, text="0 / 0", font=("Segoe UI Semibold", 12),
-                                            text_color=COL_TEXT, anchor="w")
-        self.progress_label.pack(fill="x", pady=(0, 6))
-        self.step_desc_label = ctk.CTkLabel(body, text="—", font=("Segoe UI", 10),
-                                             text_color=COL_TEXT_DIM, anchor="w", wraplength=220)
-        self.step_desc_label.pack(fill="x", pady=(0, 10))
+        self.progress_bar.pack(fill="x", pady=(2, 4))
+        row = ctk.CTkFrame(body, fg_color="transparent")
+        row.pack(fill="x")
+        self.progress_label = ctk.CTkLabel(row, text="0 / 0", font=("Segoe UI Semibold", 12), text_color=COL_TEXT)
+        self.progress_label.pack(side="left")
+        self.step_desc_label = ctk.CTkLabel(row, text="—", font=("Segoe UI", 11), text_color=COL_TEXT_DIM,
+                                            anchor="e")
+        self.step_desc_label.pack(side="right")
 
-        # Lưới nút chiếm phần còn lại → panel CONTROL cao bằng POINTS / PROGRAM
-        grid = ctk.CTkFrame(body, fg_color="transparent")
-        grid.pack(fill="both", expand=True)
-        grid.grid_columnconfigure((0, 1), weight=1)
-        grid.grid_rowconfigure((0, 1), weight=1)
-        self.start_btn = BigActionButton(grid, "▶", "START", COL_GREEN, COL_GREEN_HOVER, self._on_start)
-        self.start_btn.grid(row=0, column=0, sticky="nsew", padx=2, pady=2)
-        self.pause_btn = BigActionButton(grid, "⏸", "PAUSE", COL_AMBER, COL_AMBER_HOVER, self._on_pause)
-        self.pause_btn.grid(row=0, column=1, sticky="nsew", padx=2, pady=2)
-        self.stop_btn = BigActionButton(grid, "■", "STOP", COL_RED, COL_RED_HOVER, self._on_stop)
-        self.stop_btn.grid(row=1, column=0, sticky="nsew", padx=2, pady=2)
-        self.reset_btn = BigActionButton(grid, "⟳", "RESET", COL_GRAY_BTN, COL_GRAY_BTN_HOVER, self._on_reset)
-        self.reset_btn.grid(row=1, column=1, sticky="nsew", padx=2, pady=2)
+        buttons = ctk.CTkFrame(body, fg_color="transparent")
+        buttons.pack(fill="x", pady=(8, 8))
+        buttons.grid_columnconfigure((0, 1, 2), weight=1, uniform="run")
+        self.start_btn = ctk.CTkButton(buttons, text="▶  START", height=42, corner_radius=10, fg_color=COL_GREEN,
+                                       hover_color=COL_GREEN_HOVER, font=("Segoe UI Semibold", 13),
+                                       command=self._on_start)
+        self.start_btn.grid(row=0, column=0, sticky="ew", padx=(0, 3))
+        self.pause_btn = ctk.CTkButton(buttons, text="⏸  PAUSE", height=42, corner_radius=10, fg_color=COL_AMBER,
+                                       hover_color=COL_AMBER_HOVER, font=("Segoe UI Semibold", 13),
+                                       command=self._on_pause)
+        self.pause_btn.grid(row=0, column=1, sticky="ew", padx=3)
+        self.reset_btn = ctk.CTkButton(buttons, text="⟳  RESET", height=42, corner_radius=10, fg_color=COL_GRAY_BTN,
+                                       hover_color=COL_GRAY_BTN_HOVER, font=("Segoe UI Semibold", 13),
+                                       command=self._on_reset)
+        self.reset_btn.grid(row=0, column=2, sticky="ew", padx=(3, 0))
+
+        # Danh sách Step (chỉ xem): tô sáng Step đang chạy. Sửa chương trình ở tab Lập trình.
+        ctk.CTkLabel(body, text="Các Step (sửa ở tab Lập trình)", font=("Segoe UI Semibold", 10),
+                     text_color=COL_TEXT_DIM, anchor="w").pack(fill="x")
+        self.run_step_frame = ctk.CTkScrollableFrame(body, fg_color=COL_INPUT, corner_radius=8, height=60,
+                                                     scrollbar_button_color=COL_BTN_DARK)
+        self.run_step_frame.pack(fill="both", expand=True, pady=(2, 0))
         return card
+
+    def _refresh_run_steps(self):
+        """Vẽ lại danh sách Step của chương trình đang chọn, tô sáng Step đang chạy (gọi khi đổi chương trình / Step)."""
+        for w in self.run_step_frame.winfo_children():
+            w.destroy()
+        if not self.selected_program or not self.program_store.exists(self.selected_program):
+            ctk.CTkLabel(self.run_step_frame, text="Chưa chọn chương trình.", font=("Segoe UI", 11),
+                         text_color=COL_TEXT_DIM).pack(pady=8)
+            return
+        running = (self.executor.program_name == self.selected_program
+                   and self.executor.state in (ExecState.RUNNING, ExecState.PAUSED))
+        current = self.executor.current_index if running else None
+        for i, step in enumerate(self.program_store.get(self.selected_program)["steps"]):
+            StepTableRow(self.run_step_frame, i, step, selected=(i == current), on_click=lambda: None).pack(
+                fill="x", pady=1)
 
     def _on_start(self):
         if not self._connected():
@@ -56,10 +100,10 @@ class ControlMixin:
             self._log("Bị chặn: robot đang HOME (tìm cảm biến) — đợi xong hoặc bấm STOP.", "WARN")
             return
         if not self._home_ready():
-            self._log("Bị chặn: chưa HOME — hãy bấm HOME (Quick Action) trước khi chạy chương trình.", "WARN")
+            self._log("Bị chặn: chưa HOME — hãy bấm HOME trước khi chạy chương trình.", "WARN")
             return
         if self.mode != "Chương trình":
-            self._log("Bị chặn: START chỉ cho phép ở Chế độ PROGRAM.", "WARN")
+            self._log("Bị chặn: START chỉ cho phép ở chế độ CHƯƠNG TRÌNH (nút gạt Chế độ ngay phía trên).", "WARN")
             return
         if not self.selected_program:
             self._log("Chưa chọn chương trình nào để chạy.", "WARN")
@@ -127,7 +171,7 @@ class ControlMixin:
             self._program_just_completed = True
         elif new_state == ExecState.RUNNING:
             self._program_just_completed = False
-        self.pause_btn.configure(text="▶\nRESUME" if new_state == ExecState.PAUSED else "⏸\nPAUSE")
+        self.pause_btn.configure(text="▶  RESUME" if new_state == ExecState.PAUSED else "⏸  PAUSE")
         self._refresh_progress_display()
         self._refresh_enabled_states()
 
@@ -136,8 +180,9 @@ class ControlMixin:
         self.progress_bar.set((current / total) if total else 0)
         self.progress_label.configure(text=f"{current} / {total}")
         self.step_desc_label.configure(text=self.executor.current_step_description())
+        self._refresh_run_steps()
 
-    # ---------------- HOME / GRIP thủ công (sidebar QUICK ACTION) ----------------
+    # ---------------- HOME / GRIP thủ công (khung JOG) ----------------
     def _manual_action_allowed(self):
         return self.executor.state not in (ExecState.RUNNING, ExecState.PAUSED)
 
@@ -181,6 +226,7 @@ class ControlMixin:
 
     def _on_gripper_change(self, commanded, actual):
         self._log(f"Kẹp: {'ĐÓNG (ON)' if commanded == 'ON' else 'MỞ (OFF)'}", "OK")
+        self._update_grip_button()
 
     # ---------------- Bật/tắt điều khiển theo trạng thái ----------------
     def _refresh_enabled_states(self):
@@ -193,24 +239,25 @@ class ControlMixin:
         elif self.backend.is_homing():
             hint = "⚠ Đang HOME (tìm cảm biến) — đợi xong hoặc bấm STOP."
         elif not self._home_ready():
-            hint = "⚠ Chưa HOME — bấm HOME (Quick Action) để tìm vị trí gốc trước khi JOG / chạy chương trình."
+            hint = "⚠ Chưa HOME — bấm HOME (bên dưới) để tìm vị trí gốc trước khi JOG / chạy chương trình."
         elif not jog_ok:
-            hint = "⚠ JOG chỉ hoạt động ở Chế độ JOG và khi không có chương trình đang chạy."
+            hint = "⚠ JOG chỉ hoạt động ở chế độ JOG (nút gạt trong khung Chạy chương trình) và khi không chạy chương trình."
         else:
             hint = ""
         self.jog_hint_label.configure(text=hint)
         self.move_xyz_btn.configure(state="normal" if jog_ok else "disabled")
         self.xyz_fill_btn.configure(state="normal" if connected else "disabled")
+        self.move_here_btn.configure(state="normal" if jog_ok and self.loaded_reference else "disabled")
+        self.teach_quick_btn.configure(state="normal" if connected and self._home_ready() else "disabled")
 
         manual_ok = connected and self._manual_action_allowed() and not self.backend.is_homing()
         self.home_btn.configure(state="normal" if manual_ok else "disabled")
         grip_ok = connected and self._manual_action_allowed()
-        self.grip_on_btn.configure(state="normal" if grip_ok else "disabled")
-        self.grip_off_btn.configure(state="normal" if grip_ok else "disabled")
+        self.grip_toggle_btn.configure(state="normal" if grip_ok else "disabled")
+        self._update_grip_button()
 
         running = self.executor.state in (ExecState.RUNNING, ExecState.PAUSED)
         self.start_btn.configure(
             state="normal" if connected and self.executor.state != ExecState.RUNNING else "disabled")
         self.pause_btn.configure(state="normal" if running else "disabled")
-        self.stop_btn.configure(state="normal" if connected else "disabled")
         self.header_stop_btn.configure(state="normal" if connected else "disabled")

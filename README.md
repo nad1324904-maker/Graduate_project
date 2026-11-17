@@ -64,7 +64,8 @@ scara_robot/
     ├── main.py                     Điểm khởi động
     ├── comm/                       Giao tiếp: uart_protocol.py, uart_backend.py, offline_backend.py
     ├── core/                       Logic: kinematics, robot_config, point_store, program_store, program_executor
-    ├── ui/                         Giao diện: app.py, robot_tab/, visual_tab/, settings_tab/, theme, widgets, perf
+    ├── ui/                         Giao diện: app.py, robot_tab/ (Vận hành + Lập trình), visual_tab/, settings_tab/,
+    │                               theme (bảng màu sáng/tối), widgets, perf
     ├── data/                       robot_config.json, points.json, programs.json
     ├── firmware/PROTOCOL.md        Mô tả giao thức UART
     └── tools/uart_tool.py          Gửi lệnh tay tới STM32 không cần GUI (dùng khi thử phần cứng)
@@ -137,16 +138,18 @@ Mỗi 1 ms, ngắt TIM9 chạy lần lượt cho từng trục:
 
 ## 5. Giao diện PC — chức năng
 
-| Khu vực | Chức năng |
+Giao diện có 4 tab, cùng **nút ■ STOP màu đỏ cố định trên thanh tiêu đề** và **thanh SYSTEM LOG ở đáy** (cả hai hiện ở mọi tab;
+Log bấm "▲ Mở rộng" để xem nhiều dòng hơn). Mặc định là giao diện sáng, chạy `python main.py --dark` để dùng giao diện tối.
+
+| Tab / khung | Chức năng |
 |---|---|
-| **JOG** | Hai kiểu, chọn bằng nút chuyển trên đầu khung: **Khớp** (J1, J2, J3, Z theo độ/mm) hoặc **Tọa độ** (X, Y, Z theo mm và θ theo độ của đầu công tác, dùng động học ngược). Chỉ hoạt động ở chế độ JOG và sau khi đã HOME |
-| **Operation Monitor** | Vị trí đặt và vị trí thực của từng khớp; TCP (X, Y, Z, θ) theo động học thuận; trạng thái robot, home, pause, kẹp |
-| **Move to XYZθ** | Nhập tọa độ đầu công tác, GUI tính động học ngược ra góc khớp rồi di chuyển. Nút "⤓ Hiện tại" điền sẵn vị trí đang đứng; ô nào không sửa thì dùng giá trị chính xác (không bị sai số làm tròn), và nếu đích trùng vị trí hiện tại thì không gửi lệnh |
-| **Points** | Teach Point (lưu vị trí thực hiện tại), Save Position, đổi tên, xóa (bị chặn nếu Program đang dùng điểm đó), Move to Reference |
-| **Program** | Tạo chương trình gồm các Step: **MOVE** (tới một Point), **GRIP ON/OFF**, **DELAY** (0.1–60 s) |
-| **Control** | START / PAUSE–RESUME / STOP (phanh gấp, không tự về home) / RESET (xóa FAULT bằng `CLEAR`) |
-| **Quick Action** | HOME (cả 4 trục tìm cảm biến cùng lúc), GRIP ON / GRIP OFF |
-| **Giám sát** (tab) | Hình robot 2D nhìn từ trên xuống (tư thế thực, đích, Points, đường đi dự kiến của chương trình) và đồ thị bám quỹ đạo của một trục (mục 5.1) |
+| **Vận hành → JOG** | Hai kiểu, chọn bằng nút chuyển trên đầu khung: **Khớp** (J1, J2, J3, Z theo độ/mm) hoặc **Tọa độ** (X, Y, Z theo mm và θ theo độ của đầu công tác, dùng động học ngược). Bên dưới có nút **HOME** (cả 4 trục tìm cảm biến) và nút **Kẹp** (bấm để đóng/mở, chữ trên nút cho biết trạng thái). JOG chỉ hoạt động ở chế độ JOG và sau khi đã HOME |
+| **Vận hành → Operation Monitor** | Vị trí đặt và vị trí thực của từng khớp; TCP (X, Y, Z, θ) theo động học thuận; hàng **Point ▾ / Move Here / Teach Point** để chọn điểm, đi tới điểm và dạy điểm mới mà không phải đổi tab; khung **Move to XYZθ**; trạng thái robot, home, pause, kẹp |
+| **Vận hành → Move to XYZθ** | Nhập tọa độ đầu công tác, GUI tính động học ngược ra góc khớp rồi di chuyển. Nút "⤓ Hiện tại" điền sẵn vị trí đang đứng; ô nào không sửa thì dùng giá trị chính xác (không bị sai số làm tròn), và nếu đích trùng vị trí hiện tại thì không gửi lệnh |
+| **Vận hành → Chạy chương trình** | Nút gạt **Chế độ JOG / CHƯƠNG TRÌNH**, chọn Program, thanh tiến độ, **START / PAUSE–RESUME / RESET** (RESET xóa FAULT bằng `CLEAR`). Bên dưới là danh sách Step, **Step đang chạy được tô sáng** |
+| **Lập trình → Points** | Danh sách Point, Teach Point (lưu vị trí thực hiện tại), Save Position, đổi tên, xóa (bị chặn nếu Program đang dùng điểm đó) |
+| **Lập trình → Program Editor** | Tạo chương trình gồm các Step: **MOVE** (tới một Point), **GRIP ON/OFF**, **DELAY** (0.1–60 s); sửa, xóa, chèn Step |
+| **Giám sát** | Hình robot 2D nhìn từ trên xuống (tư thế thực, đích, Points, đường đi dự kiến của chương trình) và đồ thị bám quỹ đạo của một trục (mục 5.1) |
 | **Settings** | 6 panel cấu hình (mục 7) và kết nối UART |
 
 **Động học thuận** ([core/kinematics.py](Giao%20dien%20dieu%20khien/core/kinematics.py)):
@@ -206,7 +209,7 @@ d_Z = z + h2
 - **Robot 2D nhìn từ trên xuống:**
   - Hiện vùng với tới, các tia giới hạn J1, tư thế **thực** (nét liền) và tư thế **đích** đang chạy tới (nét đứt).
   - Hiện các Point, cùng một thanh độ cao Z.
-  - Chọn một chương trình ở tab Robot thì tab này vẽ **đường đi dự kiến**, với số thứ tự Step tại mỗi điểm. Vì các khớp chạy đồng bộ, đường đi giữa hai Point chính là nội suy tuyến tính trong không gian khớp, nên hình vẽ đúng với đường robot sẽ đi.
+  - Chọn một chương trình (ở tab Vận hành hoặc Lập trình) thì tab này vẽ **đường đi dự kiến**, với số thứ tự Step tại mỗi điểm. Vì các khớp chạy đồng bộ, đường đi giữa hai Point chính là nội suy tuyến tính trong không gian khớp, nên hình vẽ đúng với đường robot sẽ đi.
   - Xem trước được cả khi chưa kết nối.
 - **Đồ thị bám quỹ đạo:**
   - Chọn trục J1, J2, J3 hoặc Z, và cửa sổ thời gian 5, 10 hoặc 30 s.
@@ -254,18 +257,20 @@ python main.py --dark          # giao diện tối (mặc định: sáng)
    - Vào **Settings → Communication**, chọn cổng COM, baud 115200, bấm **Connect**.
    - GUI gửi toàn bộ cấu hình xuống STM32. Chờ Log báo `CONFIG_OK`.
 2. **HOME:**
-   - Bấm **HOME** ở Quick Action. Các trục chạy chậm về cảm biến và dừng; vị trí được đặt bằng giá trị Home trong Settings.
+   - Bấm **HOME** (tab Vận hành, dưới khung JOG). Các trục chạy chậm về cảm biến và dừng; vị trí được đặt bằng giá trị Home trong Settings.
    - Chờ Log báo `HOME_DONE`.
    - Chưa HOME thì GUI chặn JOG và START. Có công tắc *"Bỏ qua kiểm tra HOME"* nhưng chỉ dùng khi debug.
-3. **Dạy điểm:** ở chế độ **JOG**, đưa robot tới vị trí cần lưu. Có ba cách: JOG từng khớp, JOG theo **Tọa độ X Y Z θ**,
-   hoặc nhập tọa độ ở **Move to XYZθ**. Sau đó đặt tên rồi bấm **Teach Point**.
-4. **Soạn chương trình:** tạo Program, thêm các Step MOVE / GRIP / DELAY. Nên thêm DELAY sau GRIP để kẹp kịp đóng hoặc mở.
+3. **Dạy điểm** (tab **Vận hành**, chế độ **JOG**): đưa robot tới vị trí cần lưu. Có ba cách: JOG từng khớp, JOG theo
+   **Tọa độ X Y Z θ**, hoặc nhập tọa độ ở **Move to XYZθ**. Sau đó bấm **📌 Teach Point** và đặt tên. Muốn sửa lại
+   một điểm đã có thì sang tab **Lập trình**, chọn điểm rồi bấm **Save Position**.
+4. **Soạn chương trình** (tab **Lập trình**): tạo Program, thêm các Step MOVE / GRIP / DELAY. Nên thêm DELAY sau GRIP để kẹp kịp đóng hoặc mở.
    Với pick and place, mỗi vị trí gắp hoặc đặt nên có **hai Point**: một điểm phía trên (Z cao) và một điểm phía dưới.
    Robot đi ngang ở độ cao an toàn rồi mới hạ thẳng xuống, để tránh va vào vật:
    ```
    MOVE P1_tren → MOVE P1_duoi → GRIP ON → DELAY → MOVE P1_tren → MOVE P2_tren → MOVE P2_duoi → GRIP OFF → DELAY → MOVE P2_tren
    ```
-5. **Chạy:** chuyển sang chế độ **Program**, chọn chương trình và bấm **START**. Có thể PAUSE/RESUME hoặc STOP bất kỳ lúc nào.
+5. **Chạy** (tab **Vận hành**, khung Chạy chương trình): gạt **Chế độ** sang **CHƯƠNG TRÌNH**, chọn Program và bấm
+   **START**. Có thể PAUSE/RESUME bất kỳ lúc nào; nút **■ STOP** trên thanh tiêu đề dừng ngay ở mọi tab.
 6. **Khi có FAULT:**
    - Kiểm tra cơ khí và encoder trước.
    - Bấm **RESET** (gửi `CLEAR`), rồi **HOME** lại vì trục đã mất mốc vị trí.
@@ -329,7 +334,7 @@ python "Giao dien dieu khien/tools/uart_tool.py" COM5        # gõ lệnh trực
 | `FAULT … trip` ngay khi chạy | Encoder ngược chiều (sửa `enc_sign` trong `main.c` hoặc Direction trong Settings), Vmax/Amax quá cao so với động cơ, kẹt cơ khí, ngưỡng Trip quá nhỏ |
 | `FAULT … home` | Không thấy cảm biến trong thời gian chờ (sai chiều tìm, sai chân, cảm biến hỏng) hoặc trục bị chặn; nếu bị báo giả khi tìm nhanh thì tăng *Home Trip* |
 | Sau HOME vị trí hiển thị sai | Kiểm tra panel Encoder (PPR, Gear) đúng với cơ khí; JOG 10° rồi đo bằng thước đo góc để xác nhận |
-| JOG / START bị chặn | Chưa Connect, chưa HOME, sai chế độ (JOG / Program), hoặc chương trình đang chạy |
+| JOG / START bị chặn | Chưa Connect, chưa HOME, sai chế độ (nút gạt JOG / CHƯƠNG TRÌNH trong khung Chạy chương trình), hoặc chương trình đang chạy |
 | Log báo "STM32 tự dừng vì quá 0.6 s không nhận được tín hiệu từ PC" | Dây USB lỏng hoặc bộ chuyển USB–UART chập chờn, cũng có thể máy tính bị treo. Robot đã tự dừng và giữ vị trí: kiểm tra dây, bấm RESET rồi chạy lại, không cần HOME lại |
 | Giao diện chậm trên máy yếu | Chạy với `--scale 0.85`; có thể chỉnh `TICK_MS`, `DISPLAY_EVERY`, `MAX_LOG_LINES` trong `ui/perf.py` |
 

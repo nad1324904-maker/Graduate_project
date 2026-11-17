@@ -261,11 +261,11 @@ class VisualMixin:
         return x, y, z, th
 
     def _draw_program_path(self, c, px):
-        """Đường đi dự kiến của chương trình đang chọn ở tab Robot. Vì các khớp chạy đồng bộ (cùng xuất phát, cùng tới
+        """Đường đi dự kiến của chương trình đang chọn (tab Vận hành / Lập trình). Vì các khớp chạy đồng bộ (cùng xuất phát, cùng tới
         đích), đường đi giữa 2 Point = nội suy TUYẾN TÍNH trong không gian khớp -> FK. Trả về dòng chú thích."""
         name = getattr(self, "selected_program", None)
         if not name or not self.program_store.exists(name):
-            return "Chọn một chương trình ở tab Robot để xem trước đường đi."
+            return "Chọn một chương trình ở tab Vận hành hoặc Lập trình để xem trước đường đi."
         steps = self.program_store.get(name)["steps"]
         moves = [(i + 1, st["point"]) for i, st in enumerate(steps)
                  if st["type"] == "MOVE" and self.point_store.exists(st["point"])]

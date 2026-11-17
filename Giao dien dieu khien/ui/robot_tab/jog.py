@@ -1,4 +1,4 @@
-"""jog.py — Chế độ (JOG/Chương trình), JOG Control (theo khớp hoặc theo X Y Z θ), Quick Action."""
+"""jog.py — Chế độ (JOG/Chương trình), khung JOG (theo khớp hoặc X Y Z θ) + HOME + bật/tắt kẹp."""
 
 import customtkinter as ctk
 
@@ -6,49 +6,39 @@ from comm.errors import UartError
 from core.kinematics import IKError, forward_kinematics, inverse_kinematics
 from core.program_executor import ExecState
 from ui.theme import (
-    AXES, COL_ACCENT, COL_AMBER, COL_ON_ACCENT, COL_TEXT, COL_TEXT_DIM, SEGMENTED_STYLE, UNITS
+    AXES, COL_ACCENT, COL_ACCENT_HOVER, COL_AMBER, COL_BTN_DARK, COL_BTN_DARK_HOVER, COL_TEXT_DIM, SEGMENTED_STYLE,
+    UNITS
 )
-from ui.widgets import Card, SidebarSection, JogRow
+from ui.widgets import Card, JogRow
 
 # JOG theo tọa độ đầu công tác (TCP): tên, đơn vị, 3 bước nhanh (bước giữa là mặc định)
 CART_AXES = (("X", "mm", [0.5, 1, 5]), ("Y", "mm", [0.5, 1, 5]), ("Z", "mm", [1, 5, 10]), ("θ", "°", [0.1, 1, 5]))
 JOG_SPACE_JOINT, JOG_SPACE_CART = "Khớp  J1 J2 J3 Z", "Tọa độ  X Y Z θ"
+# Chế độ: giá trị nội bộ (self.mode) <-> nhãn trên nút gạt
+MODE_LABELS = {"JOG": "JOG", "Chương trình": "CHƯƠNG TRÌNH"}
 
 
 class JogMixin:
     # ============================================================
     # Chế độ hoạt động
     # ============================================================
+    def _on_mode_seg(self, label):
+        self._set_mode(next(k for k, v in MODE_LABELS.items() if v == label))
+
     def _set_mode(self, mode):
+        """Chế độ JOG: cho JOG / Move. Chế độ CHƯƠNG TRÌNH: cho START, khóa JOG. Nút gạt nằm trong khung Chạy chương trình."""
         if self.executor.state in (ExecState.RUNNING, ExecState.PAUSED) and mode == "JOG":
             self._log("Không thể chuyển sang JOG khi chương trình đang chạy.", "WARN")
+            self.mode_seg.set(MODE_LABELS[self.mode])          # trả nút gạt về chế độ cũ
             return
         self.mode = mode
-        for key, b in self._mode_section.buttons.items():
-            if b.cget("state") == "disabled":
-                continue
-            active = (key == mode)
-            b.configure(fg_color=COL_ACCENT if active else "transparent",
-                        text_color=COL_ON_ACCENT if active else COL_TEXT,
-                        font=("Segoe UI Semibold" if active else "Segoe UI", 13))
+        self.mode_seg.set(MODE_LABELS[mode])
         self._refresh_enabled_states()
-        self._log(f"Chuyển chế độ → {mode}")
+        self._log(f"Chuyển chế độ → {MODE_LABELS[mode]}")
 
     # ============================================================
-    # MODE / JOG CONTROL / QUICK ACTION — 3 panel riêng
+    # JOG (khớp / tọa độ) + HOME + kẹp
     # ============================================================
-    def _build_mode_card(self, parent):
-        card = Card(parent, "MODE", "🔀")
-        body = card.body
-        mode_section = SidebarSection(body, "")
-        mode_section.pack(fill="both", expand=True)
-        mode_section.add_button("JOG", "👆", "JOG", lambda: self._set_mode("JOG"), active=True)
-        mode_section.add_button("Chương trình", "</>", "PROGRAM", lambda: self._set_mode("Chương trình"))
-        # "Tự động" chưa có yêu cầu chức năng cụ thể trong spec -> vô hiệu hóa.
-        mode_section.add_button("Tự động", "▶", "AUTO", None, enabled=False)
-        self._mode_section = mode_section
-        return card
-
     def _build_jog_card(self, parent):
         card = Card(parent, "JOG CONTROL", "🕹️")
         body = card.body
@@ -82,23 +72,32 @@ class JogMixin:
         # tự xuống dòng theo độ rộng khung (trước đây dòng nhắc dài bị cắt chữ ở màn hình hẹp)
         body.bind("<Configure>", lambda e: self.jog_hint_label.configure(
             wraplength=max(200, int(e.width / self.jog_hint_label._get_widget_scaling()) - 10)), add="+")
+        # HOME + kẹp (trước đây là khung QUICK ACTION riêng)
+        actions = ctk.CTkFrame(body, fg_color="transparent")
+        actions.pack(fill="x", pady=(10, 0))
+        self.home_btn = ctk.CTkButton(actions, text="🏠  HOME", height=40, corner_radius=10,
+                                      fg_color=COL_ACCENT, hover_color=COL_ACCENT_HOVER,
+                                      font=("Segoe UI Semibold", 13), command=self._on_home_click)
+        self.home_btn.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        self.grip_toggle_btn = ctk.CTkButton(actions, text="🦾  Kẹp: MỞ", height=40, corner_radius=10,
+                                             fg_color=COL_BTN_DARK, hover_color=COL_BTN_DARK_HOVER,
+                                             font=("Segoe UI Semibold", 13), command=self._on_grip_toggle)
+        self.grip_toggle_btn.pack(side="left", fill="x", expand=True, padx=(4, 0))
         # Công tắc debug: cho JOG/Move Here/START/Teach khi chưa HOME (vd chưa có cảm biến). Luôn TẮT mỗi lần mở app.
         self.skip_home_check = ctk.BooleanVar(value=False)
         ctk.CTkSwitch(body, text="Bỏ qua kiểm tra HOME (chỉ để debug)", variable=self.skip_home_check,
                       command=self._on_toggle_skip_home, font=("Segoe UI", 11),
-                      text_color=COL_TEXT_DIM).pack(anchor="w", pady=(8, 0))
+                      text_color=COL_TEXT_DIM).pack(anchor="w", pady=(10, 0))
         return card
 
-    def _build_quick_action_card(self, parent):
-        card = Card(parent, "QUICK ACTION", "⚡")
-        body = card.body
-        quick_section = SidebarSection(body, "")
-        quick_section.pack(fill="both", expand=True)
-        self.home_btn = quick_section.add_button("home", "🏠", "HOME", self._on_home_click)
-        self.grip_on_btn = quick_section.add_button("grip_on", "🦾", "GRIP ON", lambda: self._on_grip_click("ON"))
-        self.grip_off_btn = quick_section.add_button("grip_off", "🦾", "GRIP OFF", lambda: self._on_grip_click("OFF"))
-        self.reset_btn_sidebar = quick_section.add_button("reset", "⟳", "RESET", self._on_reset)
-        return card
+    def _on_grip_toggle(self):
+        """1 nút cho kẹp: đang MỞ thì đóng, đang ĐÓNG thì mở (trạng thái theo firmware báo về)."""
+        closed = self.backend.get_gripper_state()["commanded"] == "ON"
+        self._on_grip_click("OFF" if closed else "ON")
+
+    def _update_grip_button(self):
+        closed = self._connected() and self.backend.get_gripper_state()["commanded"] == "ON"
+        self.grip_toggle_btn.configure(text="🦾  Kẹp: ĐÓNG  → mở" if closed else "🦾  Kẹp: MỞ  → đóng")
 
     def _on_jog_space_change(self, value):
         """Đổi bảng JOG: theo khớp (J1 J2 J3 Z) hoặc theo tọa độ đầu công tác (X Y Z θ)."""
@@ -113,7 +112,7 @@ class JogMixin:
         elif self.backend.is_homing():
             self._log("Bị chặn: robot đang HOME (tìm cảm biến) — đợi xong hoặc bấm STOP.", "WARN")
         elif not self._home_ready():
-            self._log("Bị chặn: chưa HOME — hãy bấm HOME (Quick Action) để các trục tìm vị trí gốc trước khi JOG.", "WARN")
+            self._log("Bị chặn: chưa HOME — hãy bấm HOME để các trục tìm vị trí gốc trước khi JOG.", "WARN")
         else:
             self._log("Bị chặn: JOG chỉ cho phép ở Chế độ JOG và khi không có chương trình đang chạy.", "WARN")
 

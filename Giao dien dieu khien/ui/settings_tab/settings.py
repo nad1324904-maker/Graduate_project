@@ -39,7 +39,7 @@ class SettingsMixin:
         left.pack(side="left")
         ctk.CTkButton(left, text="←", width=36, height=36, corner_radius=8,
                       fg_color=COL_BTN_DARK, hover_color=COL_BTN_DARK_HOVER,
-                      font=("Segoe UI", 15), command=lambda: self._set_active_tab("robot")).pack(side="left", padx=(0, 12))
+                      font=("Segoe UI", 15), command=lambda: self._set_active_tab("operate")).pack(side="left", padx=(0, 12))
         title_box = ctk.CTkFrame(left, fg_color="transparent")
         title_box.pack(side="left")
         ctk.CTkLabel(title_box, text="⚙ Robot Configuration", font=("Segoe UI Semibold", 18),
