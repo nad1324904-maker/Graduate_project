@@ -40,6 +40,21 @@ static void latch_fault(Control_t *c, uint8_t code)
   Motor_Set(c->motor, 0);
 }
 
+/* E-STOP (goi trong vung gang ngat): phanh, tat PID, BO moc vi tri (homed = 0) va khoa chuyen dong cho den RESET.
+   Khac latch_fault: khong bao FAULT; khac STOP: duoc chot lai (c->estop), moi lenh chuyen dong bi tu choi "estop".
+   Bo moc vi tri vi cat nguon dong luc co the lam co cau tu di chuyen -> sau RESET phai HOMING lai. */
+static void estop_motor(Control_t *c)
+{
+  c->en = 0; c->busy = 0; c->paused = 0;
+  c->homing = 0; c->homed = 0;
+  c->goal = c->enc->pos;
+  TrapProfile_Reset(c->trap, (double)c->enc->pos);
+  PID_Reset(c->pid);
+  Motor_Set(c->motor, 0);
+  c->tel_ready = 0;
+  c->estop = 1;
+}
+
 /* HOMING (goi moi ms khi c->homing, trong ngat): cham cam bien -> dung ngay + dat vi tri = vi tri home;
    qua timeout hoac dong co bi chan (sai so bam qua lon) -> FAULT home. Toc do tim do Control_Tick ap dung. */
 static void homing_tick(Control_t *c)
@@ -163,6 +178,12 @@ static void exec(Control_t *c, const char *cmd, const char *a1, const char *a2, 
 {
   long n = 0, hi = 0; float x, y, z;
   int id = c->id;
+
+  if (c->estop && (!strcmp(cmd, "JOG") || !strcmp(cmd, "GOTO") || !strcmp(cmd, "HOME") || !strcmp(cmd, "HOMING") ||
+                   !strcmp(cmd, "PAUSE") || !strcmp(cmd, "RESUME"))) {
+    reply(c->comm, cmd, id, "estop");                              /* dang E-STOP: phai RESET (ESTOP 0) truoc */
+    return;
+  }
 
   if (!strcmp(cmd, "JOG") || !strcmp(cmd, "GOTO") || !strcmp(cmd, "HOME")) {
     int mode = (cmd[0] == 'J') ? 0 : (cmd[0] == 'G') ? 1 : 2;      /* 0: JOG (+n), 1: GOTO (=n), 2: HOME (=0) */
@@ -327,7 +348,8 @@ static void status_poll(ControlSet_t *s)
     {
       CRIT_ENTER();
       st   = (c->en ? 1 : 0) | (c->paused ? 2 : 0) | (c->busy ? 4 : 0) | (c->faulted ? 8 : 0)
-           | (c->homed ? 16 : 0) | (c->homing ? 32 : 0) | ((c->home && HomeSen_Active(c->home)) ? 64 : 0);
+           | (c->homed ? 16 : 0) | (c->homing ? 32 : 0) | ((c->home && HomeSen_Active(c->home)) ? 64 : 0)
+           | (c->estop ? 128 : 0);
       goal = (long)c->goal;
       sp   = (long)iround(c->trap->pos);
       pos  = (long)c->enc->pos;
@@ -410,7 +432,23 @@ void ControlSet_OnLine(void *ctx, char *line)
     return;
   }
 
+  if (!strcmp(cmd, "ESTOP")) {                             /* ESTOP <1|0>: 1 = E-STOP (khoa chuyen dong), 0 = RESET (mo khoa + xoa FAULT) */
+    char b[24];
+    if (!parse_l(ids, &k) || (k != 0 && k != 1) || a1) { Comm_SendStr(s->comm, "ERR ESTOP ? arg\n"); return; }
+    for (int i = 0; i < CONTROL_COUNT; i++) {
+      Control_t *c = &s->m[i];
+      CRIT_ENTER();
+      if (k) estop_motor(c);
+      else { c->estop = 0; c->faulted = 0; c->fault = 0; }
+      CRIT_EXIT();
+    }
+    snprintf(b, sizeof b, "OK ESTOP %ld\n", k);
+    Comm_SendStr(s->comm, b);
+    return;
+  }
+
   if (!strcmp(cmd, "GRIP")) {                             /* GRIP <0|1>: khong co so dong co */
+    if (s->m[0].estop) { Comm_SendStr(s->comm, "ERR GRIP ? estop\n"); return; }       /* E-STOP: khoa ca kep */
     if (!s->grip) { Comm_SendStr(s->comm, "ERR GRIP ? nogrip\n"); return; }
     if (!parse_l(ids, &k) || (k != 0 && k != 1) || a1) { Comm_SendStr(s->comm, "ERR GRIP ? arg\n"); return; }
     Gripper_Set(s->grip, (uint8_t)k);

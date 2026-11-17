@@ -21,6 +21,9 @@ class MonitorMixin:
             self.status_badge.set_value("OFFLINE", COL_TEXT_DIM)
             return
         backend_status = self.backend.get_status()
+        if self.backend.is_estop():
+            self.status_badge.set_value("E-STOP", STATUS_COLOR[RobotStatus.ERROR])
+            return
         if self._program_just_completed and backend_status == RobotStatus.READY:
             display_status = RobotStatus.DONE
         else:

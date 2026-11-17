@@ -5,6 +5,7 @@ phụ thuộc serial/GUI. Phải khớp với control.c / control.h ở firmware
   PC -> STM32 : <LỆNH> <số động cơ 1..4> [tham số]        vd  "GOTO 2 12750"   "PID 3 4.2 0 0"
                 GRIP <0|1>  (kẹp: KHÔNG có số động cơ; 1 = ĐÓNG, 0 = MỞ) -> "OK GRIP <0|1>" / "ERR GRIP ? <lý do>"
                 PING (không trả lời, nuôi watchdog)  |  WDT <ms>  |  SEL <0..4>  (0 = tắt telemetry T)
+                ESTOP <1|0>  (1 = E-STOP: phanh, tắt PID, bỏ mốc vị trí, khóa chuyển động · 0 = RESET: mở khóa, xóa FAULT)
   STM32 -> PC : OK <lệnh> <số>            |  ERR <lệnh> <số> <lý do>
                 S <ms> (st goal sp pos) x4 <grip> |  FAULT <số> trip|home  |  BOOT  |  LINKLOST
                 T <số> <ms> <en> <goal> <sp> <pos> <sv> <v>   (telemetry 50 Hz của động cơ được SEL)
@@ -21,6 +22,7 @@ AXES = ("J1", "J2", "J3", "Z")
 # Các bit trong trường st của dòng S
 ST_EN, ST_PAUSED, ST_BUSY, ST_FAULT = 1, 2, 4, 8
 ST_HOMED, ST_HOMING, ST_HSENSOR = 16, 32, 64     # đã HOME thật | đang tìm cảm biến home | cảm biến home đang kích hoạt
+ST_ESTOP = 128                                   # STM32 đang E-STOP (khóa mọi lệnh chuyển động cho tới ESTOP 0)
 
 
 class ProtocolError(Exception):

@@ -79,6 +79,10 @@ class RobotBackendBase(ABC):
         """Yêu cầu robot chạy về vị trí Home (thao tác độc lập, có
         HOME_DONE/HOME_ERROR riêng, không lẫn với STOP/RESET)."""
 
+    def is_estop(self) -> bool:
+        """True nếu STM32 đang ở trạng thái E-STOP (khóa chuyển động cho tới khi reset_estop()). Backend không có E-Stop: False."""
+        return False
+
     @abstractmethod
     def is_homed(self) -> bool:
         """True nếu lần Home gần nhất đã hoàn tất và chưa có gì bất

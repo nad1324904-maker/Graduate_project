@@ -179,4 +179,5 @@ class JogMixin:
         return (self._connected() and self.mode == "JOG"
                 and self.executor.state not in (ExecState.RUNNING, ExecState.PAUSED)
                 and not self.backend.is_homing()
+                and not self.backend.is_estop()
                 and self._home_ready())

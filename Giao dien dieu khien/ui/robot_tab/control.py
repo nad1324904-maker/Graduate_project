@@ -99,6 +99,9 @@ class ControlMixin:
         if self.backend.is_homing():
             self._log("Bị chặn: robot đang HOME (tìm cảm biến) — đợi xong hoặc bấm STOP.", "WARN")
             return
+        if self.backend.is_estop():
+            self._log("Bị chặn: đang E-STOP — bấm RESET rồi HOME trước khi chạy chương trình.", "WARN")
+            return
         if not self._home_ready():
             self._log("Bị chặn: chưa HOME — hãy bấm HOME trước khi chạy chương trình.", "WARN")
             return
@@ -144,9 +147,28 @@ class ControlMixin:
         except UartError as e:
             self._log(str(e), "ERROR")
 
+    def _on_estop(self):
+        """E-STOP mềm: dừng chương trình + báo STM32 (ESTOP 1) khóa mọi chuyển động và bỏ mốc vị trí.
+        Master sẽ gọi backend.emergency_stop() y như vậy khi PLC báo E-Stop. Gỡ: RESET rồi HOME."""
+        if not self._connected():
+            return
+        try:
+            if self.executor.state in (ExecState.RUNNING, ExecState.PAUSED):
+                self.executor.stop()
+            self.backend.emergency_stop()
+            self._log("E-STOP — STM32 phanh cả 4 động cơ và khóa chuyển động. Bấm RESET rồi HOME để chạy lại.", "ERROR")
+        except UartError as e:
+            self._log(str(e), "ERROR")
+
     def _on_reset(self):
         self.executor.reset()
-        if self._connected() and self.backend.get_status() == RobotStatus.ERROR:
+        if self._connected() and self.backend.is_estop():
+            try:
+                self.backend.reset_estop()     # ESTOP 0: mở khóa + xóa FAULT; robot đã mất mốc vị trí
+                self._log("Đã gửi RESET E-Stop (ESTOP 0) tới STM32. Robot đã mất mốc vị trí — bấm HOME trước khi chạy.", "INFO")
+            except UartError as e:
+                self._log(str(e), "ERROR")
+        elif self._connected() and self.backend.get_status() == RobotStatus.ERROR:
             try:
                 self.backend.clear_fault()     # CLEAR cả 4 động cơ; không tự chạy lại
                 self._log("Đã gửi CLEAR tới STM32 — FAULT được xóa. Kiểm tra cơ khí/encoder trước khi JOG.", "INFO")
@@ -196,6 +218,9 @@ class ControlMixin:
         if self.backend.is_homing():
             self._log("Robot đang HOME rồi — đợi xong hoặc bấm STOP để hủy.", "WARN")
             return
+        if self.backend.is_estop():
+            self._log("Đang E-STOP — bấm RESET trước rồi mới HOME.", "WARN")
+            return
         self._log("Yêu cầu HOME: 4 trục cùng chạy chậm tìm cảm biến home; chạm cảm biến thì dừng và đặt vị trí = vị trí home "
                   "(bấm STOP để hủy)...")
         try:
@@ -234,8 +259,11 @@ class ControlMixin:
         jog_ok = self._jog_allowed()
         for row in list(self.jog_rows.values()) + list(self.cart_jog_rows.values()):
             row.set_enabled(jog_ok)
+        estop = connected and self.backend.is_estop()
         if not connected:
             hint = "⚠ Chưa kết nối STM32 — vào Settings → Communication → Connect."
+        elif estop:
+            hint = "⛔ E-STOP — mọi chuyển động bị khóa. Bấm RESET (khung Chạy chương trình) rồi HOME lại."
         elif self.backend.is_homing():
             hint = "⚠ Đang HOME (tìm cảm biến) — đợi xong hoặc bấm STOP."
         elif not self._home_ready():
@@ -250,9 +278,9 @@ class ControlMixin:
         self.move_here_btn.configure(state="normal" if jog_ok and self.loaded_reference else "disabled")
         self.teach_quick_btn.configure(state="normal" if connected and self._home_ready() else "disabled")
 
-        manual_ok = connected and self._manual_action_allowed() and not self.backend.is_homing()
+        manual_ok = connected and self._manual_action_allowed() and not self.backend.is_homing() and not estop
         self.home_btn.configure(state="normal" if manual_ok else "disabled")
-        grip_ok = connected and self._manual_action_allowed()
+        grip_ok = connected and self._manual_action_allowed() and not estop
         self.grip_toggle_btn.configure(state="normal" if grip_ok else "disabled")
         self._update_grip_button()
 
@@ -261,3 +289,4 @@ class ControlMixin:
             state="normal" if connected and self.executor.state != ExecState.RUNNING else "disabled")
         self.pause_btn.configure(state="normal" if running else "disabled")
         self.header_stop_btn.configure(state="normal" if connected else "disabled")
+        self.header_estop_btn.configure(state="normal" if connected and not estop else "disabled")

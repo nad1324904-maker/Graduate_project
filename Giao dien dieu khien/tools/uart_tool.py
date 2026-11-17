@@ -6,7 +6,7 @@ uart_tool.py — Công cụ dòng lệnh để thử STM32 mà KHÔNG cần GUI 
 Gõ lệnh theo giao thức (xem PROTOCOL.md), đơn vị là COUNTS, ví dụ:
   GOTO 2 12750      JOG 1 -3825      HOME 2      HOMING 2     STOP 1      PAUSE 2      RESUME 2      CLEAR 2
   LIMIT 2 0 25500   PID 2 4.2 0 0    VMAX 2 12750   AMAX 2 21250   DB 2 5      SEL 2
-  GRIP 1 (đóng kẹp)  GRIP 0 (mở kẹp)  HPOS 2 109200 (home J1 = 30° nếu 3640 counts/°)  SEL 0 (tắt telemetry)
+  ESTOP 1 (E-Stop: phanh + khóa)  ESTOP 0 (Reset)  GRIP 1 (đóng kẹp)  GRIP 0 (mở kẹp)  HPOS 2 109200 (home J1 = 30° nếu 3640 counts/°)  SEL 0 (tắt telemetry)
   Watchdog mặc định TẮT nên gõ tay không lo robot tự dừng; muốn thử: WDT 3000 rồi không gõ gì 3 s -> LINKLOST
   TRIP 2 72800 5824  (ngưỡng FAULT J1: 20° khi chạy, 1.6° khi HOMING)
 Công cụ in mọi dòng nhận về (dòng S chỉ in mỗi giây một lần trừ khi có 'raw'). Thoát: Ctrl+C hoặc gõ quit.

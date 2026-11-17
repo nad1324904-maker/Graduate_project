@@ -24,7 +24,7 @@ import serial.tools.list_ports
 
 from comm.backend_base import RobotBackendBase, RobotStatus
 from comm.errors import UartError
-from comm.uart_protocol import (AXES, AXIS_OF_MOTOR, MOTOR_OF_AXIS, ST_BUSY, ST_EN, ST_FAULT, ST_HOMED,
+from comm.uart_protocol import (AXES, AXIS_OF_MOTOR, MOTOR_OF_AXIS, ST_BUSY, ST_EN, ST_ESTOP, ST_FAULT, ST_HOMED,
                            ST_HOMING, ST_HSENSOR, ST_PAUSED, ProtocolError, build_cmd, fmt_float, parse_line)
 from core import robot_config
 from core.robot_config import HOME_POSITION
@@ -54,6 +54,7 @@ ERR_TEXT = {
     "homing": "động cơ đang HOMING — đợi xong hoặc bấm STOP để hủy",
     "nosensor": "động cơ này chưa được gắn cảm biến home trong firmware (HomeSen_Init ở main.c)",
     "nogrip": "firmware chưa gắn kẹp (Gripper_Init ở main.c)",
+    "estop": "STM32 đang E-STOP — bấm RESET (gửi ESTOP 0) rồi HOME lại",
 }
 FAULT_TEXT = {
     "trip": "sai số bám vượt ngưỡng Trip (kẹt cơ khí / sai chiều encoder / mất encoder / Vmax-Amax quá cao) — đã phanh và tắt PID",
@@ -111,6 +112,8 @@ class UartRobotBackend(RobotBackendBase):
         self._resync_pending = True       # lần READY kế tiếp: target := actual
         self._any_fault = False
         self._any_busy = False
+        self._any_estop = False           # STM32 báo bit E-STOP trong dòng S
+        self._estop_seen = False          # đã báo lỗi cho lần E-STOP hiện tại (chỉ báo 1 lần ở cạnh lên)
         self._telemetry = {a: {"flags": 0, "goal": 0, "sp": 0, "pos": 0} for a in AXES}
         self._since_status = 0.0
         self._have_status = False
@@ -316,6 +319,28 @@ class UartRobotBackend(RobotBackendBase):
                             robot_config.counts_to_units(axis, d["sp"], enc),
                             robot_config.counts_to_units(axis, d["pos"], enc),
                             d["sv"] * k, d["v"] * k))
+
+    # ==================== E-STOP / RESET (báo cho STM32 biết) ====================
+    def emergency_stop(self):
+        """E-STOP: PC báo cho STM32 (khi PLC báo E-Stop). STM32 phanh cả 4 động cơ, tắt PID, BỎ mốc vị trí (homed = 0) và
+        KHÓA mọi lệnh chuyển động (kể cả kẹp) cho tới reset_estop(). Không chờ trạng thái READY: trạng thái chuyển sang ERROR
+        khi dòng S kế tiếp mang bit E-STOP."""
+        self._send("ESTOP", 1, tag="estop")
+        self._motion_paused = False
+        self._is_homed = False
+        self.target = dict(self.actual)
+        self._resync_pending = True
+        if self._pending_home:
+            self._finish_home(success=False)
+
+    def reset_estop(self):
+        """RESET sau E-Stop (ESTOP 0): STM32 mở khóa và xóa mọi FAULT. Robot CHƯA có mốc vị trí → phải home() lại."""
+        self._send("ESTOP", 0, tag="estop")
+        self._is_homed = False
+        self._resync_pending = True
+
+    def is_estop(self):
+        return self._any_estop
 
     def clear_fault(self):
         """Xóa FAULT đã chốt trên cả 4 động cơ (CLEAR). Motor không tự chạy lại; mốc vị trí vẫn là encoder."""
@@ -583,7 +608,7 @@ class UartRobotBackend(RobotBackendBase):
             self._config_ack()
         if cmd == "GRIP":
             self._set_gripper("ON" if motor else "OFF")   # "OK GRIP <0|1>": số = trạng thái kẹp mới
-        if cmd in MOTION_CMDS or cmd == "CLEAR":
+        if cmd in MOTION_CMDS or cmd in ("CLEAR", "ESTOP"):
             self._need_fresh_status = True       # trạng thái S đã nhận trước OK có thể là "cũ"
 
     def _on_err(self, cmd, motor, reason):
@@ -636,7 +661,7 @@ class UartRobotBackend(RobotBackendBase):
         self._since_status = 0.0
         self._have_status = True
         self._need_fresh_status = False
-        any_fault = any_busy = False
+        any_fault = any_busy = any_estop = False
         all_homed = True
         sensor_axes = 0
         for motor, (st, goal, sp, pos) in data["motors"].items():
@@ -646,17 +671,24 @@ class UartRobotBackend(RobotBackendBase):
             self._telemetry[axis] = {"flags": st, "goal": goal, "sp": sp, "pos": pos}
             any_fault |= bool(st & ST_FAULT)
             any_busy |= bool(st & ST_BUSY)
+            any_estop |= bool(st & ST_ESTOP)
             if axis not in self._no_sensor:       # trục chưa có cảm biến home (vd J3) không tính vào "đã HOME"
                 sensor_axes += 1
                 all_homed &= bool(st & ST_HOMED)
-        self._any_fault, self._any_busy = any_fault, any_busy
+        self._any_fault, self._any_busy, self._any_estop = any_fault, any_busy, any_estop
+        if any_estop and not self._estop_seen:                       # cạnh lên: báo 1 lần (dừng chương trình đang chạy)
+            self._estop_seen = True
+            self._report("STM32 đang ở trạng thái E-STOP: mọi lệnh chuyển động bị khóa. "
+                         "Bấm RESET rồi HOME lại để chạy tiếp (robot đã mất mốc vị trí).")
+        elif not any_estop:
+            self._estop_seen = False
         if data.get("grip") is not None:                             # firmware có kẹp: trạng thái chân PD9 thật
             self._set_gripper("ON" if data["grip"] else "OFF")
         self._is_homed = sensor_axes > 0 and all_homed               # "đã HOME" = cả 4 trục đã tham chiếu theo cảm biến (firmware xóa khi FAULT/HOMING lại)
         self._evaluate_status()
 
     def _evaluate_status(self):
-        if self._any_fault:
+        if self._any_fault or self._any_estop:
             new = RobotStatus.ERROR
         elif self._motion_pending() or self._need_fresh_status or self._any_busy:
             new = RobotStatus.BUSY
@@ -691,7 +723,9 @@ class UartRobotBackend(RobotBackendBase):
         for axis in AXES:
             t, enc = self._telemetry[axis], self._enc[axis]
             flags = t["flags"]
-            if flags & ST_FAULT:
+            if flags & ST_ESTOP:
+                state = "E-STOP"
+            elif flags & ST_FAULT:
                 state = "FAULT"
             elif flags & ST_HOMING:
                 state = "HOMING"

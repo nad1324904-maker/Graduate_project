@@ -207,6 +207,8 @@ d_Z = z + h2
 - Nhận `BOOT` sau khi đã cấu hình (STM32 vừa reset) cũng bị coi là mất kết nối.
 - **Phía STM32 (watchdog):** khi Connect, PC gửi `WDT 600`, rồi một luồng riêng gửi `PING` mỗi 0.2 s. Luồng này độc lập với giao diện, nên kéo cửa sổ hay giao diện đơ một lúc không làm robot dừng oan. Nếu dây USB tuột hoặc chương trình trên PC chết, quá 0.6 s không nhận được gì thì STM32 cho mọi trục đang chạy **giảm tốc dừng rồi giữ vị trí** và gửi `LINKLOST`. Mốc vị trí vẫn đúng, nên Connect lại là chạy tiếp được, không cần HOME lại.
 
+**E-Stop / Reset (PC báo cho STM32):** E-Stop thật nằm ở PLC (relay an toàn cắt nguồn động lực). Để STM32 biết, PC gửi `ESTOP 1`: cả 4 động cơ phanh, tắt PID, **bỏ mốc vị trí** (vì mất nguồn, cơ cấu có thể bị xê dịch) và khóa mọi lệnh chuyển động, kể cả kẹp. Khi người vận hành bấm Reset, PC gửi `ESTOP 0` (mở khóa và xóa luôn FAULT trip do mất nguồn gây ra), sau đó **phải HOME lại**. Trên GUI: nút **⛔ E-STOP** ở header làm đúng việc master sẽ làm; nút **RESET** gửi `ESTOP 0`; trong lúc E-Stop, badge trạng thái hiện `E-STOP`, các nút HOME / kẹp / JOG / START bị khóa. Master gọi `backend.emergency_stop()` và `backend.reset_estop()`.
+
 ### 5.1. Tab Giám sát
 
 - **Robot 2D nhìn từ trên xuống:**
@@ -351,7 +353,7 @@ PC → STM32: `<LỆNH> <động cơ 1..4> [tham số]`, đơn vị counts. Các
 - **Chuyển động:** `GOTO`, `JOG`, `HOME`, `HOMING`, `STOP`, `PAUSE`, `RESUME`
 - **Cấu hình:** `PID`, `VMAX`, `AMAX`, `DB`, `LIMIT`, `HPOS`, `TRIP`
 - **Khác:** `CLEAR` (xóa FAULT), `SEL` (chọn trục gửi telemetry, `SEL 0` = tắt)
-- **Không kèm số động cơ:** `GRIP <0|1>`, `WDT <ms>`, `PING` (không trả lời)
+- **Không kèm số động cơ:** `GRIP <0|1>`, `ESTOP <1|0>` (E-Stop / Reset), `WDT <ms>`, `PING` (không trả lời)
 
 STM32 → PC:
 
@@ -370,7 +372,7 @@ Muốn thử phần cứng không cần GUI:
 python "Giao dien dieu khien/tools/uart_tool.py" COM5        # gõ lệnh trực tiếp, vd: GOTO 2 109200
 ```
 
-> **Firmware và GUI phải cùng phiên bản.** GUI mới gửi các lệnh `HPOS`/`TRIP`/`GRIP`/`WDT`/`PING`/`SEL 0` và đọc trạng thái kẹp ở cuối dòng `S`. Dùng lệch phiên bản sẽ bị lỗi cấu hình khi Connect.
+> **Firmware và GUI phải cùng phiên bản.** GUI mới gửi các lệnh `HPOS`/`TRIP`/`GRIP`/`ESTOP`/`WDT`/`PING`/`SEL 0` và đọc trạng thái kẹp ở cuối dòng `S`. Dùng lệch phiên bản sẽ bị lỗi cấu hình khi Connect.
 
 ---
 

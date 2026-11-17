@@ -140,6 +140,13 @@ class ScaraRobotGUI(ConnectionMixin, SettingsMixin, VisualMixin, JogMixin, Monit
             font=("Segoe UI Semibold", 14), fg_color=COL_RED, hover_color=COL_RED_HOVER,
             state="disabled", command=self._on_stop)
         self.header_stop_btn.pack(side="right", padx=(24, 0))
+        # E-STOP (mềm): báo cho STM32 khóa chuyển động — giống lệnh master gửi khi PLC báo E-Stop. Gỡ bằng RESET rồi HOME.
+        self.header_estop_btn = ctk.CTkButton(
+            badges, text="⛔ E-STOP", width=104, height=40, corner_radius=10,
+            font=("Segoe UI Semibold", 13), fg_color="transparent", hover_color=COL_RED_HOVER,
+            text_color=COL_RED, border_width=2, border_color=COL_RED,
+            state="disabled", command=self._on_estop)
+        self.header_estop_btn.pack(side="right", padx=(8, 0))
 
     def _build_header_tabbar(self, parent):
         """Thanh tab ở header: Vận hành / Lập trình / Giám sát / Settings."""
@@ -259,7 +266,8 @@ class ScaraRobotGUI(ConnectionMixin, SettingsMixin, VisualMixin, JogMixin, Monit
         connected = self._connected()
         return (connected, self.mode, self.executor.state,
                 self.backend.get_status() if connected else None,
-                self.backend.is_homed() if connected else None, self.skip_home_check.get())
+                self.backend.is_homed() if connected else None, self.skip_home_check.get(),
+                self.backend.is_estop() if connected else None)
 
     def _tick(self):
         now = time.time()

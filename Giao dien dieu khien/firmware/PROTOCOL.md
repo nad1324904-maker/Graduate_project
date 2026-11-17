@@ -26,13 +26,14 @@ J1=J2=J3=0°, Z=300 mm (Z đi xuống cho counts **âm**). Sau `HOMING`, vị tr
 | `SEL <id>` | chọn động cơ gửi telemetry `T` 50 Hz (mặc định: không gửi). `SEL 0` = tắt telemetry |
 | `PING` | **không có số động cơ, không trả lời**: báo "PC còn hoạt động" cho watchdog. PC gửi mỗi 0.2 s |
 | `WDT <ms>` | **không có số động cơ**: bật watchdog mất kết nối (100..60000 ms; `0` = tắt, mặc định). Trả `OK WDT <ms>`. PC gửi `WDT 600` khi Connect |
-| `GRIP <0\|1>` | kẹp (PD9, HIGH = đóng) — **không có số động cơ**: `1` = ĐÓNG, `0` = MỞ. Trả `OK GRIP <0\|1>` hoặc `ERR GRIP ? arg\|nogrip`. Không tự đổi khi STOP/FAULT; reset → MỞ |
+| `GRIP <0\|1>` | kẹp (PD9, HIGH = đóng) — **không có số động cơ**: `1` = ĐÓNG, `0` = MỞ. Trả `OK GRIP <0\|1>` hoặc `ERR GRIP ? arg\|nogrip`. Không tự đổi khi STOP/FAULT; reset → MỞ. Đang E-STOP → `ERR GRIP ? estop` |
+| `ESTOP <1\|0>` | **không có số động cơ**. `1` = E-STOP: cả 4 động cơ phanh, tắt PID, **bỏ mốc vị trí** (homed = 0) và **khóa** `JOG/GOTO/HOME/HOMING/PAUSE/RESUME/GRIP` (trả `ERR … estop`); `STOP`, `CLEAR` và lệnh cấu hình vẫn dùng được. `0` = RESET: mở khóa + xóa mọi FAULT, robot **chưa có mốc** → PC phải `HOMING` lại. Trả `OK ESTOP <1\|0>`. PC gửi `ESTOP 1` khi PLC báo E-Stop, `ESTOP 0` khi người vận hành bấm Reset |
 
 ## STM32 → PC
 | Dòng | Ý nghĩa |
 |---|---|
 | `OK <lệnh> <id>` | lệnh được chấp nhận (theo đúng thứ tự gửi) |
-| `ERR <lệnh> <id> <arg\|range\|fault\|unknown\|id>` | lệnh bị từ chối |
+| `ERR <lệnh> <id> <arg\|range\|fault\|unknown\|id\|homing\|nosensor\|estop>` | lệnh bị từ chối |
 | `S <ms> (st goal sp pos)×4 <grip>` | **20 Hz**, trạng thái cả 4 động cơ theo thứ tự 1..4; `grip` = 1 kẹp đóng, 0 mở |
 | `FAULT <id> trip` | sai số bám quỹ đạo > ngưỡng `TRIP`: phanh, tắt PID, chờ `CLEAR` |
 | `BOOT` | STM32 vừa reset |
@@ -40,7 +41,7 @@ J1=J2=J3=0°, Z=300 mm (Z đi xuống cho counts **âm**). Sau `HOMING`, vị tr
 | `T <id> <ms> <en> <goal> <sp> <pos> <sv> <v>` | telemetry 50 Hz của động cơ được `SEL` |
 
 `st` là bitmask: **1** PID đang chạy · **2** đang PAUSE · **4** busy (chưa ổn định tại đích; cũng là 1 khi PAUSE; tự về 0 sau 1 s kể từ khi quỹ đạo xong dù chưa vào vùng chết) ·
-**8** FAULT đang chốt. `sp` = vị trí quỹ đạo đặt, `pos` = vị trí encoder.
+**8** FAULT đang chốt · **16** đã HOME thật · **32** đang HOMING · **64** cảm biến home đang kích hoạt · **128** đang E-STOP. `sp` = vị trí quỹ đạo đặt, `pos` = vị trí encoder.
 
 ## Quy tắc chống nhận nhầm "Step xong"
 `OK` luôn xếp **sau** các dòng `S` đã chụp trước khi lệnh được xử lý. PC chỉ chấp nhận BUSY→READY khi mọi

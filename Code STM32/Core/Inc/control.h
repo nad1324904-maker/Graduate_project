@@ -48,6 +48,7 @@ typedef struct {
   volatile uint8_t  busy;              /* 1: chua on dinh tai dich (dang chay / dang PAUSE) */
   volatile uint8_t  faulted;           /* FAULT trip con chot; xoa bang lenh CLEAR. != 0 thi tu choi JOG/GOTO/HOME */
   volatile uint8_t  fault;             /* != 0: vua bi FAULT, chua bao: main loop se gui "FAULT <id> trip|home" (1 = trip, 2 = home) */
+  volatile uint8_t  estop;             /* 1: dang E-STOP (lenh ESTOP 1): khoa moi lenh chuyen dong cho den ESTOP 0 */
   double            pause_goal;        /* diem dung khi PAUSE = vi tri quy dao + quang duong phanh */
   uint16_t          settle_cnt;        /* so ms da o ngoai vung chet sau khi quy dao xong */
 
@@ -98,11 +99,16 @@ void Control_Poll(Control_t *c, int send_tel);
                                  Qua <ms> khong nhan duoc dong nao -> truc dang chay giam toc dung + giu vi tri, gui "LINKLOST"
      GRIP <0|1>                  KHONG co so dong co: 1 = DONG kep, 0 = MO kep. Tra loi "OK GRIP <0|1>" (= trang thai moi)
                                  hoac "ERR GRIP ? arg". Kep khong tu doi khi STOP / FAULT.
-   Tra loi: "OK <lenh> <so>" / "ERR <lenh> <so> <ly do>" (arg | range | fault | unknown | id | homing | nosensor).
+     ESTOP <1|0>                 KHONG co so dong co. 1 = E-STOP: moi dong co phanh, tat PID, BO moc vi tri (homed = 0) va KHOA moi
+                                 lenh chuyen dong (JOG/GOTO/HOME/HOMING/PAUSE/RESUME/GRIP -> "ERR ... estop"; STOP, CLEAR va cac
+                                 lenh cau hinh van duoc). 0 = RESET: mo khoa + xoa moi FAULT (robot chua co moc vi tri -> PC phai
+                                 HOMING lai). Tra "OK ESTOP <1|0>". PC gui ESTOP 1 khi PLC bao E-Stop, ESTOP 0 khi Reset.
+   Tra loi: "OK <lenh> <so>" / "ERR <lenh> <so> <ly do>" (arg | range | fault | unknown | id | homing | nosensor | estop).
    Trang thai ca 4 dong co moi CONTROL_STATUS_MS:
      S <ms> <st> <goal> <sp> <pos>  (lap 4 lan, dong co 1..4) <grip>   (grip = 1 kep DONG, 0 kep MO)
      st = bit0 en | bit1 paused | bit2 busy (chua on dinh tai dich; tu ve 0 sau CONTROL_SETTLE_MS ke tu khi quy dao xong) | bit3 faulted
           | bit4 homed (da HOME that) | bit5 homing (dang tim cam bien) | bit6 cam bien home dang kich hoat (da loc nhieu)
+          | bit7 dang E-STOP
      sp = vi tri quy dao dat (counts), pos = vi tri encoder (counts)
    Telemetry (chi dong co duoc SEL): "T <so> <ms> <en> <goal> <sp> <pos> <sv> <v>".
    FAULT: "FAULT <so> trip" (sai so bam quy dao > err_trip) hoac "FAULT <so> home" (HOMING that bai). Dong co do bi tat PID + phanh cho den khi CLEAR. */

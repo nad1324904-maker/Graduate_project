@@ -17,7 +17,7 @@ class OfflineBackend(RobotBackendBase):
         raise UartError("Chưa kết nối STM32 — hãy Connect ở tab Settings.")
 
     pause_motion = resume_motion = abort_motion = home = grip = _no
-    send_absolute_target = jog = _no
+    send_absolute_target = jog = emergency_stop = reset_estop = _no
 
     def set_joint_limits(self, limits): pass       # chỉ là cấu hình — không cần kết nối
     def set_max_velocity(self, velocities): pass
