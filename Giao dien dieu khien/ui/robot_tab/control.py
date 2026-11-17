@@ -213,3 +213,4 @@ class ControlMixin:
             state="normal" if connected and self.executor.state != ExecState.RUNNING else "disabled")
         self.pause_btn.configure(state="normal" if running else "disabled")
         self.stop_btn.configure(state="normal" if connected else "disabled")
+        self.header_stop_btn.configure(state="normal" if connected else "disabled")

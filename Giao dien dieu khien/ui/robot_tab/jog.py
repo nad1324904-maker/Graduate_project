@@ -6,7 +6,7 @@ from comm.errors import UartError
 from core.kinematics import IKError, forward_kinematics, inverse_kinematics
 from core.program_executor import ExecState
 from ui.theme import (
-    AXES, COL_ACCENT, COL_ACCENT_HOVER, COL_BTN_DARK, COL_BTN_DARK_HOVER, COL_INPUT, COL_TEXT, COL_TEXT_DIM, UNITS
+    AXES, COL_ACCENT, COL_AMBER, COL_ON_ACCENT, COL_TEXT, COL_TEXT_DIM, SEGMENTED_STYLE, UNITS
 )
 from ui.widgets import Card, SidebarSection, JogRow
 
@@ -29,7 +29,7 @@ class JogMixin:
                 continue
             active = (key == mode)
             b.configure(fg_color=COL_ACCENT if active else "transparent",
-                        text_color="#ffffff" if active else COL_TEXT,
+                        text_color=COL_ON_ACCENT if active else COL_TEXT,
                         font=("Segoe UI Semibold" if active else "Segoe UI", 13))
         self._refresh_enabled_states()
         self._log(f"Chuyển chế độ → {mode}")
@@ -55,9 +55,7 @@ class JogMixin:
         # Chọn JOG theo từng khớp hay theo tọa độ đầu công tác (động học ngược + đồng bộ khớp)
         self.jog_space_seg = ctk.CTkSegmentedButton(
             body, values=[JOG_SPACE_JOINT, JOG_SPACE_CART], command=self._on_jog_space_change, height=30,
-            font=("Segoe UI Semibold", 11), fg_color=COL_INPUT, selected_color=COL_ACCENT,
-            selected_hover_color=COL_ACCENT_HOVER, unselected_color=COL_BTN_DARK,
-            unselected_hover_color=COL_BTN_DARK_HOVER, text_color=COL_TEXT)
+            font=("Segoe UI Semibold", 11), **SEGMENTED_STYLE)
         self.jog_space_seg.set(JOG_SPACE_JOINT)
         self.jog_space_seg.pack(fill="x", pady=(0, 6))
 
@@ -79,8 +77,11 @@ class JogMixin:
             self.cart_jog_rows[name] = row
         self._jog_joint_frame.pack(fill="x")
         self.jog_hint_label = ctk.CTkLabel(body, text="", font=("Segoe UI", 11),
-                                            text_color=COL_TEXT_DIM, anchor="w")
+                                            text_color=COL_AMBER, anchor="w", justify="left")
         self.jog_hint_label.pack(fill="x", pady=(6, 0))
+        # tự xuống dòng theo độ rộng khung (trước đây dòng nhắc dài bị cắt chữ ở màn hình hẹp)
+        body.bind("<Configure>", lambda e: self.jog_hint_label.configure(
+            wraplength=max(200, int(e.width / self.jog_hint_label._get_widget_scaling()) - 10)), add="+")
         # Công tắc debug: cho JOG/Move Here/START/Teach khi chưa HOME (vd chưa có cảm biến). Luôn TẮT mỗi lần mở app.
         self.skip_home_check = ctk.BooleanVar(value=False)
         ctk.CTkSwitch(body, text="Bỏ qua kiểm tra HOME (chỉ để debug)", variable=self.skip_home_check,

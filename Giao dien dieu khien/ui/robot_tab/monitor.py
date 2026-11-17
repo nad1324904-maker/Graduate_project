@@ -6,7 +6,7 @@ from comm.backend_base import RobotStatus
 from comm.errors import UartError
 from core.kinematics import IKError, forward_kinematics, inverse_kinematics
 from ui.theme import (
-    AXES, COL_ACCENT, COL_ACCENT_HOVER, COL_AMBER, COL_BG as COL_BG_ENTRY, COL_BTN_DARK, COL_BTN_DARK_HOVER,
+    AXES, COL_ACCENT, COL_ACCENT_HOVER, COL_AMBER, COL_BTN_DARK, COL_BTN_DARK_HOVER, COL_PANEL,
     COL_GREEN, COL_INPUT, COL_TEXT, COL_TEXT_DIM, COL_TEXT_DISABLED, STATUS_COLOR, STATUS_LABEL, UNITS
 )
 from ui.widgets import Card
@@ -93,31 +93,37 @@ class MonitorMixin:
         self.move_here_btn.pack(side="right")
 
         # ---- Move to XYZθ (động học ngược) ----
-        xyz_row = ctk.CTkFrame(body, fg_color=COL_INPUT, corner_radius=10)
-        xyz_row.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
-        ctk.CTkLabel(xyz_row, text="🧭 Move to", font=("Segoe UI Semibold", 11),
-                     text_color=COL_TEXT).pack(side="left", padx=(10, 6), pady=8)
-        self.xyz_entries = {}
-        self._xyz_exact = {}          # name -> (chuỗi đã điền, giá trị chính xác) do nút '⤓ Hiện tại' ghi
-        for name, unit in (("X", "mm"), ("Y", "mm"), ("Z", "mm"), ("θ", "°")):
-            ctk.CTkLabel(xyz_row, text=name, font=("Segoe UI Semibold", 11),
-                         text_color=COL_TEXT_DIM).pack(side="left", padx=(4, 2))
-            entry = ctk.CTkEntry(xyz_row, width=62, height=28, fg_color=COL_BG_ENTRY, border_width=0,
-                                  justify="center", font=("Segoe UI", 11), text_color=COL_TEXT,
-                                  placeholder_text=unit)
-            entry.pack(side="left", padx=(0, 2))
-            entry.bind("<Return>", lambda _e: self._on_move_xyz())
-            self.xyz_entries[name] = entry
+        # 2 dòng: (1) tiêu đề + 2 nút, (2) 4 ô nhập giãn đều — 1 dòng không đủ chỗ ở màn hình 1366 px
+        # (trước đây nút "⤓ Hiện tại" bị bóp thành "ê|" và ô θ bị mất).
+        xyz_box = ctk.CTkFrame(body, fg_color=COL_INPUT, corner_radius=10)
+        xyz_box.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        xyz_row = ctk.CTkFrame(xyz_box, fg_color="transparent")
+        xyz_row.pack(fill="x", padx=0, pady=(6, 2))
+        ctk.CTkLabel(xyz_row, text="🧭 Move to (tọa độ đầu công tác)", font=("Segoe UI Semibold", 11),
+                     text_color=COL_TEXT).pack(side="left", padx=(10, 6))
         self.move_xyz_btn = ctk.CTkButton(xyz_row, text="▶ Move", width=70, height=28, corner_radius=8,
                                            fg_color=COL_ACCENT, hover_color=COL_ACCENT_HOVER,
                                            font=("Segoe UI Semibold", 11), state="disabled",
                                            command=self._on_move_xyz)
         self.move_xyz_btn.pack(side="right", padx=(4, 10))
-        self.xyz_fill_btn = ctk.CTkButton(xyz_row, text="⤓ Hiện tại", width=78, height=28, corner_radius=8,
+        self.xyz_fill_btn = ctk.CTkButton(xyz_row, text="⤓ Hiện tại", width=84, height=28, corner_radius=8,
                                            fg_color=COL_BTN_DARK, hover_color=COL_BTN_DARK_HOVER,
                                            font=("Segoe UI", 11), state="disabled",
                                            command=self._on_fill_xyz_from_actual)
         self.xyz_fill_btn.pack(side="right", padx=4)
+        entries_row = ctk.CTkFrame(xyz_box, fg_color="transparent")
+        entries_row.pack(fill="x", padx=6, pady=(2, 8))
+        self.xyz_entries = {}
+        self._xyz_exact = {}          # name -> (chuỗi đã điền, giá trị chính xác) do nút '⤓ Hiện tại' ghi
+        for name, unit in (("X", "mm"), ("Y", "mm"), ("Z", "mm"), ("θ", "°")):
+            ctk.CTkLabel(entries_row, text=name, font=("Segoe UI Semibold", 11),
+                         text_color=COL_TEXT_DIM).pack(side="left", padx=(6, 3))
+            entry = ctk.CTkEntry(entries_row, width=60, height=28, fg_color=COL_PANEL, border_width=1,
+                                  justify="center", font=("Segoe UI", 11), text_color=COL_TEXT,
+                                  placeholder_text=unit)
+            entry.pack(side="left", fill="x", expand=True, padx=(0, 4))
+            entry.bind("<Return>", lambda _e: self._on_move_xyz())
+            self.xyz_entries[name] = entry
 
         # ---- Mini status badges ----
         mini_row = ctk.CTkFrame(body, fg_color="transparent")

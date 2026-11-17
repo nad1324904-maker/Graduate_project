@@ -14,7 +14,7 @@ from core.program_store import ProgramStore
 from core.program_executor import ProgramExecutor
 from ui.theme import (
     COL_ACCENT, COL_ACCENT_HOVER, COL_BG, COL_BTN_DARK, COL_BTN_DARK_HOVER, COL_GREEN,
-    COL_HEADER, COL_INPUT, COL_TEXT, COL_TEXT_DIM, LOG_TAG_COLOR
+    COL_HEADER, COL_INPUT, COL_ON_ACCENT, COL_RED, COL_RED_HOVER, COL_TEXT, COL_TEXT_DIM, LOG_TAG_COLOR
 )
 from ui.widgets import Card, HeaderBadge
 from ui.perf import MAX_LOG_LINES, TICK_MS, DISPLAY_EVERY, install_configure_cache
@@ -129,6 +129,13 @@ class ScaraRobotGUI(ConnectionMixin, SettingsMixin, VisualMixin, JogMixin, Monit
 
         self._build_header_tabbar(badges)
 
+        # STOP luôn nhìn thấy ở mọi tab (trước đây nằm trong khung CONTROL, phải cuộn xuống mới thấy)
+        self.header_stop_btn = ctk.CTkButton(
+            badges, text="■  STOP", width=112, height=40, corner_radius=10,
+            font=("Segoe UI Semibold", 14), fg_color=COL_RED, hover_color=COL_RED_HOVER,
+            state="disabled", command=self._on_stop)
+        self.header_stop_btn.pack(side="right", padx=(24, 0))
+
     def _build_header_tabbar(self, parent):
         """Thanh tab ở góc phải header: Robot / Giám sát / Settings."""
         bar = ctk.CTkFrame(parent, fg_color=COL_BTN_DARK, corner_radius=10)
@@ -141,7 +148,7 @@ class ScaraRobotGUI(ConnectionMixin, SettingsMixin, VisualMixin, JogMixin, Monit
                 font=("Segoe UI Semibold", 12),
                 fg_color=COL_ACCENT if active else "transparent",
                 hover_color=COL_ACCENT_HOVER if active else COL_BTN_DARK_HOVER,
-                text_color="#ffffff" if active else COL_TEXT_DIM,
+                text_color=COL_ON_ACCENT if active else COL_TEXT_DIM,
                 command=lambda k=key: self._set_active_tab(k))
             b.pack(side="left", padx=2, pady=2)
             self.tab_buttons[key] = b
@@ -159,7 +166,7 @@ class ScaraRobotGUI(ConnectionMixin, SettingsMixin, VisualMixin, JogMixin, Monit
             active = (k == key)
             b.configure(fg_color=COL_ACCENT if active else "transparent",
                         hover_color=COL_ACCENT_HOVER if active else COL_BTN_DARK_HOVER,
-                        text_color="#ffffff" if active else COL_TEXT_DIM)
+                        text_color=COL_ON_ACCENT if active else COL_TEXT_DIM)
         for view in (self.main_view, self.settings_view, self.visual_view):
             view.grid_remove()
         if prev == "visual":

@@ -4,7 +4,8 @@ import customtkinter as ctk
 
 from ui.theme import (
     COL_ACCENT, COL_ACCENT_HOVER, COL_AMBER, COL_BTN_DARK, COL_BTN_DARK_HOVER, COL_GREEN,
-    COL_INPUT, COL_PANEL, COL_PANEL_BORDER, COL_TEXT, COL_TEXT_DIM, COL_TEXT_DISABLED
+    COL_INPUT, COL_ON_ACCENT, COL_ON_ACCENT_DIM, COL_PANEL, COL_PANEL_BORDER, COL_TEXT, COL_TEXT_DIM,
+    COL_TEXT_DISABLED
 )
 
 
@@ -40,7 +41,7 @@ class SidebarSection(ctk.CTkFrame):
             font=("Segoe UI Semibold" if active else "Segoe UI", 14),
             fg_color=COL_ACCENT if active else "transparent",
             hover_color=COL_ACCENT_HOVER if active else COL_BTN_DARK_HOVER,
-            text_color="#ffffff" if active else (COL_TEXT if enabled else COL_TEXT_DISABLED),
+            text_color=COL_ON_ACCENT if active else (COL_TEXT if enabled else COL_TEXT_DISABLED),
             state="normal" if enabled else "disabled",
             command=command)
         b.pack(fill="both", expand=True, pady=4)
@@ -95,7 +96,7 @@ class JogRow(ctk.CTkFrame):
             b = ctk.CTkButton(self, text=text, width=52, height=38, corner_radius=8,
                               fg_color=COL_ACCENT if val == presets[1] else COL_BTN_DARK,
                               hover_color=COL_BTN_DARK_HOVER, font=("Segoe UI Semibold", 12),
-                              text_color="#ffffff" if val == presets[1] else COL_TEXT_DIM,
+                              text_color=COL_ON_ACCENT if val == presets[1] else COL_TEXT_DIM,
                               command=lambda v=val: self._set_preset(v))
             b.pack(side="left", padx=2)
             self._preset_btns.append((b, val))
@@ -107,7 +108,7 @@ class JogRow(ctk.CTkFrame):
         self.entry.insert(0, f"{value:.2f}{self.unit}" if isinstance(value, float) else f"{value}{self.unit}")
         for b, val in self._preset_btns:
             b.configure(fg_color=COL_ACCENT if val == value else COL_BTN_DARK,
-                        text_color="#ffffff" if val == value else COL_TEXT_DIM)
+                        text_color=COL_ON_ACCENT if val == value else COL_TEXT_DIM)
 
     def get_step(self):
         raw = self.entry.get().replace(self.unit, "").strip()
@@ -141,11 +142,11 @@ class PointTableRow(ctk.CTkFrame):
         super().__init__(master, fg_color=COL_ACCENT if selected else "transparent", corner_radius=6)
         self.bind("<Button-1>", lambda e: on_click())
         name_lbl = ctk.CTkLabel(self, text=name, font=("Segoe UI Semibold", 12), width=90,
-                                 anchor="w", text_color="#ffffff" if selected else COL_TEXT)
+                                 anchor="w", text_color=COL_ON_ACCENT if selected else COL_TEXT)
         name_lbl.pack(side="left", padx=(8, 4), pady=6)
         name_lbl.bind("<Button-1>", lambda e: on_click())
         sub_lbl = ctk.CTkLabel(self, text=subtitle, font=("Segoe UI", 10), anchor="w",
-                                text_color="#d7e6ff" if selected else COL_TEXT_DIM)
+                                text_color=COL_ON_ACCENT_DIM if selected else COL_TEXT_DIM)
         sub_lbl.pack(side="left", fill="x", expand=True, padx=4)
         sub_lbl.bind("<Button-1>", lambda e: on_click())
 
@@ -164,7 +165,7 @@ class StepTableRow(ctk.CTkFrame):
         num_lbl.pack(side="left", padx=(6, 4), pady=5)
         num_lbl.bind("<Button-1>", lambda e: on_click())
         pill = ctk.CTkLabel(self, text=step["type"], font=("Segoe UI Semibold", 10),
-                             fg_color=self.TYPE_COLOR[step["type"]], text_color="#ffffff",
+                             fg_color=self.TYPE_COLOR[step["type"]], text_color=COL_ON_ACCENT,
                              corner_radius=6, width=52, height=20)
         pill.pack(side="left", padx=4)
         pill.bind("<Button-1>", lambda e: on_click())
@@ -181,7 +182,7 @@ class BigActionButton(ctk.CTkButton):
 
     def __init__(self, master, icon, label, color, hover_color, command, **kwargs):
         super().__init__(master, text=f"{icon}\n{label}", font=("Segoe UI Semibold", 12),
-                          fg_color=color, hover_color=hover_color, text_color="#ffffff",
+                          fg_color=color, hover_color=hover_color, text_color=COL_ON_ACCENT,
                           corner_radius=10, height=64, command=command, **kwargs)
 
 

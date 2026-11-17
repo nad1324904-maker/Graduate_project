@@ -245,6 +245,7 @@ pip install customtkinter pyserial
 cd "Giao dien dieu khien"
 python main.py                 # chạy bình thường
 python main.py --scale 0.85    # thu nhỏ giao diện (máy yếu / màn hình độ phân giải cao)
+python main.py --dark          # giao diện tối (mặc định: sáng)
 ```
 
 ### 6.3. Quy trình vận hành

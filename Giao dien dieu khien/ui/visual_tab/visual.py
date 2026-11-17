@@ -20,8 +20,9 @@ from core import kinematics, robot_config
 from core.kinematics import forward_kinematics
 from core.paths import DATA_DIR
 from ui.theme import (
-    AXES, COL_ACCENT, COL_ACCENT_HOVER, COL_AMBER, COL_BG, COL_BTN_DARK, COL_BTN_DARK_HOVER, COL_GREEN, COL_INPUT,
-    COL_PANEL_BORDER, COL_RED, COL_TEXT, COL_TEXT_DIM, COL_TEXT_DISABLED, UNITS
+    AXES, COL_ACCENT, COL_AMBER, COL_BG, COL_BTN_DARK, COL_BTN_DARK_HOVER, COL_CANVAS, COL_GREEN, COL_GRID,
+    COL_GRID_MAJOR, COL_LINK2, COL_PANEL_BORDER, COL_PLOT_BAND, COL_RED, COL_TEXT, COL_TEXT_DIM, COL_TEXT_DISABLED,
+    SEGMENTED_STYLE, UNITS
 )
 from ui.widgets import Card
 
@@ -60,7 +61,7 @@ class VisualMixin:
         for text, var in (("Points", self.v2d_show_points), ("Đường đi chương trình", self.v2d_show_program)):
             ctk.CTkCheckBox(opts, text=text, variable=var, font=("Segoe UI", 11), text_color=COL_TEXT_DIM,
                             checkbox_width=18, checkbox_height=18).pack(side="left", padx=(0, 14))
-        self.v2d_canvas = tk.Canvas(body, bg=COL_INPUT, highlightthickness=0, width=420, height=300)
+        self.v2d_canvas = tk.Canvas(body, bg=COL_CANVAS, highlightthickness=0, width=420, height=300)
         self.v2d_canvas.pack(fill="both", expand=True)
         self.v2d_note = ctk.CTkLabel(body, text="", font=("Segoe UI", 10), text_color=COL_TEXT_DISABLED,
                                      anchor="w", justify="left", wraplength=520)
@@ -72,9 +73,7 @@ class VisualMixin:
         body = card.body
         bar = ctk.CTkFrame(body, fg_color="transparent")
         bar.pack(fill="x", pady=(0, 6))
-        seg_kw = dict(height=28, font=("Segoe UI Semibold", 11), fg_color=COL_INPUT, selected_color=COL_ACCENT,
-                      selected_hover_color=COL_ACCENT_HOVER, unselected_color=COL_BTN_DARK,
-                      unselected_hover_color=COL_BTN_DARK_HOVER, text_color=COL_TEXT)
+        seg_kw = dict(height=28, font=("Segoe UI Semibold", 11), **SEGMENTED_STYLE)
         self.plot_axis_seg = ctk.CTkSegmentedButton(bar, values=list(AXES), command=self._on_trace_axis_change,
                                                     **seg_kw)
         self.plot_axis_seg.set(self._trace_axis_choice)
@@ -91,7 +90,7 @@ class VisualMixin:
                                              font=("Segoe UI", 11), command=self._on_toggle_plot_freeze)
         self.plot_freeze_btn.pack(side="right", padx=6)
 
-        self.plot_canvas = tk.Canvas(body, bg=COL_INPUT, highlightthickness=0, width=520, height=300)
+        self.plot_canvas = tk.Canvas(body, bg=COL_CANVAS, highlightthickness=0, width=520, height=300)
         self.plot_canvas.pack(fill="both", expand=True)
         self.plot_stats = ctk.CTkLabel(body, text="", font=("Consolas", 11), text_color=COL_TEXT_DIM, anchor="w")
         self.plot_stats.pack(fill="x", pady=(6, 0))
@@ -176,8 +175,8 @@ class VisualMixin:
         for i in range(-n, n + 1):
             x0, _ = px(h1 + i * step, 0)
             _, y0 = px(0, i * step)
-            c.create_line(x0, 0, x0, h, fill="#0f1e30")
-            c.create_line(0, y0, plot_w, y0, fill="#0f1e30")
+            c.create_line(x0, 0, x0, h, fill=COL_GRID)
+            c.create_line(0, y0, plot_w, y0, fill=COL_GRID)
         ox, oy = px(h1, 0)
         for r, dash in ((reach, (6, 4)), (abs(l1 - l2), (3, 3))):
             if r > 0:
@@ -253,7 +252,7 @@ class VisualMixin:
             c.create_line(*B, *E, *W, fill=COL_ACCENT, width=2, dash=(5, 4))
             return x, y, z, th
         c.create_line(*B, *E, fill=COL_ACCENT, width=9, capstyle="round")
-        c.create_line(*E, *W, fill="#5aa9ff", width=7, capstyle="round")
+        c.create_line(*E, *W, fill=COL_LINK2, width=7, capstyle="round")
         for (X, Y), r, col in ((B, 9, COL_TEXT), (E, 6, COL_TEXT), (W, 5, COL_GREEN if gripped else COL_AMBER)):
             c.create_oval(X - r, Y - r, X + r, Y + r, fill=col, outline=COL_BG, width=2)
         a = math.radians(th)                                       # hướng dụng cụ (θ)
@@ -368,19 +367,19 @@ class VisualMixin:
             return y1 - (v - vmin) / (vmax - vmin) * (y1 - y0)
         c.create_rectangle(x0, y0, x1, y1, outline=COL_PANEL_BORDER)
         if band:
-            c.create_rectangle(x0, yv(band), x1, yv(-band), fill="#12263d", outline="")
+            c.create_rectangle(x0, yv(band), x1, yv(-band), fill=COL_PLOT_BAND, outline="")
             c.create_text(x1 - 4, yv(band) - 2, text="vùng chết", fill=COL_TEXT_DISABLED, font=FONT, anchor="se")
         for k in range(5):                                         # lưới ngang + nhãn giá trị
             v = vmin + (vmax - vmin) * k / 4
             y = yv(v)
-            c.create_line(x0, y, x1, y, fill="#13243a")
+            c.create_line(x0, y, x1, y, fill=COL_GRID_MAJOR)
             c.create_text(x0 - 6, y, text=f"{v:.3f}" if abs(vmax - vmin) < 10 else f"{v:.1f}",
                           fill=COL_TEXT_DISABLED, font=FONT, anchor="e")
         tick = 1.0 if span <= 10 else 5.0                          # lưới dọc theo thời gian
         k = 0
         while k * tick <= span + 1e-9:
             x = xt(t_end - k * tick)
-            c.create_line(x, y0, x, y1, fill="#13243a")
+            c.create_line(x, y0, x, y1, fill=COL_GRID_MAJOR)
             c.create_text(x, y1 + 10, text="0" if k == 0 else f"-{k * tick:g}s", fill=COL_TEXT_DISABLED, font=FONT)
             k += 1
         c.create_text(x0 + 6, y0 + 4, text=title, fill=COL_TEXT, font=FONT_B, anchor="nw")
