@@ -83,6 +83,15 @@
   .step { cursor: pointer; }
   .step:hover { background: #e6edf7; }
   .step.sel { box-shadow: inset 0 0 0 2px var(--accent); background: #fff; }
+  .xyz3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-top: 8px; }
+  .xyz3 label { display: grid; gap: 2px; color: var(--dim); font-size: 12px; font-weight: 600; }
+  .objlist { margin-top: 8px; display: grid; gap: 4px; }
+  .obj { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto auto; gap: 6px; align-items: center;
+    background: var(--input); border-radius: 8px; padding: 4px 6px; font-size: 12px; }
+  .obj .sw { width: 12px; height: 12px; border-radius: 3px; }
+  .obj .btn { padding: 2px 7px; }
+  .check-line { display: flex; gap: 6px; align-items: center; margin-top: 8px; font-size: 12px; color: var(--dim); cursor: pointer; }
+  .check-line input { accent-color: var(--accent); }
 
   .progress { height: 8px; background: var(--input); border-radius: 99px; overflow: hidden; margin-top: 10px; }
   .progress > div { height: 100%; width: 0; background: var(--green); transition: width .15s; }
@@ -208,6 +217,28 @@
         <button class="btn small" id="btnPtDelete">🗑 Xóa</button>
       </div>
       <div class="msg info" id="ptMsg">JOG robot tới vị trí cần lưu rồi bấm Teach Point.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><span>📦 Vật thể (pick &amp; place)</span><button class="btn small" id="btnObjFromTcp" title="Điền vị trí sao cho đầu kẹp hiện tại gắp được vật">⤓ Từ đầu kẹp</button></div>
+      <div class="note">Khối 20 × 20 × 30 mm (tay kẹp mở 26 mm). Nhập tâm vật X, Y và <b>Z đáy</b> = độ cao mặt đặt vật;
+        Z đáy &gt; 0 thì vật nằm trên một bệ.</div>
+      <div class="xyz3">
+        <label>X<input class="num" id="objX" type="number" step="1" value="200"></label>
+        <label>Y<input class="num" id="objY" type="number" step="1" value="0"></label>
+        <label>Z đáy<input class="num" id="objZ" type="number" step="1" value="90"></label>
+      </div>
+      <div class="row split">
+        <button class="btn small primary" id="btnObjAdd">＋ Đặt vật</button>
+        <button class="btn small" id="btnPedAdd" title="Bệ không có vật — chỗ để thả vật">＋ Bệ trống</button>
+      </div>
+      <div class="objlist" id="objList"></div>
+      <div class="row split">
+        <button class="btn small" id="btnObjReset" title="Đưa mọi vật về chỗ đặt ban đầu">↺ Đặt lại vật</button>
+        <button class="btn small" id="btnObjClear">🗑 Xóa hết</button>
+      </div>
+      <label class="check-line"><input type="checkbox" id="chkObjReset" checked> Tự đặt lại vật mỗi lần bấm Chạy chương trình</label>
+      <div class="msg info" id="objMsg">Bấm 🎯 cạnh một vật để điền tọa độ gắp vào khung IK.</div>
     </div>
 
     <div class="card">
@@ -467,6 +498,7 @@ function applyData(d, label) {
   S.qTarget = { ...S.q };
   S.cartExact = {};
   if (d.points || d.programs) { S.selPoint = null; S.selStep = null; setDirty(false); }
+  if (W.held) releaseHeld();                        // dựng lại robot sẽ xóa cổ tay: thả vật đang giữ trước
   buildRobot(); buildWorkspace(); buildJointUI(); refreshPointsUI(); buildProgramSelect();
   $("dataSource").textContent = S.source;
   updateParamLine();
@@ -670,6 +702,7 @@ function setupScene() {
     motor: std(0x1f2937, 0.45, 0.35), accent: std(0x2563eb, 0.4, 0.2), link: std(0xf8fafc, 0.42, 0.08),
     link2: std(0xe6ecf4, 0.42, 0.08), tool: std(0x475569, 0.45, 0.4), finger: std(0x94a3b8, 0.45, 0.3),
     tcp: std(0x16a34a, 0.4, 0.1, { emissive: 0x0b5d2a, emissiveIntensity: 0.4 }),
+    ped: std(0x94a3b8, 0.6, 0.3), pedTop: std(0xe2e8f0, 0.5, 0.2),
   });
 
   // Mặt bàn + lưới 50 mm + trục tọa độ
@@ -684,7 +717,7 @@ function setupScene() {
     lb.position.copy(v.multiplyScalar(212)).setZ(30); scene.add(lb);
   }
 
-  for (const k of ["robot", "ws", "points", "path", "trail", "guide"]) { G[k] = new THREE.Group(); scene.add(G[k]); }
+  for (const k of ["robot", "ws", "points", "path", "trail", "guide", "objs"]) { G[k] = new THREE.Group(); scene.add(G[k]); }
 
   // Vết đầu công tác (bộ đệm cố định, vẽ theo drawRange)
   const trailGeo = new THREE.BufferGeometry();
@@ -764,7 +797,8 @@ function applyPose() {
   G.j1.rotation.z = q.J1 * DEG;
   G.j2.rotation.z = q.J2 * DEG;
   G.w.rotation.z = q.J3 * DEG;
-  const gap = 34 - 22 * S.grip;                              // khoảng cách 2 ngón: mở 34 mm, đóng 12 mm
+  const closed = W.held ? OBJ_W + FINGER_W : 12;            // đang giữ vật: ngón dừng ở bề rộng vật
+  const gap = 34 - (34 - closed) * S.grip;                   // khoảng cách tâm 2 ngón: mở 34 mm, đóng 12 mm
   G.fingers[0].position.x = -gap / 2; G.fingers[1].position.x = gap / 2;
   M.finger.color.setHex(S.grip > 0.5 ? 0x16a34a : 0x94a3b8);
   const f = forwardKinematics(q, S.p);
@@ -994,6 +1028,219 @@ function moveTo(target, onDone) {
   S.qTarget = { ...q1 };
   invalidate();
   return m;
+}
+
+// ---------------- Vật thể (pick & place) ----------------
+// Khối 20 × 20 × 30 mm: tay kẹp mở 34 mm giữa tâm 2 ngón (khe 26 mm) nên mỗi bên hở 3 mm; ngón dài ~22 mm.
+// GRIP ON khi vật nằm giữa 2 ngón -> vật bị kẹp, đi theo tay; ngón dừng ở bề rộng vật. GRIP OFF -> vật rơi xuống chỗ đỡ
+// cao nhất bên dưới (bệ / vật khác / mặt bàn).
+const OBJ_W = 20, OBJ_H = 30, PED_R = 26, FINGER_W = 8;
+const GRIP_ZOFS = 12;                                      // đầu kẹp (TCP) nên ở cao hơn đáy vật 12 mm khi gắp
+const OBJ_COLORS = [0xf59e0b, 0x10b981, 0xef4444, 0x8b5cf6, 0x0ea5e9, 0xec4899];
+const W = { objs: [], peds: [], held: null, nextId: 1, grips: 0, misses: 0 };
+const hex = c => "#" + c.toString(16).padStart(6, "0");
+
+function addPedestal(x, y, top, empty) {
+  const grp = new THREE.Group();
+  const post = mesh(new THREE.CylinderGeometry(PED_R - 6, PED_R, Math.max(top - 6, 1), 36).rotateX(Math.PI / 2), M.ped);
+  post.position.z = Math.max(top - 6, 1) / 2; grp.add(post);
+  const plate = mesh(cyl(PED_R, 6), M.pedTop); plate.position.z = top - 3; grp.add(plate);
+  if (empty) { const ring = mesh(new THREE.TorusGeometry(PED_R - 7, 1.6, 8, 40), M.accent, false); ring.position.z = top + 0.5; grp.add(ring); }
+  grp.position.set(x, y, 0);
+  G.objs.add(grp);
+  const ped = { x, y, top, empty, grp };
+  W.peds.push(ped);
+  return ped;
+}
+function pedestalAt(x, y, top) { return W.peds.find(p => Math.hypot(p.x - x, p.y - y) < 1 && Math.abs(p.top - top) < 0.5); }
+function addObject(x, y, base) {
+  if (base > 0.5 && !pedestalAt(x, y, base)) addPedestal(x, y, base, false);
+  const color = OBJ_COLORS[(W.nextId - 1) % OBJ_COLORS.length];
+  const m = mesh(new THREE.BoxGeometry(OBJ_W, OBJ_W, OBJ_H), std(color, 0.55, 0.05));
+  m.position.set(x, y, base + OBJ_H / 2);
+  G.objs.add(m);
+  const o = { id: W.nextId++, color, mesh: m, home: { x, y, base }, vz: 0, falling: false };
+  W.objs.push(o);
+  return o;
+}
+const objBase = o => { const p = new THREE.Vector3(); o.mesh.getWorldPosition(p); return { x: p.x, y: p.y, base: p.z - OBJ_H / 2 }; };
+function supportTop(x, y, self) {                 // chỗ đỡ cao nhất ngay dưới tâm (x, y)
+  let top = 0;
+  for (const p of W.peds) if (Math.hypot(p.x - x, p.y - y) <= PED_R + 2) top = Math.max(top, p.top);
+  for (const o of W.objs) {
+    if (o === self || o === W.held) continue;
+    const b = objBase(o);
+    if (Math.abs(b.x - x) < OBJ_W * 0.9 && Math.abs(b.y - y) < OBJ_W * 0.9) top = Math.max(top, b.base + OBJ_H);
+  }
+  return top;
+}
+function tryGrip() {                               // GRIP ON: tìm vật nằm giữa 2 ngón kẹp
+  const f = forwardKinematics(S.q, S.p);
+  let best = null, bestD = Infinity;
+  for (const o of W.objs) {
+    if (o === W.held || o.falling) continue;
+    const b = objBase(o), d = Math.hypot(b.x - f.x, b.y - f.y);
+    if (d <= 7 && f.z >= b.base + 2 && f.z <= b.base + OBJ_H - 3 && d < bestD) { best = o; bestD = d; }
+  }
+  if (!best) { W.misses++; return null; }
+  G.w.attach(best.mesh);                           // giữ nguyên vị trí trong không gian, từ giờ đi theo cổ tay
+  W.held = best; W.grips++;
+  return best;
+}
+function releaseHeld() {                           // GRIP OFF: thả vật -> rơi xuống chỗ đỡ
+  const o = W.held;
+  if (!o) return null;
+  G.objs.attach(o.mesh);
+  W.held = null;
+  const b = objBase(o);
+  o.target = supportTop(b.x, b.y, o);
+  o.falling = b.base > o.target + 0.3; o.vz = 0;
+  if (!o.falling) o.mesh.position.z = o.target + OBJ_H / 2;
+  return o;
+}
+function stepFalling(dt) {                         // rơi tự do (g = 9810 mm/s²), dừng ở chỗ đỡ
+  let any = false;
+  for (const o of W.objs) {
+    if (!o.falling) continue;
+    o.vz += 9810 * dt;
+    o.mesh.position.z -= o.vz * dt;
+    if (o.mesh.position.z - OBJ_H / 2 <= o.target) { o.mesh.position.z = o.target + OBJ_H / 2; o.falling = false; renderObjList(); }
+    any = true;
+  }
+  return any;
+}
+function setGrip(on) {                             // dùng chung cho nút Kẹp và Step GRIP; trả về chuỗi kết quả
+  S.gripTarget = on ? 1 : 0;
+  applyPose(); scene.updateMatrixWorld(true);       // vị trí tay ĐÚNG lúc này (Step GRIP chạy ngay sau MOVE, chưa kịp vẽ)
+  invalidate();
+  if (on) {
+    if (W.held) return `đang giữ vật #${W.held.id}`;
+    const o = tryGrip();
+    renderObjList();
+    return o ? `kẹp được vật #${o.id}` : (W.objs.length ? "kẹp hụt — không có vật giữa 2 ngón" : "đóng kẹp");
+  }
+  const o = releaseHeld();
+  renderObjList();
+  return o ? `thả vật #${o.id}` : "mở kẹp";
+}
+function resetObjects() {
+  if (W.held) releaseHeld();
+  for (const o of W.objs) {
+    o.falling = false; o.vz = 0;
+    o.mesh.rotation.set(0, 0, 0);
+    o.mesh.position.set(o.home.x, o.home.y, o.home.base + OBJ_H / 2);
+  }
+  W.grips = W.misses = 0;
+  renderObjList(); invalidate();
+}
+function removeObject(o) {
+  if (W.held === o) releaseHeld();
+  o.mesh.parent && o.mesh.parent.remove(o.mesh);
+  o.mesh.geometry.dispose(); o.mesh.material.dispose();
+  W.objs = W.objs.filter(x => x !== o);
+  // bệ tự tạo cho vật này: bỏ luôn nếu không còn vật nào đặt ban đầu ở đó
+  W.peds = W.peds.filter(p => {
+    const keep = p.empty || W.objs.some(x => Math.hypot(x.home.x - p.x, x.home.y - p.y) < 1 && Math.abs(x.home.base - p.top) < 0.5);
+    if (!keep) { G.objs.remove(p.grp); p.grp.traverse(n => n.geometry && n.geometry.dispose()); }
+    return keep;
+  });
+}
+function clearObjects() {
+  for (const o of [...W.objs]) removeObject(o);
+  for (const p of W.peds) { G.objs.remove(p.grp); p.grp.traverse(n => n.geometry && n.geometry.dispose()); }
+  W.peds = []; W.nextId = 1; W.grips = W.misses = 0;
+}
+function saveObjects() {                           // ghi nhớ trong trình duyệt (mở lại trang vẫn còn)
+  try {
+    localStorage.setItem("scara-sim-objects", JSON.stringify({
+      objs: W.objs.map(o => o.home), peds: W.peds.filter(p => p.empty).map(p => ({ x: p.x, y: p.y, top: p.top })) }));
+  } catch (_) { /* trình duyệt chặn bộ nhớ: bỏ qua */ }
+}
+function loadObjects() {
+  try {
+    const d = JSON.parse(localStorage.getItem("scara-sim-objects") || "null");
+    if (!d) return;
+    for (const p of d.peds || []) addPedestal(+p.x, +p.y, +p.top, true);
+    for (const h of d.objs || []) addObject(+h.x, +h.y, +h.base);
+  } catch (_) { /* dữ liệu hỏng: bỏ qua */ }
+  renderObjList();
+}
+// Góc θ (hướng tay kẹp) gắp được tại (x, y, z), gần θ hiện tại nhất: thử θ hiện tại trước, rồi quét ±1°…±180°.
+// Trả về { th, err }: th = null nếu không góc nào được (err = lý do ở θ hiện tại).
+function feasibleTheta(x, y, z) {
+  const th0 = forwardKinematics(S.q, S.p).th;
+  let err0 = null;
+  for (let k = 0; k <= 180; k++) {
+    for (const th of k ? [th0 + k, th0 - k] : [th0]) {
+      try { inverseKinematics(x, y, z, wrap180(th), S.p, S.lim, S.q); return { th: wrap180(th), err: null }; }
+      catch (e) { if (k === 0) err0 = e.message; }
+    }
+  }
+  return { th: null, err: err0 };
+}
+function graspCheck(x, y, base) {                  // robot có gắp / thả được ở đây không (ở độ cao gắp); null = được
+  const r = feasibleTheta(x, y, base + GRIP_ZOFS), th0 = forwardKinematics(S.q, S.p).th;
+  if (r.th === null) return { err: r.err };
+  return { err: null, note: Math.abs(wrap180(r.th - th0)) > 0.05 ? ` Cần xoay tay kẹp θ ≈ ${r.th.toFixed(0)}° (θ hiện tại ${th0.toFixed(0)}° không được).` : "" };
+}
+function readObjInputs() {
+  const v = ["objX", "objY", "objZ"].map(id => parseFloat(String($(id).value).replace(",", ".")));
+  if (!v.every(Number.isFinite)) throw new Error("Nhập đủ X, Y, Z đáy dạng số.");
+  if (v[2] < 0) throw new Error("Z đáy phải ≥ 0 (0 = đặt thẳng trên mặt bàn).");
+  return v;
+}
+function renderObjList() {
+  const box = $("objList"); box.innerHTML = "";
+  if (!W.objs.length && !W.peds.some(p => p.empty)) {
+    box.innerHTML = `<div class="note">Chưa có vật nào.</div>`;
+  }
+  for (const o of W.objs) {
+    const b = objBase(o), row = document.createElement("div"); row.className = "obj";
+    const where = W.held === o ? "đang được kẹp" : `X ${b.x.toFixed(1)} · Y ${b.y.toFixed(1)} · đáy ${b.base.toFixed(1)}`;
+    row.innerHTML = `<span class="sw" style="background:${hex(o.color)}"></span><span></span>`
+      + `<button class="btn small" title="Điền tọa độ gắp vật này vào khung IK">🎯</button><button class="btn small" title="Xóa vật">🗑</button>`;
+    row.children[1].textContent = `#${o.id}  ${where}`;
+    row.children[2].addEventListener("click", () => {
+      const p = objBase(o), r = feasibleTheta(p.x, p.y, p.base + GRIP_ZOFS);
+      fillCart({ x: p.x, y: p.y, z: p.base + GRIP_ZOFS, th: r.th ?? forwardKinematics(S.q, S.p).th });
+      if (r.th === null) return setMsg("objMsg", `Robot không gắp được vật #${o.id} ở vị trí này: ${r.err}`, "err");
+      setMsg("objMsg", `Đã điền vị trí gắp vật #${o.id} (Z = đáy + ${GRIP_ZOFS} mm, θ = ${r.th.toFixed(0)}°). Nên đi tới điểm `
+        + "phía trên vật trước (tăng Z thêm ~40 mm), rồi mới hạ xuống.", "info");
+    });
+    row.children[3].addEventListener("click", () => {
+      if (busy()) return;
+      removeObject(o); saveObjects(); renderObjList(); invalidate();
+    });
+    box.appendChild(row);
+  }
+  for (const p of W.peds.filter(q => q.empty)) {
+    const row = document.createElement("div"); row.className = "obj";
+    row.innerHTML = `<span class="sw" style="background:#cbd5e1"></span><span></span><span></span><button class="btn small" title="Xóa bệ">🗑</button>`;
+    row.children[1].textContent = `Bệ trống  X ${p.x.toFixed(1)} · Y ${p.y.toFixed(1)} · cao ${p.top.toFixed(1)}`;
+    row.children[3].addEventListener("click", () => {
+      if (busy()) return;
+      G.objs.remove(p.grp); W.peds = W.peds.filter(q => q !== p); saveObjects(); renderObjList(); invalidate();
+    });
+    box.appendChild(row);
+  }
+}
+function uiAddObject(kind) {
+  if (busy()) return;
+  let x, y, z;
+  try { [x, y, z] = readObjInputs(); } catch (e) { return setMsg("objMsg", e.message, "err"); }
+  if (kind === "ped") {
+    if (z < 1) return setMsg("objMsg", "Bệ trống cần Z đáy ≥ 1 mm (độ cao mặt bệ).", "err");
+    addPedestal(x, y, z, true);
+    const c = graspCheck(x, y, z);
+    setMsg("objMsg", c.err ? `Đã đặt bệ, nhưng robot KHÔNG thả vật ở đây được: ${c.err}`
+                           : "Đã đặt bệ trống — dùng làm chỗ thả vật." + c.note, c.err ? "warn" : "ok");
+  } else {
+    const o = addObject(x, y, z), c = graspCheck(x, y, z);
+    setMsg("objMsg", c.err ? `Đã đặt vật #${o.id}, nhưng robot KHÔNG gắp được ở đây: ${c.err}`
+                           : `Đã đặt vật #${o.id}. Gắp ở đầu kẹp Z ≈ ${(z + GRIP_ZOFS).toFixed(1)} mm (bấm 🎯 để điền tọa độ).` + c.note,
+           c.err ? "warn" : "ok");
+  }
+  saveObjects(); renderObjList(); invalidate();
 }
 
 // ---------------- Points (Teach) ----------------
@@ -1235,7 +1482,8 @@ function refreshRunUI() {
   document.querySelectorAll(".chip").forEach(b => (b.disabled = busy()));
   for (const id of ["btnTeach", "btnPtGo", "btnPtSave", "btnPtRename", "btnPtDelete", "btnProgNew", "btnProgDel", "movePoint",
                     "btnAddMove", "btnAddGripOn", "btnAddGripOff", "delaySec", "btnAddDelay", "btnStepEdit", "btnStepUp",
-                    "btnStepDown", "btnStepDel", "btnDir", "btnLoad"]) $(id).disabled = busy();
+                    "btnStepDown", "btnStepDel", "btnDir", "btnLoad", "btnObjAdd", "btnPedAdd", "btnObjReset",
+                    "btnObjClear", "btnObjFromTcp"]) $(id).disabled = busy();
   const p = curProg();
   $("btnRun").disabled = !p || !p.steps.length || busy();
   const total = R.steps.length, done = R.state === "done" ? total : Math.max(0, R.idx);
@@ -1249,6 +1497,8 @@ function runProgram() {
   if (!prog.steps.length) return setMsg("runMsg", "Chương trình chưa có Step nào.", "warn");
   const missing = [...new Set(prog.steps.filter(s => s.type === "MOVE" && !S.points[s.point]).map(s => s.point))];
   if (missing.length) return setMsg("runMsg", `Không chạy được: thiếu Point ${missing.join(", ")}.`, "err");
+  if ($("chkObjReset").checked && W.objs.length) resetObjects();
+  W.grips = W.misses = 0;
   Object.assign(R, { state: "running", name, steps: prog.steps, idx: -1, wait: 0 });
   setMsg("runMsg", `Đang chạy '${name}' (×${S.speed}).`, "info");
   nextStep();
@@ -1258,13 +1508,17 @@ function nextStep() {
   R.idx++;
   if (R.idx >= R.steps.length) {
     R.state = "done";
-    setMsg("runMsg", `Hoàn thành '${R.name}'.`, "ok");
+    setMsg("runMsg", `Hoàn thành '${R.name}'.` + (W.objs.length ? ` Kẹp được vật ${W.grips} lần, kẹp hụt ${W.misses} lần.` : ""),
+           W.misses ? "warn" : "ok");
     renderSteps(); refreshRunUI(); selfTestDone();
     return;
   }
   const st = R.steps[R.idx];
   if (st.type === "MOVE") moveTo(S.points[st.point], nextStep);
-  else if (st.type === "GRIP") { S.gripTarget = st.action === "ON" ? 1 : 0; R.wait = 0.35; }  // chờ ngón kẹp khép / mở
+  else if (st.type === "GRIP") {                                  // chờ ngón kẹp khép / mở
+    const res = setGrip(st.action === "ON"); R.wait = 0.35;
+    if (W.objs.length) setMsg("runMsg", `Step ${R.idx + 1} GRIP ${st.action}: ${res}.`, res.startsWith("kẹp hụt") ? "warn" : "info");
+  }
   else if (st.type === "DELAY") R.wait = Math.max(0, num(st.seconds, 0));
   else { setMsg("runMsg", `Step ${R.idx + 1}: loại '${st.type}' không hỗ trợ — bỏ qua.`, "warn"); R.wait = 0.01; }
   renderSteps(); refreshRunUI();
@@ -1293,7 +1547,7 @@ function updateHUD() {
     if (st && st.type === "DELAY" && R.state === "running" && !S.motion) status += ` (còn ${R.wait.toFixed(1)} s)`;
   } else if (S.motion) status = `Đang di chuyển… còn ${Math.max(0, (S.motion.m.T - S.motion.t) / S.speed).toFixed(1)} s`;
   else status = R.state === "done" ? `✔ Hoàn thành '${R.name}'` : "Sẵn sàng";
-  status += `  ·  Kẹp: ${S.gripTarget ? "ĐÓNG" : "MỞ"}`;
+  status += `  ·  Kẹp: ${S.gripTarget ? "ĐÓNG" : "MỞ"}` + (W.held ? ` (giữ vật #${W.held.id})` : "");
   const vals = [f.x.toFixed(2) + " mm", f.y.toFixed(2) + " mm", f.z.toFixed(2) + " mm", f.th.toFixed(2) + "°",
                 q.J1.toFixed(2) + "°", q.J2.toFixed(2) + "°", q.J3.toFixed(2) + "°", q.Z.toFixed(2) + " mm", status];
   const key = vals.join("|");
@@ -1321,6 +1575,7 @@ function frame(now) {
     R.wait -= dt * S.speed; anim = true;
     if (R.wait <= 0) { R.wait = 0; nextStep(); }
   }
+  if (stepFalling(dt)) anim = true;
   if (Math.abs(S.grip - S.gripTarget) > 1e-4) {
     const d = S.gripTarget - S.grip, stepG = (dt * S.speed) / 0.3;
     S.grip += Math.sign(d) * Math.min(Math.abs(d), stepG); anim = true;
@@ -1350,7 +1605,19 @@ function setupUI() {
     if (busy()) return;
     const m = moveTo(S.home); setMsg("ikMsg", `Về vị trí Home (${m.T.toFixed(2)} s).`, "ok");
   });
-  $("btnGrip").addEventListener("click", () => { if (!busy()) { S.gripTarget = S.gripTarget ? 0 : 1; invalidate(); } });
+  $("btnGrip").addEventListener("click", () => { if (!busy()) setMsg("objMsg", "Kẹp: " + setGrip(!S.gripTarget) + ".", "info"); });
+  $("btnObjAdd").addEventListener("click", () => uiAddObject("obj"));
+  $("btnPedAdd").addEventListener("click", () => uiAddObject("ped"));
+  $("btnObjReset").addEventListener("click", () => { if (!busy()) { resetObjects(); setMsg("objMsg", "Đã đưa các vật về chỗ ban đầu.", "ok"); } });
+  $("btnObjClear").addEventListener("click", () => {
+    if (busy() || !(W.objs.length || W.peds.length) || !confirm("Xóa hết vật và bệ?")) return;
+    clearObjects(); saveObjects(); renderObjList(); invalidate();
+  });
+  $("btnObjFromTcp").addEventListener("click", () => {
+    const f = forwardKinematics(S.q, S.p);
+    $("objX").value = f.x.toFixed(1); $("objY").value = f.y.toFixed(1); $("objZ").value = Math.max(0, f.z - GRIP_ZOFS).toFixed(1);
+    setMsg("objMsg", "Đã điền vị trí ngay dưới đầu kẹp — bấm ＋ Đặt vật để đặt vật vào giữa 2 ngón.", "info");
+  });
   $("btnFill").addEventListener("click", () => { fillCart(forwardKinematics(S.q, S.p)); setMsg("ikMsg", "Đã điền vị trí đang đứng.", "info"); });
   $("btnGo").addEventListener("click", goToCart);
   $("progSelect").addEventListener("change", () => { if (R.state === "done") R.state = "idle"; S.selStep = null; renderSteps(); buildProgramPath(); refreshRunUI(); });
@@ -1409,6 +1676,7 @@ function selfTestDone() {
   S.q = { ...S.home }; S.qTarget = { ...S.q }; clearTrail();
   setView("iso");
   $("loading").remove();
+  loadObjects();
   await restoreDataDir();                       // thư mục data đã chọn lần trước (nếu trình duyệt còn giữ quyền)
   tryAutoFetch();
   requestAnimationFrame(t => { last = t; frame(t); });
@@ -1419,7 +1687,8 @@ function selfTestDone() {
   }
   window.__sim = { S, R, forwardKinematics, inverseKinematics, makeSyncMotion,   // để thử nhanh trong Console (F12)
     teachPointCore, updatePointCore, renamePointCore, deletePointCore, newProgramCore, deleteProgramCore, insertStepCore,
-    editStepCore, moveStepCore, deleteStepCore, afterPointsChange, progAction, buildProgramSelect, toJson };
+    editStepCore, moveStepCore, deleteStepCore, afterPointsChange, progAction, buildProgramSelect, toJson,
+    W, addObject, addPedestal, setGrip, resetObjects, objBase, feasibleTheta };
 })();
 </script>
 </body>

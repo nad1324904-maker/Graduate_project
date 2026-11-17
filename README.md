@@ -294,6 +294,17 @@ Nhấp đúp file **`mo_phong_scara.html`** ở thư mục gốc để mở bằ
   **Xóa** (bị chặn nếu chương trình đang dùng Point đó).
 - **Soạn chương trình** giống tab Lập trình của GUI: tạo/xóa chương trình; thêm **MOVE / GRIP ON / GRIP OFF / DELAY**
   (Step mới chèn ngay sau Step đang chọn); **Sửa**, **▲ ▼** đổi thứ tự, **Xóa** Step.
+- **📦 Vật thể (pick and place):**
+  - Nhập tâm vật **X, Y** và **Z đáy** (độ cao mặt đặt) rồi bấm **＋ Đặt vật**.
+  - Vật là khối **20 × 20 × 30 mm**, vừa tay kẹp: kẹp mở rộng 26 mm, mỗi bên hở 3 mm.
+  - Vì đầu kẹp chỉ xuống tới z = Zmin − h2 (hiện là 100 mm), vật đặt trên **bệ**; Z đáy mặc định 90 mm.
+  - **＋ Bệ trống** tạo chỗ để thả vật.
+  - Khi đặt, trang kiểm tra robot có gắp được ở đó không và **tự tìm góc θ phù hợp**. Nút **🎯** cạnh mỗi vật điền sẵn
+    tọa độ gắp (Z = đáy + 12 mm, θ gắp được) vào khung IK. Nên đi tới điểm phía trên vật trước rồi mới hạ xuống.
+  - **GRIP ON** khi vật nằm giữa hai ngón (lệch ≤ 7 mm) thì vật bị kẹp và đi theo tay; không có vật thì tính là
+    **kẹp hụt**. **GRIP OFF** thì vật rơi xuống chỗ đỡ cao nhất bên dưới (bệ, vật khác hoặc mặt bàn).
+  - Chạy xong chương trình, trang báo **số lần kẹp được / kẹp hụt**. Mặc định các vật được đặt lại chỗ cũ mỗi lần bấm
+    Chạy. Vị trí vật và bệ được trình duyệt nhớ, mở lại trang vẫn còn.
 - **💾 Lưu** ghi `points.json` + `programs.json` vào thư mục data, **cùng định dạng với GUI** nên dùng được ngay trên robot
   thật. Chưa mở thư mục data thì Lưu sẽ tải 2 file xuống để bạn chép vào. Có dấu "● Có thay đổi chưa lưu", và trang hỏi
   lại nếu đóng khi chưa lưu.
