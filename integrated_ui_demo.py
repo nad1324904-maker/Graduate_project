@@ -94,6 +94,7 @@ class MasterDemo(ctk.CTk):
             pass
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
+        self.cyl_down = {"Xi lanh 1": True, "Xi lanh 2": True}     # True = đã hạ (S2), False = đã thu (S1)
 
         self._build_header()
         self.content = ctk.CTkFrame(self, fg_color="transparent")
@@ -300,7 +301,9 @@ class MasterDemo(ctk.CTk):
             box = ctk.CTkFrame(r, fg_color="transparent")
             box.pack(side="left")
             ctk.CTkLabel(box, text=name, font=(FB, 12), text_color=TEXT, height=16).pack(anchor="w")
-            st = ctk.CTkLabel(box, text="● đang ở trên", font=(F, 10), text_color=DIM, height=14)
+            low = self.cyl_down[name]
+            st = ctk.CTkLabel(box, text="● đang ở dưới" if low else "● đang ở trên", font=(F, 10),
+                              text_color=ACCENT if low else DIM, height=14)
             st.pack(anchor="w")
             self.cyl_state[name] = st
             seg = ctk.CTkSegmentedButton(
@@ -308,7 +311,7 @@ class MasterDemo(ctk.CTk):
                 command=lambda v, n=name: self._cylinder(n, v),
                 fg_color=BTN_SOFT, selected_color=ACCENT_SOFT, selected_hover_color="#bfdbfe",
                 unselected_color=BTN_SOFT, unselected_hover_color=BTN_SOFT_HOVER, text_color=ACCENT_TEXT)
-            seg.set("▲ Nâng")
+            seg.set("▼ Hạ" if low else "▲ Nâng")
             seg.pack(side="right")
 
         self._section(p, "Kiểm tra (Raspberry Pi)")
@@ -357,6 +360,8 @@ class MasterDemo(ctk.CTk):
         def done():
             self.cyl_state[name].configure(text="● đang ở dưới" if down else "● đang ở trên",
                                            text_color=ACCENT if down else DIM)
+            self.cyl_down[name] = down
+            self._draw_line()
             self.log(f"{name}: cảm biến xác nhận đã {'hạ xuống' if down else 'nâng lên'}.", "OK")
         self.after(500, done)
 
@@ -505,8 +510,34 @@ class MasterDemo(ctk.CTk):
         return c
 
     # ---------------- vẽ ----------------
+    def _draw_cylinder(self, cv, xc, body_top, tip_y, lowered, label, label_anchor, label_x, probes):
+        """1 xi lanh nhìn từ bên cạnh: thân + ty. lowered = đã hạ (S2) / đã thu (S1).
+        probes=True: đầu ty mang 2 đầu kim cấp nguồn; False: đầu ty là thanh chặn PCB."""
+        body_bot = body_top + 28
+        active = ACCENT if lowered else "#94a3b8"
+        cv.create_text(label_x, body_top - 8, anchor=label_anchor, font=(FB, 9),
+                       text=f"{label}  {'S2 ▼' if lowered else 'S1 ▲'}", fill=ACCENT_TEXT if lowered else DIM)
+        # ty (đầu ty hạ xuống tip_y khi lowered, thu ngắn khi S1)
+        rod_end = (tip_y - (8 if probes else 0)) if lowered else body_bot + 12
+        cv.create_rectangle(xc - 3, body_bot, xc + 3, rod_end, fill="#94a3b8", outline="#64748b")
+        if probes:
+            pin_len = 8
+            cv.create_rectangle(xc - 9, rod_end, xc + 9, rod_end + 4, fill="#475569", outline="")
+            for dx in (-5, 5):
+                cv.create_line(xc + dx, rod_end + 4, xc + dx, rod_end + 4 + pin_len, fill=AMBER, width=2)
+            if lowered:
+                cv.create_text(xc, rod_end - 12, text="⚡", font=(F, 10), fill=AMBER)
+        else:
+            cv.create_rectangle(xc - 4, rod_end - 14 if lowered else rod_end - 2, xc + 4, rod_end + 2,
+                                fill="#475569", outline="")
+        # thân xi lanh (vẽ sau để che đoạn ty bên trong)
+        cv.create_rectangle(xc - 11, body_top, xc + 11, body_bot, fill=ACCENT_SOFT if lowered else BTN_SOFT,
+                            outline=active, width=2)
+        cv.create_line(xc - 11, body_top + 7, xc + 11, body_top + 7, fill=active)
+
     def _draw_line(self):
-        """Sơ đồ dây chuyền (dữ liệu mẫu): cấp PCB → băng tải (CB1, trạm kiểm tra CB2, CB3) → robot → 3 khay."""
+        """Sơ đồ dây chuyền (dữ liệu mẫu): cấp PCB → băng tải → trạm kiểm tra (CB2, camera, xi lanh 1 + 2)
+        → CB3 → robot → 3 khay. Xi lanh lấy trạng thái từ self.cyl_down (đổi được ở chế độ MANUAL)."""
         cv = self.line_canvas
         cv.delete("all")
         w, h = cv.winfo_width(), cv.winfo_height()
@@ -522,32 +553,42 @@ class MasterDemo(ctk.CTk):
             cv.create_line(xx, y - bt + 3, xx - 6, y + bt - 3, fill="#b6c2d2")
         for xx in (x0, x1):
             cv.create_oval(xx - bt, y - bt, xx + bt, y + bt, fill="#94a3b8", outline="#64748b")
-        cv.create_text((x0 + x1) / 2, y + bt + 14, text="Băng tải · ĐANG CHẠY  ▶", fill=ACCENT, font=(FB, 10))
+        cv.create_text(x0 + 6, y - bt - 12, anchor="w", text="Băng tải · DỪNG", fill=AMBER_TEXT, font=(FB, 10))
 
         # khay cấp PCB
-        fx = w * 0.05
+        fx = max(w * 0.05, 56)
         for k in range(5):
             cv.create_rectangle(fx - 26, y - 36 - k * 7, fx + 26, y - 30 - k * 7, fill="#4ade80", outline="#15803d")
         cv.create_rectangle(fx - 32, y - 30, fx + 32, y + bt, fill="", outline="#94a3b8", width=2)
         cv.create_text(fx, y + bt + 14, text="Cấp PCB · 23 tấm", fill=DIM, font=(F, 10))
 
-        # cảm biến CB1/CB2/CB3
-        sensors = (("CB1", x0 + (x1 - x0) * 0.12, False), ("CB2", x0 + (x1 - x0) * 0.50, True),
-                   ("CB3", x0 + (x1 - x0) * 0.93, False))
+        # cảm biến CB1/CB2/CB3 — đặt DƯỚI băng tải để phía trên dành cho xi lanh + camera
+        cx = x0 + (x1 - x0) * 0.50                # trạm kiểm tra (CB2)
+        sensors = (("CB1", x0 + (x1 - x0) * 0.12, False), ("CB2", cx, True), ("CB3", x0 + (x1 - x0) * 0.93, False))
         for name, sx, on in sensors:
-            cv.create_line(sx, y - bt - 2, sx, y - bt - 26, fill="#94a3b8", width=2)
-            cv.create_oval(sx - 7, y - bt - 40, sx + 7, y - bt - 26, fill=GREEN if on else "#e2e8f0",
+            cv.create_line(sx, y + bt + 2, sx, y + bt + 14, fill="#94a3b8", width=2)
+            cv.create_oval(sx - 7, y + bt + 14, sx + 7, y + bt + 28, fill=GREEN if on else "#e2e8f0",
                            outline=GREEN_HOVER if on else "#94a3b8", width=1.5)
-            cv.create_text(sx, y - bt - 50, text=name, fill=TEXT if on else DIM, font=(FB, 10))
+            cv.create_text(sx, y + bt + 38, text=name, fill=TEXT if on else DIM, font=(FB, 10))
+        cv.create_text(cx, y + bt + 56, text="#0128 đang test chức năng", fill=AMBER_TEXT, font=(F, 9))
 
-        # trạm kiểm tra (camera + xi lanh) ở CB2
-        cx = sensors[1][1]
-        cv.create_rectangle(cx - 46, 8, cx + 46, 34, fill=ACCENT_SOFT, outline=ACCENT)
-        cv.create_text(cx, 21, text="📷 Camera · S2", fill=ACCENT_TEXT, font=(FB, 10))
-        # PCB trên băng tải
-        for px, col, outl in ((x0 + (x1 - x0) * 0.27, "#4ade80", "#15803d"), (cx, "#fde68a", AMBER)):
-            cv.create_rectangle(px - 20, y - 10, px + 20, y + 10, fill=col, outline=outl, width=2)
-        cv.create_text(cx, y + bt + 30, text="#0128 đang kiểm tra", fill=AMBER_TEXT, font=(F, 9))
+        # PCB đang chờ ở CB1→CB2 (nhỏ) và PCB đang kiểm tra ở trạm (to hơn: có domino + LED 7 đoạn)
+        px = x0 + (x1 - x0) * 0.27
+        cv.create_rectangle(px - 20, y - 10, px + 20, y + 10, fill="#4ade80", outline="#15803d", width=2)
+        cv.create_rectangle(cx - 28, y - 10, cx + 28, y + 10, fill="#fde68a", outline=AMBER, width=2)
+        cv.create_rectangle(cx - 27, y - 7, cx - 17, y + 7, fill="#1e293b", outline="")          # domino (cấp nguồn)
+        for dy in (-3, 3):
+            cv.create_oval(cx - 24, y + dy - 1.5, cx - 20, y + dy + 2.5, fill="#94a3b8", outline="")
+        cv.create_rectangle(cx + 4, y - 6, cx + 20, y + 6, fill="#1e293b", outline="")           # LED 7 đoạn
+        cv.create_text(cx + 12, y, text="7", fill="#f87171", font=("Consolas", 9, "bold"))
+
+        # trạm kiểm tra: camera ở trên, xi lanh 2 (2 đầu kim) phía domino, xi lanh 1 (chặn) phía trước PCB
+        cv.create_rectangle(cx - 36, 4, cx + 36, 24, fill=ACCENT_SOFT, outline=ACCENT)
+        cv.create_text(cx, 14, text="📷 Camera", fill=ACCENT_TEXT, font=(FB, 10))
+        cv.create_line(cx + 4, 24, cx + 4, y - 12, fill=ACCENT, dash=(3, 3))                      # trục quang camera
+        tip_y = y - 10                                                                            # mặt trên PCB
+        self._draw_cylinder(cv, cx - 22, 44, tip_y, self.cyl_down["Xi lanh 2"], "XL2 · cấp nguồn", "e", cx - 4, True)
+        self._draw_cylinder(cv, cx + 34, 44, y + 10, self.cyl_down["Xi lanh 1"], "XL1 · chặn PCB", "w", cx + 14, False)
 
         # robot SCARA
         rx, ry = w * 0.80, y
@@ -566,8 +607,8 @@ class MasterDemo(ctk.CTk):
         for k, (name, n, col, soft) in enumerate(bins):
             by = top + k * (bh + 6)
             cv.create_rectangle(bx - 40, by, bx + 40, by + bh, fill=soft, outline=col, width=2)
-            cv.create_text(bx, by + bh * 0.33, text=name, fill=col, font=(FB, 10))
-            cv.create_text(bx, by + bh * 0.70, text=n, fill=TEXT, font=(FB, 11))
+            cv.create_text(bx, by + bh * 0.27, text=name, fill=col, font=(FB, 10))
+            cv.create_text(bx, by + bh * 0.75, text=n, fill=TEXT, font=(FB, 11))
 
     @staticmethod
     def _draw_camera_placeholder(cv):
