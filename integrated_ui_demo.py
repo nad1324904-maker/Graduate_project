@@ -136,8 +136,19 @@ class MasterDemo(ctk.CTk):
         right.pack(side="right", padx=20, pady=12)
         self.clock = HeaderBadge(right, "🕐", "", "--:--:--")
         self.clock.pack(side="right", padx=(24, 0))
-        HeaderBadge(right, "●", "Hệ thống", "ĐANG CHẠY", ACCENT).pack(side="right", padx=(24, 0))
+        self.sys_badge = HeaderBadge(right, "●", "Hệ thống", "AUTO · ĐANG CHẠY", ACCENT)
+        self.sys_badge.pack(side="right", padx=(24, 0))
         HeaderBadge(right, "⏱", "Chu kỳ gần nhất", "12.4 s").pack(side="right", padx=(24, 0))
+
+        # trạng thái các slave: luôn thấy ở mọi tab (Connect / Disconnect nằm ở tab Cài đặt)
+        dev = ctk.CTkFrame(right, fg_color="transparent")
+        dev.pack(side="right", padx=(24, 0))
+        ctk.CTkLabel(dev, text="🔌 Thiết bị", font=(F, 11), text_color=DIM).pack(anchor="w")
+        row = ctk.CTkFrame(dev, fg_color="transparent")
+        row.pack(anchor="w")
+        for name, kind in (("PLC", "green"), ("Pi", "green"), ("Robot", "blue"), ("Cam", "green")):
+            ctk.CTkLabel(row, text="●", font=(F, 12), text_color=PILL[kind][1]).pack(side="left")
+            ctk.CTkLabel(row, text=name, font=(FB, 12), text_color=TEXT).pack(side="left", padx=(3, 10))
 
         bar = ctk.CTkFrame(right, fg_color=BTN_SOFT, corner_radius=10)
         bar.pack(side="right", padx=(24, 0))
@@ -173,11 +184,10 @@ class MasterDemo(ctk.CTk):
         v.grid_columnconfigure(2, weight=0, minsize=300)
         v.grid_rowconfigure(0, weight=1)
 
-        # ---- cột trái: điều khiển + thiết bị ----
+        # ---- cột trái: điều khiển (AUTO / MANUAL) ----
         left = ctk.CTkFrame(v, fg_color="transparent", width=290)
         left.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
-        self._build_control_card(left).pack(fill="x")
-        self._build_devices_card(left).pack(fill="x", pady=(12, 0))
+        self._build_control_card(left).pack(fill="both", expand=True)
 
         # ---- cột giữa: sơ đồ dây chuyền + PCB hiện tại ----
         mid = ctk.CTkFrame(v, fg_color="transparent")
@@ -207,45 +217,217 @@ class MasterDemo(ctk.CTk):
         ctk.CTkLabel(estop, text="E-STOP", font=(FB, 11), text_color=GREEN_TEXT).pack(side="left", padx=12, pady=5)
         ctk.CTkLabel(estop, text="● Bình thường", font=(FB, 12), text_color=GREEN).pack(side="right", padx=12)
 
-        seg = ctk.CTkSegmentedButton(b, values=["Tự động", "Từng bước"], height=30, font=(FB, 12),
-                                     fg_color=BTN_SOFT, selected_color=ACCENT_SOFT, selected_hover_color="#bfdbfe",
-                                     unselected_color=BTN_SOFT, unselected_hover_color=BTN_SOFT_HOVER,
-                                     text_color=ACCENT_TEXT)
-        seg.set("Tự động")
-        seg.pack(fill="x", pady=(0, 8))
+        self.mode_seg = ctk.CTkSegmentedButton(
+            b, values=["AUTO", "MANUAL"], height=32, font=(FB, 12), command=self._on_mode,
+            fg_color=BTN_SOFT, selected_color=ACCENT_SOFT, selected_hover_color="#bfdbfe",
+            unselected_color=BTN_SOFT, unselected_hover_color=BTN_SOFT_HOVER, text_color=ACCENT_TEXT)
+        self.mode_seg.set("AUTO")
+        self.mode_seg.pack(fill="x", pady=(0, 6))
 
-        ctk.CTkButton(b, text="▶  START", height=44, corner_radius=10, font=(FB, 15), fg_color=GREEN,
-                      hover_color=GREEN_HOVER, command=lambda: self.log("START (demo)")).pack(fill="x")
-        row = ctk.CTkFrame(b, fg_color="transparent")
-        row.pack(fill="x", pady=(6, 0))
-        row.grid_columnconfigure((0, 1), weight=1)
-        ctk.CTkButton(row, text="■  STOP", height=38, corner_radius=10, font=(FB, 13), fg_color=RED,
-                      hover_color=RED_HOVER, command=lambda: self.log("STOP (demo)", "WARN")
-                      ).grid(row=0, column=0, sticky="ew", padx=(0, 4))
-        ctk.CTkButton(row, text="⟳  RESET", height=38, corner_radius=10, font=(FB, 13), fg_color=GRAY_BTN,
-                      hover_color=GRAY_BTN_HOVER, command=lambda: self.log("RESET (demo)")
-                      ).grid(row=0, column=1, sticky="ew", padx=(4, 0))
-        ctk.CTkLabel(b, text="STOP: dừng sau khi xong PCB hiện tại. E-Stop là nút cứng trên tủ điện (PLC).",
-                     font=(F, 10), text_color=DISABLED, wraplength=250, justify="left").pack(anchor="w", pady=(6, 0))
+        # kết quả kiểm tra trong chế độ MANUAL (để biết robot phải chạy chương trình nào)
+        self._m_vis = self._m_fun = None
+        self._cam_demo = 0
+        self._fun_demo = 0
+        self.auto_panel = self._build_auto_panel(b)
+        self.manual_panel = self._build_manual_panel(b)
+        self.auto_panel.pack(fill="x")
         return c
 
-    def _build_devices_card(self, parent):
-        c = Card(parent, "Thiết bị", "🔌")
-        for name, detail, state, kind in (
-                ("PLC", "192.168.0.10", "ONLINE", "green"),
-                ("Raspberry Pi", "192.168.0.20", "ONLINE", "green"),
-                ("Robot SCARA", "COM5", "BUSY", "blue"),
-                ("Camera", "qua Raspberry", "ONLINE", "green")):
-            r = ctk.CTkFrame(c.body, fg_color="transparent")
-            r.pack(fill="x", pady=1)
-            ctk.CTkLabel(r, text="●", font=(F, 12), text_color=PILL[kind][1]).pack(side="left")
-            ctk.CTkLabel(r, text=name, font=(FB, 12), text_color=TEXT).pack(side="left", padx=(6, 0))
-            pill(r, state, kind, width=70, font_size=10).pack(side="right")
-            ctk.CTkLabel(r, text=detail, font=(F, 10), text_color=DIM).pack(side="right", padx=8)
-        ctk.CTkButton(c.body, text="Kết nối lại tất cả", height=30, corner_radius=8, font=(FB, 12),
-                      fg_color=BTN_SOFT, hover_color=BTN_SOFT_HOVER,
-                      command=lambda: self.log("Kết nối lại (demo)")).pack(fill="x", pady=(8, 0))
-        return c
+    @staticmethod
+    def _section(parent, text):
+        ctk.CTkLabel(parent, text=text, font=(FB, 11), text_color=DIM, anchor="w", height=22
+                     ).pack(fill="x", pady=(5, 0))
+
+    @staticmethod
+    def _pair(parent):
+        """Hàng 2 nút rộng bằng nhau."""
+        r = ctk.CTkFrame(parent, fg_color="transparent")
+        r.pack(fill="x", pady=2)
+        r.grid_columnconfigure((0, 1), weight=1, uniform="p")
+        return r
+
+    @staticmethod
+    def _btn(parent, text, cmd, color=BTN_SOFT, hover=BTN_SOFT_HOVER, h=34, size=12):
+        return ctk.CTkButton(parent, text=text, height=h, corner_radius=10, font=(FB, size),
+                             fg_color=color, hover_color=hover, command=cmd)
+
+    # ---------------- AUTO ----------------
+    def _build_auto_panel(self, parent):
+        p = ctk.CTkFrame(parent, fg_color="transparent")
+        self._btn(p, "▶  START", lambda: self.log("START (demo)"), GREEN, GREEN_HOVER, h=44, size=15
+                  ).pack(fill="x", pady=(2, 0))
+        r = self._pair(p)
+        self._btn(r, "■  STOP", lambda: self.log("STOP (demo)", "WARN"), RED, RED_HOVER, h=38, size=13
+                  ).grid(row=0, column=0, sticky="ew", padx=(0, 3))
+        self._btn(r, "⟳  RESET", lambda: self.log("RESET (demo)"), GRAY_BTN, GRAY_BTN_HOVER, h=38, size=13
+                  ).grid(row=0, column=1, sticky="ew", padx=(3, 0))
+
+        self._section(p, "Nút trên tủ điện (PLC đọc)")
+        r = ctk.CTkFrame(p, fg_color="transparent")
+        r.pack(fill="x")
+        for name in ("START", "STOP", "RESET"):
+            pill(r, "○ " + name, "gray", font_size=10).pack(side="left", padx=(0, 6))
+        r = ctk.CTkFrame(p, fg_color="transparent")
+        r.pack(fill="x", pady=(6, 0))
+        ctk.CTkLabel(r, text="Đèn tháp", font=(F, 12), text_color=TEXT).pack(side="left")
+        ctk.CTkLabel(r, text="● XANH — đang chạy", font=(FB, 12), text_color=GREEN).pack(side="right")
+
+        ctk.CTkLabel(p, text="Nút trên tủ điện và nút trên app có cùng tác dụng. STOP: dừng sau khi xong PCB "
+                              "hiện tại. E-Stop chỉ dùng nút cứng. Chỉ đổi sang MANUAL khi hệ thống đã dừng.",
+                     font=(F, 10), text_color=DISABLED, wraplength=255, justify="left").pack(anchor="w", pady=(10, 0))
+        return p
+
+    # ---------------- MANUAL ----------------
+    def _build_manual_panel(self, parent):
+        p = ctk.CTkFrame(parent, fg_color="transparent")
+
+        self._section(p, "Băng tải & cấp PCB")
+        self.belt_btn = self._btn(p, "⏵  Giữ để chạy băng tải", None, ACCENT, ACCENT_HOVER, h=36)
+        self.belt_btn.pack(fill="x", pady=2)
+        self.belt_btn.bind("<ButtonPress-1>", lambda e: self._belt(True), add="+")
+        self.belt_btn.bind("<ButtonRelease-1>", lambda e: self._belt(False), add="+")
+        r = self._pair(p)
+        self._btn(r, "⇥  Cấp 1 PCB", lambda: self.log("Động cơ bước: cấp 1 PCB lên băng tải (demo)")
+                  ).grid(row=0, column=0, sticky="ew", padx=(0, 3))
+        self._btn(r, "⏹  Dừng tất cả", lambda: self.log("MANUAL: dừng băng tải, động cơ bước, robot (demo)", "WARN"),
+                  RED, RED_HOVER).grid(row=0, column=1, sticky="ew", padx=(3, 0))
+
+        self._section(p, "Xi lanh")
+        self.cyl_state = {}
+        for name in ("Xi lanh 1", "Xi lanh 2"):
+            r = ctk.CTkFrame(p, fg_color="transparent")
+            r.pack(fill="x", pady=2)
+            box = ctk.CTkFrame(r, fg_color="transparent")
+            box.pack(side="left")
+            ctk.CTkLabel(box, text=name, font=(FB, 12), text_color=TEXT, height=16).pack(anchor="w")
+            st = ctk.CTkLabel(box, text="● đang ở trên", font=(F, 10), text_color=DIM, height=14)
+            st.pack(anchor="w")
+            self.cyl_state[name] = st
+            seg = ctk.CTkSegmentedButton(
+                r, values=["▲ Nâng", "▼ Hạ"], width=140, height=30, font=(FB, 11),
+                command=lambda v, n=name: self._cylinder(n, v),
+                fg_color=BTN_SOFT, selected_color=ACCENT_SOFT, selected_hover_color="#bfdbfe",
+                unselected_color=BTN_SOFT, unselected_hover_color=BTN_SOFT_HOVER, text_color=ACCENT_TEXT)
+            seg.set("▲ Nâng")
+            seg.pack(side="right")
+
+        self._section(p, "Kiểm tra (Raspberry Pi)")
+        r = self._pair(p)
+        self._btn(r, "📷  Chụp ảnh", self._capture).grid(row=0, column=0, sticky="ew", padx=(0, 3))
+        self._btn(r, "🔌  Test chức năng", self._func_test).grid(row=0, column=1, sticky="ew", padx=(3, 0))
+
+        self._section(p, "Robot")
+        r = ctk.CTkFrame(p, fg_color="transparent")
+        r.pack(fill="x", pady=2)
+        ctk.CTkLabel(r, text="Loại PCB", font=(F, 12), text_color=TEXT).pack(side="left")
+        ctk.CTkButton(r, text="✕", width=26, height=24, corner_radius=8, font=(F, 11), fg_color=BTN_SOFT,
+                      hover_color=BTN_SOFT_HOVER, command=self._clear_manual_result).pack(side="right")
+        self.type_pill = pill(r, "CHƯA XÁC ĐỊNH", "gray", font_size=10)
+        self.type_pill.pack(side="right", padx=(0, 6))
+        r = self._pair(p)
+        self._btn(r, "🤖  Robot phân loại", self._robot_sort, ACCENT, ACCENT_HOVER
+                  ).grid(row=0, column=0, sticky="ew", padx=(0, 3))
+        self._btn(r, "⌂  Robot về Home", lambda: self.log("Robot: về vị trí Home (demo)")
+                  ).grid(row=0, column=1, sticky="ew", padx=(3, 0))
+        return p
+
+    def _on_mode(self, mode):
+        if mode == "AUTO":
+            self.manual_panel.pack_forget()
+            self.auto_panel.pack(fill="x")
+            self.sys_badge.value.configure(text="AUTO · ĐANG CHẠY", text_color=ACCENT)
+        else:
+            self.auto_panel.pack_forget()
+            self.manual_panel.pack(fill="x")
+            self.sys_badge.value.configure(text="MANUAL", text_color=AMBER)
+        self.log(f"Chuyển sang chế độ {mode}.")
+
+    # ---------------- hành vi mô phỏng (DEMO) của chế độ MANUAL ----------------
+    def _belt(self, on):
+        """Giữ nút = băng tải chạy, thả nút = dừng (an toàn hơn nút bật/tắt)."""
+        self.belt_btn.configure(fg_color=GREEN if on else ACCENT,
+                                text="⏵  Băng tải đang chạy..." if on else "⏵  Giữ để chạy băng tải")
+        self.log("Băng tải: CHẠY (đang giữ nút)" if on else "Băng tải: DỪNG (đã thả nút)", "INFO" if on else "OK")
+
+    def _cylinder(self, name, value):
+        down = value.startswith("▼")
+        self.log(f"{name}: gửi lệnh {'HẠ' if down else 'NÂNG'} cho PLC...")
+        self.cyl_state[name].configure(text="● đang di chuyển...", text_color=AMBER)
+
+        def done():
+            self.cyl_state[name].configure(text="● đang ở dưới" if down else "● đang ở trên",
+                                           text_color=ACCENT if down else DIM)
+            self.log(f"{name}: cảm biến xác nhận đã {'hạ xuống' if down else 'nâng lên'}.", "OK")
+        self.after(500, done)
+
+    def _capture(self):
+        """Chỉ GỬI lệnh chụp; Raspberry Pi tự xử lý ảnh rồi gửi kết quả về (ở đây giả lập, lần lượt 3 kiểu)."""
+        self.log("Gửi lệnh CHỤP cho Raspberry Pi...")
+        k = self._cam_demo % 3
+        self._cam_demo += 1
+
+        def reply():
+            if k == 0:
+                self.log("Raspberry Pi: không phát hiện PCB trong ảnh — kiểm tra PCB đã tới vị trí camera chưa.", "WARN")
+                return
+            self._m_vis = "ĐẠT" if k == 1 else "LỖI"
+            if k == 1:
+                self.log("Raspberry Pi: ngoại quan ĐẠT.", "OK")
+            else:
+                self.log("Raspberry Pi: ngoại quan LỖI (thiếu linh kiện R12).", "WARN")
+            self._refresh_type()
+        self.after(800, reply)
+
+    def _func_test(self):
+        self.log("Gửi lệnh TEST CHỨC NĂNG cho Raspberry Pi...")
+        ok = self._fun_demo % 2 == 0
+        self._fun_demo += 1
+
+        def reply():
+            self._m_fun = "ĐẠT" if ok else "LỖI"
+            self.log("Raspberry Pi: chức năng ĐẠT." if ok else "Raspberry Pi: chức năng LỖI (3V3 = 2.71 V).",
+                     "OK" if ok else "WARN")
+            self._refresh_type()
+        self.after(1200, reply)
+
+    def _pcb_type(self):
+        """Theo lưu đồ: ngoại quan lỗi → Lỗi 1; ngoại quan đạt → xét chức năng (Đạt / Lỗi 2)."""
+        if self._m_vis is None:
+            return None
+        if self._m_vis == "LỖI":
+            return "LỖI 1"
+        if self._m_fun is None:
+            return None
+        return "ĐẠT" if self._m_fun == "ĐẠT" else "LỖI 2"
+
+    def _refresh_type(self):
+        t = self._pcb_type()
+        if t is None:
+            text, kind = ("CHỜ TEST CHỨC NĂNG", "blue") if self._m_vis == "ĐẠT" else ("CHƯA XÁC ĐỊNH", "gray")
+        else:
+            text, kind = t, {"ĐẠT": "green", "LỖI 1": "amber", "LỖI 2": "red"}[t]
+        bg, fg = PILL[kind]
+        self.type_pill.configure(text=text, fg_color=bg, text_color=fg)
+
+    def _clear_manual_result(self):
+        self._m_vis = self._m_fun = None
+        self._refresh_type()
+        self.log("Đã xóa kết quả kiểm tra của PCB hiện tại.")
+
+    def _robot_sort(self):
+        t = self._pcb_type()
+        if t is None:
+            why = "chưa chụp ảnh" if self._m_vis is None else "chưa test chức năng"
+            self.log(f"Chưa xác định được loại PCB ({why}) — robot KHÔNG chạy.", "WARN")
+            return
+        prog = {"ĐẠT": "Chương trình 1", "LỖI 2": "Chương trình 2", "LỖI 1": "Chương trình 3"}[t]
+        self.log(f"Gửi robot chạy {prog} (PCB {t})...")
+
+        def done():
+            self.log(f"Robot: {prog} xong.", "OK")
+            self._m_vis = self._m_fun = None
+            self._refresh_type()
+        self.after(1500, done)
 
     def _build_current_pcb_card(self, parent):
         c = Card(parent, "PCB hiện tại", "🔍", right_text="#0128 · vào lúc 14:32:05")
