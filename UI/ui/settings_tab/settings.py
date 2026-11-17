@@ -67,10 +67,7 @@ class SettingsMixin:
                                                     text_color=COL_TEXT_DIM)
         self.settings_status_label.pack(side="right")
 
-        # ---- Row 0: Communication (COM port + Connect) ----
-        comm_row = ctk.CTkFrame(area, fg_color="transparent")
-        comm_row.pack(fill="x", pady=(0, 8))
-        self._build_communication_panel(comm_row).pack(fill="x")
+        # (Kết nối UART tới STM32 nằm ở tab Cài đặt của app master — thẻ "Kết nối thiết bị".)
 
         # ---- Row 1: Kinematics + Joint Limits/Home + Fault Thresholds ----
         row1 = ctk.CTkFrame(area, fg_color="transparent")

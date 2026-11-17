@@ -20,7 +20,7 @@ In ra giấy hoặc mở trên điện thoại, đánh dấu `[x]` và ghi kết
 ## 1. Nạp firmware và kết nối
 
 - [ ] Robot **chưa cấp nguồn động lực** (chỉ cấp nguồn cho STM32). Nạp firmware
-- [ ] Mở app, tab Robot → Settings → Communication → chọn COM → Connect. Log có **CONFIG_OK**, không có dòng đỏ
+- [ ] Mở app, tab Cài đặt → Kết nối thiết bị → Robot SCARA → chọn COM → Connect. Log có **CONFIG_OK**, không có dòng đỏ
 - [ ] Badge kết nối báo đã kết nối; tab Giám sát thấy số vị trí cập nhật liên tục (dòng `S` 20 Hz đang về)
 - [ ] Nếu Connect báo lỗi cấu hình → firmware và GUI lệch phiên bản → nạp lại firmware đúng commit
 

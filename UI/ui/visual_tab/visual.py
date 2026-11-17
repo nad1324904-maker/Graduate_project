@@ -302,7 +302,7 @@ class VisualMixin:
         axis = self._trace_axis_choice
         unit = UNITS[axis]
         if not self._connected():
-            c.create_text(w / 2, h / 2, text="Chưa kết nối STM32 — Settings → Communication → Connect.",
+            c.create_text(w / 2, h / 2, text="Chưa kết nối STM32 — tab Cài đặt → Kết nối thiết bị → Robot SCARA → Connect.",
                           fill=COL_TEXT_DIM, font=FONT_B)
             self.plot_stats.configure(text="")
             return

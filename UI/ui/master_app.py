@@ -3,7 +3,7 @@ master_app.py — App MASTER (PC) của hệ thống kiểm tra & phân loại P
 
 Tab:  Vận hành (AUTO / MANUAL, sơ đồ dây chuyền, PCB hiện tại, thống kê) | Robot (nguyên giao diện điều khiển robot,
       ui/robot_panel.py) | Lịch sử | Cài đặt.
-Hiện trạng: tab Robot đã chạy THẬT (kết nối STM32 ở Robot → Settings → Communication). Các phần PLC / Raspberry Pi
+Hiện trạng: tab Robot đã chạy THẬT (kết nối STM32 ở tab Cài đặt → Kết nối thiết bị → Robot SCARA). Các phần PLC / Raspberry Pi
 mới có layout + style: số liệu là dữ liệu mẫu, các nút chỉ ghi Log (hoặc giả lập phản hồi).
 
 Một app duy nhất mở cổng COM của STM32 → phần tự động của master gọi thẳng self.robot.backend / self.robot.executor.
@@ -118,7 +118,6 @@ class MasterApp(ctk.CTk):
         for lvl, msg in (("INFO", "Khởi động app master (phần PLC / Raspberry Pi: dữ liệu mẫu)."),
                          ("OK", "PLC: kết nối Modbus TCP 192.168.0.10:502."),
                          ("OK", "Raspberry Pi: kết nối TCP 192.168.0.20:5000."),
-                         ("OK", "Robot SCARA: COM5 — CONFIG_OK, đã HOME."),
                          ("INFO", "PCB #0128: ngoại quan ĐẠT, đang kiểm tra chức năng...")):
             self.log(msg, lvl)
 
@@ -734,19 +733,10 @@ class MasterApp(ctk.CTk):
         slave_header(conn.body, "Raspberry Pi · TCP", "ONLINE", "green", True)
         field(conn.body, "Địa chỉ IP", "192.168.0.20")
         field(conn.body, "Cổng", "5000")
-        slave_header(conn.body, "Robot SCARA · UART", "OFFLINE", "gray", False)
-        r = ctk.CTkFrame(conn.body, fg_color="transparent")
-        r.pack(fill="x", pady=4)
-        ctk.CTkLabel(r, text="Cổng COM", font=(F, 12), text_color=TEXT).pack(side="left")
-        ctk.CTkButton(r, text="⟳", width=30, height=30, corner_radius=8, font=(F, 13), fg_color=BTN_SOFT,
-                      hover_color=BTN_SOFT_HOVER, command=lambda: self.log("Quét lại cổng COM (demo)")
-                      ).pack(side="right")
-        ctk.CTkOptionMenu(r, values=["COM5", "COM3", "COM7"], width=150, height=30, corner_radius=8,
-                          fg_color=INPUT, button_color=BTN_SOFT, button_hover_color=BTN_SOFT_HOVER,
-                          text_color=TEXT, font=(F, 12)).pack(side="right", padx=(0, 4))
+        self.robot.build_connection_section(conn.body)     # THẬT: cổng COM + Connect STM32 (ui/settings_tab/connection.py)
         ctk.CTkButton(conn.body, text="Connect tất cả", height=32, corner_radius=8, font=(FB, 12),
                       fg_color=BTN_SOFT, hover_color=BTN_SOFT_HOVER,
-                      command=lambda: self.log("Connect tất cả (demo)")).pack(fill="x", pady=(14, 0))
+                      command=self._connect_all).pack(fill="x", pady=(14, 0))
 
         to = Card(v, "Thời gian chờ (timeout)", "⏱")
         to.grid(row=0, column=1, sticky="nsew", padx=6)
@@ -810,6 +800,11 @@ class MasterApp(ctk.CTk):
                                    "master chỉ đọc và chạy.", font=(F, 10), text_color=DISABLED, wraplength=320,
                      justify="left").pack(anchor="w", pady=(8, 0))
         return v
+
+    def _connect_all(self):
+        self.log("Connect PLC + Raspberry Pi (demo)")
+        if not self.robot._connected():
+            self.robot._connect_uart()
 
     # ============================================================
     # LOG

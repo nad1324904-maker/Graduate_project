@@ -46,7 +46,7 @@ class ScaraRobotPanel(ConnectionMixin, SettingsMixin, VisualMixin, JogMixin, Mon
         self._log_sink = log_sink
 
         self._load_kinematics_from_config()
-        self.backend = OfflineBackend()   # chưa kết nối: GUI chỉ vận hành sau khi Connect (Settings → Communication)
+        self.backend = OfflineBackend()   # chưa kết nối: GUI chỉ vận hành sau khi Connect (tab Cài đặt của master → Kết nối thiết bị)
         self.backend.set_home_done_callback(self._on_home_done)
         self.backend.set_gripper_change_callback(self._on_gripper_change)
 

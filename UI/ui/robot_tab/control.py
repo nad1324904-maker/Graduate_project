@@ -94,7 +94,7 @@ class ControlMixin:
 
     def _on_start(self):
         if not self._connected():
-            self._log("Bị chặn: chưa kết nối STM32 (Settings → Communication → Connect).", "WARN")
+            self._log("Bị chặn: chưa kết nối STM32 (tab Cài đặt → Kết nối thiết bị → Robot SCARA → Connect).", "WARN")
             return
         if self.backend.is_homing():
             self._log("Bị chặn: robot đang HOME (tìm cảm biến) — đợi xong hoặc bấm STOP.", "WARN")
@@ -261,7 +261,7 @@ class ControlMixin:
             row.set_enabled(jog_ok)
         estop = connected and self.backend.is_estop()
         if not connected:
-            hint = "⚠ Chưa kết nối STM32 — vào Settings → Communication → Connect."
+            hint = "⚠ Chưa kết nối STM32 — vào tab Cài đặt → Kết nối thiết bị → Robot SCARA → Connect."
         elif estop:
             hint = "⛔ E-STOP — mọi chuyển động bị khóa. Bấm RESET (khung Chạy chương trình) rồi HOME lại."
         elif self.backend.is_homing():

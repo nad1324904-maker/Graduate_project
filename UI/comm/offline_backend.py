@@ -14,7 +14,7 @@ class OfflineBackend(RobotBackendBase):
 
     @staticmethod
     def _no(*_a, **_k):
-        raise UartError("Chưa kết nối STM32 — hãy Connect ở tab Settings.")
+        raise UartError("Chưa kết nối STM32 — hãy Connect ở tab Cài đặt → Kết nối thiết bị → Robot SCARA.")
 
     pause_motion = resume_motion = abort_motion = home = grip = _no
     send_absolute_target = jog = emergency_stop = reset_estop = _no

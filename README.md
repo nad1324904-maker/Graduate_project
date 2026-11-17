@@ -23,7 +23,7 @@ Hai phần giao tiếp qua **UART dạng văn bản, 115200 baud**, mỗi lệnh
 ┌──────────────────────── PC (Python) ────────────────────────┐
 │  UI (customtkinter)                                          │
 │   ├─ Tab Robot: JOG · Monitor · Points · Program · Control   │
-│   └─ Tab Settings: cấu hình (JSON) · Connect                 │
+│   └─ Tab Cài đặt: Connect STM32 · Robot→Settings: cấu hình   │
 │  core/: động học thuận, Point/Program store, ProgramExecutor │
 │  comm/: UartRobotBackend  ── đổi độ/mm ↔ counts ──┐          │
 └───────────────────────────────────────────────────┼──────────┘
@@ -164,7 +164,7 @@ và **nút ⛔ E-STOP** luôn hiện trên thanh đầu tab; log của robot ghi
 | **Lập trình → Points** | Danh sách Point, Teach Point (lưu vị trí thực hiện tại), Save Position, đổi tên, xóa (bị chặn nếu Program đang dùng điểm đó) |
 | **Lập trình → Program Editor** | Tạo chương trình gồm các Step: **MOVE** (tới một Point), **GRIP ON/OFF**, **DELAY** (0.1–60 s); sửa, xóa, chèn Step |
 | **Giám sát** | Hình robot 2D nhìn từ trên xuống (tư thế thực, đích, Points, đường đi dự kiến của chương trình) và đồ thị bám quỹ đạo của một trục (mục 5.1) |
-| **Settings** | 6 panel cấu hình (mục 7) và kết nối UART |
+| **Settings** | 6 panel cấu hình (mục 7). Kết nối UART nằm ở tab **Cài đặt** của app master (thẻ Kết nối thiết bị) |
 
 **Động học thuận** ([core/kinematics.py](UI/core/kinematics.py)):
 
@@ -271,7 +271,7 @@ python main.py --scale 0.85    # thu nhỏ giao diện (máy yếu / màn hình 
 ### 6.3. Quy trình vận hành
 
 1. **Kết nối:**
-   - Vào **Settings → Communication**, chọn cổng COM, baud 115200, bấm **Connect**.
+   - Vào tab **Cài đặt** của app → thẻ **Kết nối thiết bị** → mục **Robot SCARA · UART**, chọn cổng COM, baud 115200, bấm **Connect**.
    - GUI gửi toàn bộ cấu hình xuống STM32. Chờ Log báo `CONFIG_OK`.
 2. **HOME:**
    - Bấm **HOME** (tab Vận hành, dưới khung JOG). Các trục chạy chậm về cảm biến và dừng; vị trí được đặt bằng giá trị Home trong Settings.

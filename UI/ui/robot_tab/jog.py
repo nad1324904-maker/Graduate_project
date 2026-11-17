@@ -108,7 +108,7 @@ class JogMixin:
 
     def _log_jog_blocked(self):
         if not self._connected():
-            self._log("Bị chặn: chưa kết nối STM32 (Settings → Communication → Connect).", "WARN")
+            self._log("Bị chặn: chưa kết nối STM32 (tab Cài đặt → Kết nối thiết bị → Robot SCARA → Connect).", "WARN")
         elif self.backend.is_homing():
             self._log("Bị chặn: robot đang HOME (tìm cảm biến) — đợi xong hoặc bấm STOP.", "WARN")
         elif not self._home_ready():
