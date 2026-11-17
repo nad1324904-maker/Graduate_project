@@ -45,6 +45,7 @@ Hai phần giao tiếp qua **UART dạng văn bản, 115200 baud**, mỗi lệnh
 
 ```
 scara_robot/
+├── mo_phong_scara.html             Mô phỏng 3D robot (mở bằng Chrome / Edge, không cần robot) — mục 6.4
 ├── Code STM32/                     Firmware (Keil MDK-ARM + STM32CubeMX)
 │   ├── Graduate_project.ioc        Cấu hình CubeMX (chân, timer, UART, DMA)
 │   ├── MDK-ARM/                    Project Keil (Graduate_project.uvprojx)
@@ -178,7 +179,9 @@ d_Z = z + h2
 - **Chọn nghiệm:**
   - Mỗi góc được xét cả các giá trị tương đương ±360° để tìm giá trị nằm trong giới hạn khớp.
   - Trong 2 nghiệm khuỷu tay, nghiệm vượt giới hạn bị loại.
-  - Nếu cả 2 đều hợp lệ thì chọn nghiệm **gần tư thế hiện tại nhất** (tổng |Δθ| của J1, J2, J3 nhỏ nhất).
+  - Nếu cả 2 đều hợp lệ thì chọn nghiệm **gần tư thế hiện tại nhất**, tức tổng **bình phương** Δθ của J1, J2, J3 nhỏ nhất.
+    Không dùng tổng |Δθ|: khi 3 khớp cùng quay một chiều, tổng |Δθ| của hai nghiệm luôn bằng nhau (vì J1 + J2 + J3 = θ),
+    nên việc chọn khuỷu tay sẽ chỉ do sai số làm tròn quyết định.
 - **Báo lỗi** rõ lý do: quá xa, quá gần, Z ngoài giới hạn, hoặc cả 2 nghiệm đều vượt giới hạn khớp nào.
 - **Kiểm chứng:** 20 000 tư thế ngẫu nhiên trong giới hạn khớp đều cho kết quả FK(IK(p)) = p.
 
@@ -274,6 +277,28 @@ python main.py --dark          # giao diện tối (mặc định: sáng)
 6. **Khi có FAULT:**
    - Kiểm tra cơ khí và encoder trước.
    - Bấm **RESET** (gửi `CLEAR`), rồi **HOME** lại vì trục đã mất mốc vị trí.
+
+### 6.4. Mô phỏng 3D (không cần robot)
+
+Nhấp đúp file **`mo_phong_scara.html`** ở thư mục gốc để mở bằng Chrome hoặc Edge. Lần đầu cần Internet để tải thư viện
+3D (three.js); sau đó trình duyệt tự lưu lại.
+
+- **Mô hình tính toán giống hệt GUI:** cùng FK/IK, cùng giới hạn khớp, cùng cách chọn nghiệm và cùng cách **đồng bộ khớp**.
+  Đã kiểm tra trên 20 000 trường hợp ngẫu nhiên: kết quả IK của trang web trùng với `core/kinematics.py`.
+- **Điều khiển:**
+  - Kéo thanh trượt J1, J2, J3, Z.
+  - Nhập tọa độ đầu công tác X, Y, Z, θ rồi bấm **Đi tới**, hoặc bấm − / + để dịch từng bước.
+  - Bấm một **Point** để đi tới điểm đó; có nút Home và nút Kẹp.
+- **Chạy thử chương trình:** chọn Program rồi bấm **Chạy**, có thể Tạm dừng / Dừng và chọn tốc độ ×0.25 tới ×10.
+  Step đang chạy được tô sáng. Thời gian mỗi chuyển động tính theo Vmax/Amax trong Settings nên gần với robot thật.
+- **Hiển thị:**
+  - Vùng làm việc, vết đầu công tác, các Point.
+  - Đường đi dự kiến của chương trình, có số thứ tự Step.
+  - Bốn góc nhìn: 3D, Trên xuống, Mặt trước, Mặt bên. Chuột trái xoay, chuột phải dời, lăn chuột phóng to.
+- **Dữ liệu:** file có sẵn bản chụp thư mục `data/` lúc tạo. Muốn dùng dữ liệu mới nhất thì bấm **Nạp file JSON…**,
+  hoặc kéo-thả `robot_config.json`, `points.json`, `programs.json` từ `Giao dien dieu khien/data/` vào trang.
+- **Khác với robot thật:** Tạm dừng trong mô phỏng là dừng hình ngay, còn robot thật giảm tốc rồi mới dừng. Mô phỏng
+  không mô phỏng PID, ma sát hay sai số bám.
 
 ---
 

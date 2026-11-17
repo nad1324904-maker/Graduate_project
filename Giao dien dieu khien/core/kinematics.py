@@ -110,7 +110,9 @@ def inverse_kinematics(x, y, z, theta, params=None, limits=None, current=None):
         θ1 = atan2(y, x') − atan2(l2·sin θ2, l1 + l2·cos θ2)
         θ3 = θ − θ1 − θ2,   Z = z_tcp + h2
     Có 2 nghiệm (khuỷu θ2 > 0 và θ2 < 0). Mỗi góc được chọn trong các giá trị tương đương ±360° sao cho nằm trong
-    giới hạn khớp. Nghiệm hợp lệ nào gần tư thế hiện tại nhất (tổng |Δ góc| của J1, J2, J3) thì được chọn.
+    giới hạn khớp. Nghiệm hợp lệ nào gần tư thế hiện tại nhất (tổng BÌNH PHƯƠNG Δ góc của J1, J2, J3) thì được chọn.
+    Không dùng tổng |Δ góc|: khi cả 3 khớp quay cùng chiều, tổng |Δ| của 2 nghiệm luôn BẰNG NHAU (vì J1+J2+J3 = θ)
+    nên việc chọn khuỷu tay chỉ do sai số làm tròn quyết định.
 
     limits : {axis: (min, max)} — giới hạn khớp; None = không giới hạn.
     current: {axis: value} — tư thế hiện tại để chọn nghiệm; None = chọn gần 0°.
@@ -168,4 +170,4 @@ def inverse_kinematics(x, y, z, theta, params=None, limits=None, current=None):
 
     if not candidates:
         raise IKError("Cả 2 nghiệm động học ngược đều vượt giới hạn khớp: " + " | ".join(rejected) + ".")
-    return min(candidates, key=lambda s: sum(abs(s[a] - ref[a]) for a in ("J1", "J2", "J3")))
+    return min(candidates, key=lambda s: sum((s[a] - ref[a]) ** 2 for a in ("J1", "J2", "J3")))
