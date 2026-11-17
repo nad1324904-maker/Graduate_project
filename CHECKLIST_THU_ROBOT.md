@@ -3,6 +3,8 @@
 Dùng khi lên xưởng thử firmware + GUI mới (có J3, kẹp, E-Stop). Làm **theo thứ tự**, bước sau dựa vào kết quả bước trước.
 In ra giấy hoặc mở trên điện thoại, đánh dấu `[x]` và ghi kết quả vào cột trống.
 
+> Mở app: `cd UI` rồi `python main.py`. Mọi chỗ ghi **Settings → …** bên dưới là tab con Settings **trong tab Robot** của app master.
+
 > **Dừng ngay** (bấm ■ STOP trên GUI, hoặc cắt nguồn động lực) nếu: trục chạy sai chiều mà không tự FAULT, có tiếng kêu lạ / mùi khét,
 > driver BTS7960 nóng bỏng tay, robot chạm cơ cấu cứng, hoặc dây encoder/cảm biến bị kéo căng.
 
@@ -13,12 +15,12 @@ In ra giấy hoặc mở trên điện thoại, đánh dấu `[x]` và ghi kết
 - [ ] Kéo code mới nhất: `git pull`. Ghi mã commit đang dùng: `__________` (lệnh `git log --oneline -1`)
 - [ ] Build lại firmware trong Keil (0 error) rồi mới mang đi nạp. Firmware và GUI **phải cùng commit**
 - [ ] Mang theo: thước đo góc, thước kẹp (hoặc thước lá), bút đánh dấu, băng dính, dây USB-UART dự phòng, đồng hồ VOM
-- [ ] Trong GUI → Settings → **4. Trapezoidal Motion Profile**, **giảm Vmax** cho lần chạy đầu (khoảng 1/3 giá trị đang dùng) rồi Save. Nhớ trả lại sau khi test xong
+- [ ] Trong tab Robot → Settings → **4. Trapezoidal Motion Profile**, **giảm Vmax** cho lần chạy đầu (khoảng 1/3 giá trị đang dùng) rồi Save. Nhớ trả lại sau khi test xong
 
 ## 1. Nạp firmware và kết nối
 
 - [ ] Robot **chưa cấp nguồn động lực** (chỉ cấp nguồn cho STM32). Nạp firmware
-- [ ] Mở GUI → Settings → Communication → chọn COM → Connect. Log có **CONFIG_OK**, không có dòng đỏ
+- [ ] Mở app, tab Robot → Settings → Communication → chọn COM → Connect. Log có **CONFIG_OK**, không có dòng đỏ
 - [ ] Badge kết nối báo đã kết nối; tab Giám sát thấy số vị trí cập nhật liên tục (dòng `S` 20 Hz đang về)
 - [ ] Nếu Connect báo lỗi cấu hình → firmware và GUI lệch phiên bản → nạp lại firmware đúng commit
 

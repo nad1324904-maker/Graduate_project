@@ -1,6 +1,6 @@
 # ---- Keil MDK-ARM: file sinh ra khi build ----
-Code STM32/MDK-ARM/Graduate_project/
-Code STM32/MDK-ARM/*.lst
+STM32/MDK-ARM/Graduate_project/
+STM32/MDK-ARM/*.lst
 *.uvguix.*
 *.uvguix_*
 *.bak

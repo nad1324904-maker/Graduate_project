@@ -1,28 +1,24 @@
 """
-integrated_ui_demo.py — BẢN DEMO giao diện app MASTER (PC) của hệ thống kiểm tra & phân loại PCB.
+master_app.py — App MASTER (PC) của hệ thống kiểm tra & phân loại PCB: app DUY NHẤT của đồ án (chạy: python main.py).
 
-CHỈ có layout + style, CHƯA có chức năng: mọi số liệu là dữ liệu mẫu, các nút chỉ ghi một dòng vào Log.
-Bảng màu lấy giống GUI robot (light mode) để hai app nhìn đồng bộ.
+Tab:  Vận hành (AUTO / MANUAL, sơ đồ dây chuyền, PCB hiện tại, thống kê) | Robot (nguyên giao diện điều khiển robot,
+      ui/robot_panel.py) | Lịch sử | Cài đặt.
+Hiện trạng: tab Robot đã chạy THẬT (kết nối STM32 ở Robot → Settings → Communication). Các phần PLC / Raspberry Pi
+mới có layout + style: số liệu là dữ liệu mẫu, các nút chỉ ghi Log (hoặc giả lập phản hồi).
 
-Chạy:  python integrated_ui_demo.py
+Một app duy nhất mở cổng COM của STM32 → phần tự động của master gọi thẳng self.robot.backend / self.robot.executor.
 """
 
-import os
-import sys
 import time
 import tkinter as tk
 from datetime import datetime
 
 import customtkinter as ctk
 
-# Module điều khiển robot nằm ở "Giao dien dieu khien/": nhúng nguyên GUI robot vào tab Robot.
-# Một app duy nhất mở cổng COM của STM32 → master và GUI robot dùng CHUNG một backend.
-ROBOT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Giao dien dieu khien")
-sys.path.insert(0, ROBOT_DIR)
-from ui.app import ScaraRobotPanel        # noqa: E402  (phải sau khi thêm ROBOT_DIR vào sys.path)
+from ui.robot_panel import ScaraRobotPanel   # import cả ui/theme.py: màu mặc định widget dùng chung với tab Robot
 
 # ============================================================
-# Bảng màu (giống "Giao dien dieu khien/ui/theme.py", bản LIGHT)
+# Bảng màu (giống ui/theme.py, bản LIGHT)
 # ============================================================
 BG, PANEL, BORDER, HEADER = "#eef2f7", "#ffffff", "#dbe3ee", "#ffffff"
 TEXT, DIM, DISABLED = "#1e293b", "#64748b", "#8b98ab"
@@ -87,13 +83,13 @@ class HeaderBadge(ctk.CTkFrame):
 # ============================================================
 # Ứng dụng
 # ============================================================
-class MasterDemo(ctk.CTk):
+class MasterApp(ctk.CTk):
     TABS = (("operate", "🏭", "Vận hành"), ("robot", "🤖", "Robot"),
             ("history", "📋", "Lịch sử"), ("settings", "⚙", "Cài đặt"))
 
     def __init__(self):
         super().__init__(fg_color=BG)
-        self.title("PCB Inspection & Sorting — Master (DEMO giao diện)")
+        self.title("PCB Inspection & Sorting — Master")
         self.geometry("1480x800")
         self.minsize(1280, 720)
         try:
@@ -119,7 +115,7 @@ class MasterDemo(ctk.CTk):
         self._show_tab("operate")
         self._tick_clock()
 
-        for lvl, msg in (("INFO", "Khởi động app master (DEMO — dữ liệu mẫu)."),
+        for lvl, msg in (("INFO", "Khởi động app master (phần PLC / Raspberry Pi: dữ liệu mẫu)."),
                          ("OK", "PLC: kết nối Modbus TCP 192.168.0.10:502."),
                          ("OK", "Raspberry Pi: kết nối TCP 192.168.0.20:5000."),
                          ("OK", "Robot SCARA: COM5 — CONFIG_OK, đã HOME."),
@@ -773,7 +769,7 @@ class MasterDemo(ctk.CTk):
         ctk.CTkButton(r, text="📁", width=30, height=30, corner_radius=8, font=(F, 12), fg_color=BTN_SOFT,
                       hover_color=BTN_SOFT_HOVER, command=lambda: self.log("Chọn thư mục (demo)")).pack(side="right")
         e = ctk.CTkEntry(r, height=30, corner_radius=8, fg_color=INPUT, border_color=BORDER, text_color=TEXT, font=(F, 11))
-        e.insert(0, "Giao dien dieu khien/data")
+        e.insert(0, "UI/data")
         e.pack(side="right", fill="x", expand=True, padx=(8, 4))
 
         # chương trình gán cho từng kết quả phân loại
@@ -819,7 +815,7 @@ class MasterDemo(ctk.CTk):
     # LOG
     # ============================================================
     def _build_log(self):
-        frame = ctk.CTkFrame(self, fg_color=PANEL, border_color=BORDER, border_width=1, corner_radius=14, height=118)
+        frame = ctk.CTkFrame(self, fg_color=PANEL, border_color=BORDER, border_width=1, corner_radius=14, height=104)
         frame.grid(row=2, column=0, sticky="ew", padx=16, pady=12)
         frame.grid_propagate(False)
         frame.grid_columnconfigure(0, weight=1)
@@ -841,7 +837,3 @@ class MasterDemo(ctk.CTk):
         self.log_box.insert("end", f"[{level:<5}] ", level)
         self.log_box.insert("end", msg + "\n")
         self.log_box.see("end")
-
-
-if __name__ == "__main__":
-    MasterDemo().mainloop()

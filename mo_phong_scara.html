@@ -8,11 +8,11 @@
   mo_phong_scara.html — Mô phỏng 3D robot SCARA 4 bậc tự do (J1, J2, J3, Z), chạy độc lập trên trình duyệt.
 
   Mở bằng Chrome / Edge (nhấp đúp file). Lần đầu cần Internet để tải thư viện 3D three.js (sau đó trình duyệt tự lưu).
-  Động học GIỐNG HỆT giao diện điều khiển (Giao dien dieu khien/core/kinematics.py):
+  Động học GIỐNG HỆT giao diện điều khiển (UI/core/kinematics.py):
       x = h1 + l1·cos θ1 + l2·cos(θ1+θ2),  y = l1·sin θ1 + l2·sin(θ1+θ2),  z = Z − h2,  θ = θ1+θ2+θ3
   Động học ngược, giới hạn khớp, cách chọn nghiệm và cách ĐỒNG BỘ khớp (comm/uart_backend.py: _sync_profiles) cũng
   giống GUI, nên chuyển động trong mô phỏng giống robot thật.
-  Dữ liệu: nhúng sẵn bản chụp data/ lúc tạo file. Bấm "🔗 Mở thư mục data" và chọn "Giao dien dieu khien/data" (Chrome / Edge)
+  Dữ liệu: nhúng sẵn bản chụp data/ lúc tạo file. Bấm "🔗 Mở thư mục data" và chọn "UI/data" (Chrome / Edge)
   để đọc dữ liệu mới nhất; trang nhớ thư mục cho lần sau. Teach Point và soạn chương trình ngay trong trang, bấm "💾 Lưu"
   để ghi points.json / programs.json (cùng định dạng với GUI) vào thư mục đó — trình duyệt không hỗ trợ thì tải file xuống.
 -->
@@ -172,7 +172,7 @@
     <div class="card">
       <div class="card-h"><span>📂 Dữ liệu</span><span class="tag" id="dirtyTag" hidden>● Có thay đổi chưa lưu</span></div>
       <div class="row split" style="margin-top:0">
-        <button class="btn small primary" id="btnDir" title="Chọn thư mục Giao dien dieu khien\data: đọc dữ liệu mới nhất và lưu thẳng vào đó">🔗 Mở thư mục data</button>
+        <button class="btn small primary" id="btnDir" title="Chọn thư mục UI\data: đọc dữ liệu mới nhất và lưu thẳng vào đó">🔗 Mở thư mục data</button>
         <button class="btn small green" id="btnSave" title="Lưu points.json + programs.json">💾 Lưu</button>
       </div>
       <div class="row" style="margin-top:6px">
@@ -317,7 +317,7 @@
 
 <script type="module">
 // =====================================================================================================================
-// Dữ liệu mẫu: bản chụp "Giao dien dieu khien/data/" lúc tạo file. Bấm "Nạp file JSON…" để dùng dữ liệu mới nhất.
+// Dữ liệu mẫu: bản chụp "UI/data/" lúc tạo file. Bấm "Nạp file JSON…" để dùng dữ liệu mới nhất.
 // =====================================================================================================================
 const EMBEDDED = {
   source: "Dữ liệu mẫu nhúng sẵn (chụp từ thư mục data lúc tạo file)",
@@ -544,7 +544,7 @@ async function openDataDir() {
     const { d, names } = await readDir(h);
     if (!names.length)
       return setMsg("dataMsg", `Thư mục '${h.name}' không có robot_config.json / points.json / programs.json — hãy chọn thư mục `
-        + `"Giao dien dieu khien\\data".`, "err");
+        + `"UI\\data".`, "err");
     S.dirHandle = h;
     try { await idbSet("dataDir", h); } catch (_) { /* không nhớ được thì lần sau chọn lại */ }
     applyData(d, `📂 Thư mục '${h.name}' — đọc lúc ${new Date().toLocaleTimeString("vi-VN")} (Lưu sẽ ghi vào đây)`);
@@ -596,7 +596,7 @@ async function saveData() {
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   }
   setDirty(false);
-  setMsg("dataMsg", "Đã tải xuống points.json + programs.json — hãy chép đè vào thư mục \"Giao dien dieu khien\\data\". "
+  setMsg("dataMsg", "Đã tải xuống points.json + programs.json — hãy chép đè vào thư mục \"UI\\data\". "
     + "(Bấm 🔗 Mở thư mục data để lần sau lưu thẳng vào đó.)", "ok");
 }
 
@@ -623,12 +623,12 @@ function readJsonFiles(files) {
 async function tryAutoFetch() {
   // Chỉ chạy được khi mở qua http (vd VS Code Live Server / python -m http.server); mở file trực tiếp thì bỏ qua.
   if (!location.protocol.startsWith("http")) return;
-  const base = encodeURI("Giao dien dieu khien/data/");
+  const base = encodeURI("UI/data/");
   const get = n => fetch(base + n, { cache: "no-store" }).then(r => (r.ok ? r.json() : null)).catch(() => null);
   const [config, points, programs] = await Promise.all([get("robot_config.json"), get("points.json"), get("programs.json")]);
   const d = {};
   if (config) d.config = config; if (points) d.points = points; if (programs) d.programs = programs;
-  if (Object.keys(d).length && !S.dirHandle) { applyData(d, "Tự động đọc từ Giao dien dieu khien/data/ (qua http)"); goHomePose(); }
+  if (Object.keys(d).length && !S.dirHandle) { applyData(d, "Tự động đọc từ UI/data/ (qua http)"); goHomePose(); }
 }
 
 // ---------------- Cảnh 3D ----------------

@@ -1,12 +1,18 @@
-# Robot SCARA 4 bậc tự do — STM32F407 + giao diện điều khiển Python
+# PCB Inspection — hệ thống kiểm tra và phân loại PCB tự động
 
-Đồ án điều khiển robot SCARA 4 trục (**J1, J2, J3, Z**) gồm hai phần:
+Đồ án gồm 4 phần, mỗi phần một thư mục:
 
-- **Firmware STM32F407** (`Code STM32/`): vòng điều khiển vị trí thời gian thực 1 kHz cho cả 4 động cơ DC có encoder,
-  quỹ đạo hình thang, PID, tìm home bằng cảm biến, điều khiển kẹp và các cơ chế bảo vệ.
-- **Giao diện PC** (`Giao dien dieu khien/`): ứng dụng Python (customtkinter) để kết nối, cấu hình, JOG, dạy điểm (Teach Point),
-  soạn và chạy chương trình, hiển thị vị trí khớp và vị trí đầu công tác (TCP) theo động học thuận.
+| Thư mục | Nội dung | Trạng thái |
+|---|---|---|
+| `STM32/` | Firmware robot SCARA 4 trục (STM32F407): điều khiển vị trí 1 kHz, quỹ đạo hình thang, PID, home, kẹp, bảo vệ | đã chạy |
+| `UI/` | **App master trên PC** (Python, customtkinter) — app duy nhất của hệ thống: vận hành dây chuyền, tab **Robot** chứa toàn bộ giao diện điều khiển robot | robot: đã chạy · PLC / Raspberry Pi: mới có giao diện |
+| `PLC/` | Chương trình PLC (băng tải, động cơ bước cấp PCB, 2 xi lanh, E-Stop) | chưa đưa lên |
+| `Raspberry Pi/` | Xử lý ảnh (kiểm tra ngoại quan) và kiểm tra chức năng | chưa đưa lên |
 
+Ngoài ra ở thư mục gốc: [flow_chart.drawio](flow_chart.drawio) (lưu đồ toàn hệ thống), [CHECKLIST_THU_ROBOT.md](CHECKLIST_THU_ROBOT.md)
+(checklist thử robot thật), [mo_phong_scara.html](mo_phong_scara.html) (mô phỏng 3D robot, mục 6.4).
+
+Phần còn lại của tài liệu này mô tả **robot SCARA** (**J1, J2, J3, Z**): firmware `STM32/` và phần điều khiển robot trong `UI/`.
 Hai phần giao tiếp qua **UART dạng văn bản, 115200 baud**, mỗi lệnh một dòng.
 
 ---
@@ -44,9 +50,11 @@ Hai phần giao tiếp qua **UART dạng văn bản, 115200 baud**, mỗi lệnh
 ## 2. Cấu trúc thư mục
 
 ```
-scara_robot/
+PCB INSPECTION/
+├── README.md, flow_chart.drawio, CHECKLIST_THU_ROBOT.md
 ├── mo_phong_scara.html             Mô phỏng 3D robot (mở bằng Chrome / Edge, không cần robot) — mục 6.4
-├── Code STM32/                     Firmware (Keil MDK-ARM + STM32CubeMX)
+├── STM32/                          Firmware robot (Keil MDK-ARM + STM32CubeMX)
+│   ├── PROTOCOL.md                 Mô tả giao thức UART PC ↔ STM32
 │   ├── Graduate_project.ioc        Cấu hình CubeMX (chân, timer, UART, DMA)
 │   ├── MDK-ARM/                    Project Keil (Graduate_project.uvprojx)
 │   └── Core/
@@ -61,15 +69,19 @@ scara_robot/
 │       │   ├── gripper.c/.h        Kẹp (GPIO output)
 │       │   └── comm.c/.h           UART + DMA, tách dòng
 │       └── ...                     Mã HAL do CubeMX sinh
-└── Giao dien dieu khien/           Giao diện PC (Python)
-    ├── main.py                     Điểm khởi động
-    ├── comm/                       Giao tiếp: uart_protocol.py, uart_backend.py, offline_backend.py
-    ├── core/                       Logic: kinematics, robot_config, point_store, program_store, program_executor
-    ├── ui/                         Giao diện: app.py, robot_tab/ (Vận hành + Lập trình), visual_tab/, settings_tab/,
-    │                               theme (bảng màu sáng/tối), widgets, perf
-    ├── data/                       robot_config.json, points.json, programs.json
-    ├── firmware/PROTOCOL.md        Mô tả giao thức UART
-    └── tools/uart_tool.py          Gửi lệnh tay tới STM32 không cần GUI (dùng khi thử phần cứng)
+├── UI/                             App master trên PC (Python)
+│   ├── main.py                     Điểm khởi động (python main.py)
+│   ├── comm/                       Giao tiếp robot: uart_protocol.py, uart_backend.py, offline_backend.py
+│   ├── core/                       Logic robot: kinematics, robot_config, point_store, program_store, program_executor
+│   ├── ui/
+│   │   ├── master_app.py           App master: tab Vận hành / Robot / Lịch sử / Cài đặt
+│   │   ├── robot_panel.py          Toàn bộ giao diện robot (nhúng trong tab Robot)
+│   │   ├── robot_tab/, visual_tab/, settings_tab/   Các phần của giao diện robot
+│   │   └── theme.py, widgets.py, perf.py
+│   ├── data/                       robot_config.json, points.json, programs.json
+│   └── tools/uart_tool.py          Gửi lệnh tay tới STM32 không cần GUI (dùng khi thử phần cứng)
+├── PLC/                            (chưa có)
+└── Raspberry Pi/                   (chưa có)
 ```
 
 ---
@@ -108,19 +120,19 @@ scara_robot/
 
 Mỗi 1 ms, ngắt TIM9 chạy lần lượt cho từng trục:
 
-1. **Encoder** ([encoder.c](Code%20STM32/Core/Src/encoder.c)):
+1. **Encoder** ([encoder.c](STM32/Core/Src/encoder.c)):
    - Lấy hiệu 16 bit của counter rồi cộng dồn vào vị trí 32 bit, nên không bị lỗi khi counter tràn.
    - Tính tốc độ hai cách: trung bình trượt 20 ms, và một bản lọc thông thấp (`vfilt`) dùng cho khâu D.
-2. **Quỹ đạo hình thang online** ([trap_profile.c](Code%20STM32/Core/Src/trap_profile.c)):
+2. **Quỹ đạo hình thang online** ([trap_profile.c](STM32/Core/Src/trap_profile.c)):
    - Tốc độ đặt là `v = min(Vmax, √(2·Amax·quãng còn lại))`, bị giới hạn độ dốc bởi Amax.
    - Đổi đích giữa chừng vẫn mượt; quãng ngắn tự thành profile tam giác.
    - Vị trí đặt dùng kiểu `double` để không bị kẹt gần đích khi giá trị counts lớn.
-3. **PID vị trí** ([pid.c](Code%20STM32/Core/Src/pid.c)):
+3. **PID vị trí** ([pid.c](STM32/Core/Src/pid.c)):
    - Sai số = vị trí quỹ đạo − vị trí encoder.
    - Khâu D lấy theo **tốc độ đo được** (không lấy đạo hàm sai số), nên không bị giật khi đổi đích.
    - Tích phân có chống bão hòa (anti-windup). Đầu ra là duty PWM có dấu, trong khoảng ±4199.
 4. **Vùng chết:** khi quỹ đạo đã tới đích và sai số nằm trong ±deadband thì nhả PWM (phanh) để động cơ không rung quanh đích.
-5. **Động cơ** ([motor.c](Code%20STM32/Core/Src/motor.c)): duty > 0 xuất ra RPWM, duty < 0 xuất ra LPWM, duty = 0 thì phanh (cả hai kênh bằng 0).
+5. **Động cơ** ([motor.c](STM32/Core/Src/motor.c)): duty > 0 xuất ra RPWM, duty < 0 xuất ra LPWM, duty = 0 thì phanh (cả hai kênh bằng 0).
 
 ### Bảo vệ và trạng thái
 
@@ -139,8 +151,9 @@ Mỗi 1 ms, ngắt TIM9 chạy lần lượt cho từng trục:
 
 ## 5. Giao diện PC — chức năng
 
-Giao diện có 4 tab, cùng **nút ■ STOP màu đỏ cố định trên thanh tiêu đề** và **thanh SYSTEM LOG ở đáy** (cả hai hiện ở mọi tab;
-Log bấm "▲ Mở rộng" để xem nhiều dòng hơn). Mặc định là giao diện sáng, chạy `python main.py --dark` để dùng giao diện tối.
+App master (`UI/`, chạy `python main.py`) có 4 tab: **Vận hành** (dây chuyền, AUTO / MANUAL), **Robot**, **Lịch sử**, **Cài đặt**.
+Toàn bộ giao diện điều khiển robot nằm trong tab **Robot**, mô tả dưới đây. Tab Robot có 4 tab con, cùng **nút ■ STOP màu đỏ**
+và **nút ⛔ E-STOP** luôn hiện trên thanh đầu tab; log của robot ghi chung vào **Log ở đáy app master** (có tiền tố `Robot:`).
 
 | Tab / khung | Chức năng |
 |---|---|
@@ -153,7 +166,7 @@ Log bấm "▲ Mở rộng" để xem nhiều dòng hơn). Mặc định là gia
 | **Giám sát** | Hình robot 2D nhìn từ trên xuống (tư thế thực, đích, Points, đường đi dự kiến của chương trình) và đồ thị bám quỹ đạo của một trục (mục 5.1) |
 | **Settings** | 6 panel cấu hình (mục 7) và kết nối UART |
 
-**Động học thuận** ([core/kinematics.py](Giao%20dien%20dieu%20khien/core/kinematics.py)):
+**Động học thuận** ([core/kinematics.py](UI/core/kinematics.py)):
 
 ```
 x = h1 + l1·cos θ1 + l2·cos(θ1 + θ2)
@@ -185,7 +198,7 @@ d_Z = z + h2
 - **Báo lỗi** rõ lý do: quá xa, quá gần, Z ngoài giới hạn, hoặc cả 2 nghiệm đều vượt giới hạn khớp nào.
 - **Kiểm chứng:** 20 000 tư thế ngẫu nhiên trong giới hạn khớp đều cho kết quả FK(IK(p)) = p.
 
-**Đồng bộ khớp** ([uart_backend.py](Giao%20dien%20dieu%20khien/comm/uart_backend.py), hàm `_sync_profiles`).
+**Đồng bộ khớp** ([uart_backend.py](UI/comm/uart_backend.py), hàm `_sync_profiles`).
 Áp dụng cho mọi lệnh di chuyển: JOG, Move to XYZθ, Move Here và Step MOVE.
 
 - **Vấn đề:** nếu mỗi khớp chạy với Vmax/Amax riêng, các khớp tới đích vào thời điểm khác nhau và đầu công tác đi vòng. Ví dụ JOG Y +5 mm có thể lệch khỏi đường thẳng khoảng 1.9 mm.
@@ -231,7 +244,7 @@ d_Z = z + h2
 
 ### 6.1. Build và nạp firmware
 
-1. Mở `Code STM32/MDK-ARM/Graduate_project.uvprojx` bằng **Keil µVision 5** (đã cài pack STM32F4xx_DFP).
+1. Mở `STM32/MDK-ARM/Graduate_project.uvprojx` bằng **Keil µVision 5** (đã cài pack STM32F4xx_DFP).
 2. Build (F7), rồi nạp qua ST-Link (F8).
 3. Nếu sửa cấu hình chân bằng CubeMX (`Graduate_project.ioc`) và sinh lại code, phần code người dùng nằm trong các khối `USER CODE BEGIN/END` nên không bị mất. Nhớ kiểm tra lại các file `.c` tự thêm (`gripper.c`, `home_sen.c`, …) vẫn còn trong project Keil.
 
@@ -250,10 +263,9 @@ Yêu cầu Python 3.10 trở lên:
 
 ```bash
 pip install customtkinter pyserial
-cd "Giao dien dieu khien"
-python main.py                 # chạy bình thường
+cd UI
+python main.py                 # mở app master (điều khiển robot ở tab Robot)
 python main.py --scale 0.85    # thu nhỏ giao diện (máy yếu / màn hình độ phân giải cao)
-python main.py --dark          # giao diện tối (mặc định: sáng)
 ```
 
 ### 6.3. Quy trình vận hành
@@ -319,7 +331,7 @@ Nhấp đúp file **`mo_phong_scara.html`** ở thư mục gốc để mở bằ
   - Đường đi dự kiến của chương trình, có số thứ tự Step.
   - Bốn góc nhìn: 3D, Trên xuống, Mặt trước, Mặt bên. Chuột trái xoay, chuột phải dời, lăn chuột phóng to.
 - **Dữ liệu (nên dùng Chrome / Edge):**
-  - Bấm **🔗 Mở thư mục data** và chọn thư mục `Giao dien dieu khien\data`. Trang đọc cấu hình, Point và chương trình
+  - Bấm **🔗 Mở thư mục data** và chọn thư mục `UI\data`. Trang đọc cấu hình, Point và chương trình
     **mới nhất**, robot đứng tại Home trong Settings. Trang nhớ thư mục này: lần sau mở lại, trang tự đọc (hoặc chỉ cần
     bấm "Mở lại thư mục data" một lần để cho phép).
   - Chưa mở thư mục thì trang dùng bản chụp nhúng sẵn lúc tạo file. Vẫn có thể **Nạp file JSON…** hoặc kéo-thả file vào trang.
@@ -328,7 +340,7 @@ Nhấp đúp file **`mo_phong_scara.html`** ở thư mục gốc để mở bằ
 
 ---
 
-## 7. Cấu hình (`Giao dien dieu khien/data/robot_config.json`)
+## 7. Cấu hình (`UI/data/robot_config.json`)
 
 Mọi thông số dưới đây chỉnh trong **Settings** và lưu bằng **Save** hoặc **Apply**. Apply gửi ngay xuống STM32 nếu đang kết nối; nếu chưa thì gửi khi Connect. File JSON là **nguồn cấu hình duy nhất** cho việc đổi đơn vị.
 
@@ -364,12 +376,12 @@ STM32 → PC:
 - `LINKLOST` (STM32 tự dừng vì mất tín hiệu từ PC)
 - `T …` (telemetry)
 
-Chi tiết đầy đủ xem [firmware/PROTOCOL.md](Giao%20dien%20dieu%20khien/firmware/PROTOCOL.md) và phần chú thích trong [control.h](Code%20STM32/Core/Inc/control.h).
+Chi tiết đầy đủ xem [STM32/PROTOCOL.md](STM32/PROTOCOL.md) và phần chú thích trong [control.h](STM32/Core/Inc/control.h).
 
 Muốn thử phần cứng không cần GUI:
 
 ```bash
-python "Giao dien dieu khien/tools/uart_tool.py" COM5        # gõ lệnh trực tiếp, vd: GOTO 2 109200
+python "UI/tools/uart_tool.py" COM5        # gõ lệnh trực tiếp, vd: GOTO 2 109200
 ```
 
 > **Firmware và GUI phải cùng phiên bản.** GUI mới gửi các lệnh `HPOS`/`TRIP`/`GRIP`/`ESTOP`/`WDT`/`PING`/`SEL 0` và đọc trạng thái kẹp ở cuối dòng `S`. Dùng lệch phiên bản sẽ bị lỗi cấu hình khi Connect.

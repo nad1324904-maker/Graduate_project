@@ -1,6 +1,6 @@
 """theme.py — Bảng màu, nhãn trạng thái, đơn vị và cấu hình giao diện chung.
 
-Hai bảng màu: LIGHT (mặc định) và DARK (chạy `python main.py --dark`). Mọi màu trong giao diện đều lấy từ đây, kể cả
+Hai bảng màu: LIGHT (mặc định, app master dùng bản này) và DARK (biến môi trường SCARA_THEME=dark, chưa dùng). Mọi màu trong giao diện đều lấy từ đây, kể cả
 màu vẽ trên Canvas (tab Giám sát), nên đổi bảng màu chỉ cần sửa file này.
 
 Ngoài ra file này đặt màu MẶC ĐỊNH cho widget customtkinter (_install_widget_defaults):

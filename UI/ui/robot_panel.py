@@ -1,4 +1,5 @@
-"""app.py — Cửa sổ chính ScaraRobotGUI: header (tab + STOP), các tab, thanh LOG chung, vòng lặp _tick.
+"""robot_panel.py — ScaraRobotPanel: toàn bộ giao diện điều khiển robot SCARA, nhúng trong tab Robot của app master
+(ui/master_app.py). Gồm header (tab + STOP + E-STOP), các tab, vòng lặp _tick; log ghi vào Log của master.
 
 Tab:  Vận hành (JOG · Monitor · Chạy chương trình) | Lập trình (Points · Program Editor) | Giám sát | Settings.
 Chức năng từng khu vực nằm trong các mixin ở ui/robot_tab/, ui/visual_tab/, ui/settings_tab/."""
@@ -32,11 +33,11 @@ from ui.visual_tab.visual import VisualMixin
 
 class ScaraRobotPanel(ConnectionMixin, SettingsMixin, VisualMixin, JogMixin, MonitorMixin, PointsMixin, ProgramMixin,
                       ControlMixin, ctk.CTkFrame):
-    """TOÀN BỘ giao diện điều khiển robot trong một khung (CTkFrame), đặt được vào bất kỳ đâu:
-      - cửa sổ riêng: ScaraRobotGUI bên dưới (python main.py);
-      - nhúng vào app khác, vd tab Robot của app master: ScaraRobotPanel(tab, embedded=True, log_sink=master_log).
-    embedded=True : header gọn (bỏ tên app + đồng hồ vì app chứa nó đã có).
-    log_sink      : hàm (message, level) nhận log; có log_sink thì KHÔNG dựng thanh LOG riêng."""
+    """TOÀN BỘ giao diện điều khiển robot trong một khung (CTkFrame). App master dùng:
+        ScaraRobotPanel(tab, embedded=True, log_sink=master_log)
+    embedded=True : header gọn (bỏ tên app + đồng hồ vì master đã có).
+    log_sink      : hàm (message, level) nhận log; có log_sink thì KHÔNG dựng thanh LOG riêng.
+    Master điều khiển robot qua panel.backend (HOME, E-Stop...) và panel.executor (chạy chương trình)."""
 
     def __init__(self, master, embedded=False, log_sink=None):
         install_configure_cache()    # chỉ configure() khi giá trị đổi (xem ui/perf.py)
@@ -102,8 +103,8 @@ class ScaraRobotPanel(ConnectionMixin, SettingsMixin, VisualMixin, JogMixin, Mon
 
     # ---------------- HEADER ----------------
     def _build_header(self):
-        pad = 6 if self.embedded else 12
-        header = ctk.CTkFrame(self, fg_color=COL_HEADER, height=60 if self.embedded else 76, corner_radius=0)
+        pad = 4 if self.embedded else 12
+        header = ctk.CTkFrame(self, fg_color=COL_HEADER, height=52 if self.embedded else 76, corner_radius=0)
         header.grid(row=0, column=0, sticky="ew")
         header.grid_propagate(False)
 
@@ -291,25 +292,3 @@ class ScaraRobotPanel(ConnectionMixin, SettingsMixin, VisualMixin, JogMixin, Mon
             self._ui_sig = sig
             self._refresh_enabled_states()
         self.after(TICK_MS, self._tick)
-
-
-class ScaraRobotGUI(ctk.CTk):
-    """Cửa sổ riêng của app điều khiển robot (python main.py): chỉ chứa một ScaraRobotPanel."""
-
-    def __init__(self):
-        super().__init__()
-        self.title("SCARA Robot — STM32F407")
-        self.geometry("1560x1000")
-        self.configure(fg_color=COL_BG)
-        self.panel = ScaraRobotPanel(self)
-        self.panel.pack(fill="both", expand=True)
-        self._fit_window()
-
-    # ---------------------------------------------------------------
-    def _fit_window(self):
-        """Cửa sổ rộng tối thiểu 1360, cao tối đa 900 nhưng không vượt màn hình (chừa thanh tiêu đề + taskbar)."""
-        self.update_idletasks()
-        width = min(max(self.winfo_reqwidth(), 1360), self.winfo_screenwidth())
-        height = min(900, self.winfo_screenheight() - 90)      # chừa chỗ cho thanh tiêu đề + taskbar Windows
-        self.geometry(f"{width}x{height}+0+0")
-        self.minsize(1200, min(700, height))
