@@ -64,7 +64,7 @@ scara_robot/
     ├── main.py                     Điểm khởi động
     ├── comm/                       Giao tiếp: uart_protocol.py, uart_backend.py, offline_backend.py
     ├── core/                       Logic: kinematics, robot_config, point_store, program_store, program_executor
-    ├── ui/                         Giao diện: app.py, robot_tab/, settings_tab/, theme, widgets, perf
+    ├── ui/                         Giao diện: app.py, robot_tab/, visual_tab/, settings_tab/, theme, widgets, perf
     ├── data/                       robot_config.json, points.json, programs.json
     ├── firmware/PROTOCOL.md        Mô tả giao thức UART
     └── tools/uart_tool.py          Gửi lệnh tay tới STM32 không cần GUI (dùng khi thử phần cứng)
@@ -146,6 +146,7 @@ Mỗi 1 ms, ngắt TIM9 chạy lần lượt cho từng trục:
 | **Program** | Tạo chương trình gồm các Step: **MOVE** (tới một Point), **GRIP ON/OFF**, **DELAY** (0.1–60 s) |
 | **Control** | START / PAUSE–RESUME / STOP (phanh gấp, không tự về home) / RESET (xóa FAULT bằng `CLEAR`) |
 | **Quick Action** | HOME (cả 4 trục tìm cảm biến cùng lúc), GRIP ON / GRIP OFF |
+| **Giám sát** (tab) | Hình robot 2D nhìn từ trên xuống (tư thế thực, đích, Points, đường đi dự kiến của chương trình) và đồ thị bám quỹ đạo của một trục (mục 5.1) |
 | **Settings** | 6 panel cấu hình (mục 7) và kết nối UART |
 
 **Động học thuận** ([core/kinematics.py](Giao%20dien%20dieu%20khien/core/kinematics.py)):
@@ -198,6 +199,23 @@ d_Z = z + h2
 
 - Lệnh không có `OK`/`ERR` sau 0.5 s, hoặc không nhận được dòng `S` trong 1 s, thì PC coi là mất kết nối.
 - Nhận `BOOT` sau khi đã cấu hình (STM32 vừa reset) cũng bị coi là mất kết nối.
+- **Phía STM32 (watchdog):** khi Connect, PC gửi `WDT 600`, rồi một luồng riêng gửi `PING` mỗi 0.2 s. Luồng này độc lập với giao diện, nên kéo cửa sổ hay giao diện đơ một lúc không làm robot dừng oan. Nếu dây USB tuột hoặc chương trình trên PC chết, quá 0.6 s không nhận được gì thì STM32 cho mọi trục đang chạy **giảm tốc dừng rồi giữ vị trí** và gửi `LINKLOST`. Mốc vị trí vẫn đúng, nên Connect lại là chạy tiếp được, không cần HOME lại.
+
+### 5.1. Tab Giám sát
+
+- **Robot 2D nhìn từ trên xuống:**
+  - Hiện vùng với tới, các tia giới hạn J1, tư thế **thực** (nét liền) và tư thế **đích** đang chạy tới (nét đứt).
+  - Hiện các Point, cùng một thanh độ cao Z.
+  - Chọn một chương trình ở tab Robot thì tab này vẽ **đường đi dự kiến**, với số thứ tự Step tại mỗi điểm. Vì các khớp chạy đồng bộ, đường đi giữa hai Point chính là nội suy tuyến tính trong không gian khớp, nên hình vẽ đúng với đường robot sẽ đi.
+  - Xem trước được cả khi chưa kết nối.
+- **Đồ thị bám quỹ đạo:**
+  - Chọn trục J1, J2, J3 hoặc Z, và cửa sổ thời gian 5, 10 hoặc 30 s.
+  - Khung trên vẽ vị trí **đặt** (quỹ đạo), **thực** (encoder) và **đích**.
+  - Khung dưới vẽ **sai số bám** cùng dải vùng chết. Bên dưới ghi sai số hiện tại, sai số lớn nhất và RMS. Dùng để chỉnh PID và lấy hình cho báo cáo.
+  - Nút **Dừng hình** giữ nguyên đồ thị để chụp. Nút **Lưu CSV** xuất 60 s dữ liệu gần nhất để vẽ lại bằng Excel hoặc MATLAB.
+- **Hiệu năng:**
+  - Vẽ bằng `tk.Canvas` (không dùng matplotlib), 10 lần/giây, và **chỉ khi tab đang mở**.
+  - Telemetry `T` 50 Hz chỉ được bật (`SEL <trục>`) khi tab mở. Rời tab thì GUI gửi `SEL 0`, STM32 ngừng gửi.
 
 ---
 
@@ -277,7 +295,8 @@ PC → STM32: `<LỆNH> <động cơ 1..4> [tham số]`, đơn vị counts. Các
 
 - **Chuyển động:** `GOTO`, `JOG`, `HOME`, `HOMING`, `STOP`, `PAUSE`, `RESUME`
 - **Cấu hình:** `PID`, `VMAX`, `AMAX`, `DB`, `LIMIT`, `HPOS`, `TRIP`
-- **Khác:** `CLEAR` (xóa FAULT), `SEL` (chọn trục gửi telemetry), `GRIP <0|1>` (không kèm số động cơ)
+- **Khác:** `CLEAR` (xóa FAULT), `SEL` (chọn trục gửi telemetry, `SEL 0` = tắt)
+- **Không kèm số động cơ:** `GRIP <0|1>`, `WDT <ms>`, `PING` (không trả lời)
 
 STM32 → PC:
 
@@ -285,6 +304,7 @@ STM32 → PC:
 - `S <ms> (st goal sp pos)×4 <grip>` (20 Hz)
 - `FAULT <id> trip|home`
 - `BOOT`
+- `LINKLOST` (STM32 tự dừng vì mất tín hiệu từ PC)
 - `T …` (telemetry)
 
 Chi tiết đầy đủ xem [firmware/PROTOCOL.md](Giao%20dien%20dieu%20khien/firmware/PROTOCOL.md) và phần chú thích trong [control.h](Code%20STM32/Core/Inc/control.h).
@@ -295,7 +315,7 @@ Muốn thử phần cứng không cần GUI:
 python "Giao dien dieu khien/tools/uart_tool.py" COM5        # gõ lệnh trực tiếp, vd: GOTO 2 109200
 ```
 
-> **Firmware và GUI phải cùng phiên bản.** GUI mới gửi các lệnh `HPOS`/`TRIP`/`GRIP` và đọc trạng thái kẹp ở cuối dòng `S`. Dùng lệch phiên bản sẽ bị lỗi cấu hình khi Connect.
+> **Firmware và GUI phải cùng phiên bản.** GUI mới gửi các lệnh `HPOS`/`TRIP`/`GRIP`/`WDT`/`PING`/`SEL 0` và đọc trạng thái kẹp ở cuối dòng `S`. Dùng lệch phiên bản sẽ bị lỗi cấu hình khi Connect.
 
 ---
 
@@ -309,6 +329,7 @@ python "Giao dien dieu khien/tools/uart_tool.py" COM5        # gõ lệnh trực
 | `FAULT … home` | Không thấy cảm biến trong thời gian chờ (sai chiều tìm, sai chân, cảm biến hỏng) hoặc trục bị chặn; nếu bị báo giả khi tìm nhanh thì tăng *Home Trip* |
 | Sau HOME vị trí hiển thị sai | Kiểm tra panel Encoder (PPR, Gear) đúng với cơ khí; JOG 10° rồi đo bằng thước đo góc để xác nhận |
 | JOG / START bị chặn | Chưa Connect, chưa HOME, sai chế độ (JOG / Program), hoặc chương trình đang chạy |
+| Log báo "STM32 tự dừng vì quá 0.6 s không nhận được tín hiệu từ PC" | Dây USB lỏng hoặc bộ chuyển USB–UART chập chờn, cũng có thể máy tính bị treo. Robot đã tự dừng và giữ vị trí: kiểm tra dây, bấm RESET rồi chạy lại, không cần HOME lại |
 | Giao diện chậm trên máy yếu | Chạy với `--scale 0.85`; có thể chỉnh `TICK_MS`, `DISPLAY_EVERY`, `MAX_LOG_LINES` trong `ui/perf.py` |
 
 ---

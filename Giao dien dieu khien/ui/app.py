@@ -25,9 +25,11 @@ from ui.robot_tab.points import PointsMixin
 from ui.robot_tab.program import ProgramMixin
 from ui.settings_tab.connection import ConnectionMixin
 from ui.settings_tab.settings import SettingsMixin
+from ui.visual_tab.visual import VisualMixin
 
 
-class ScaraRobotGUI(ConnectionMixin, SettingsMixin, JogMixin, MonitorMixin, PointsMixin, ProgramMixin, ControlMixin, ctk.CTk):
+class ScaraRobotGUI(ConnectionMixin, SettingsMixin, VisualMixin, JogMixin, MonitorMixin, PointsMixin, ProgramMixin,
+                    ControlMixin, ctk.CTk):
     def __init__(self):
         install_configure_cache()    # chỉ configure() khi giá trị đổi (xem ui/perf.py)
         super().__init__()
@@ -79,9 +81,10 @@ class ScaraRobotGUI(ConnectionMixin, SettingsMixin, JogMixin, MonitorMixin, Poin
         trong (luôn nhỏ, vì mục đích scroll là tách rời 2 thứ đó). Dùng
         kích thước mặc định hợp lý, phần dư thừa (nếu có) tự cuộn được."""
         self.update_idletasks()
-        width = max(self.winfo_reqwidth(), 1360)
-        self.geometry(f"{width}x900")
-        self.minsize(1200, 700)
+        width = min(max(self.winfo_reqwidth(), 1360), self.winfo_screenwidth())
+        height = min(900, self.winfo_screenheight() - 90)      # chừa chỗ cho thanh tiêu đề + taskbar Windows
+        self.geometry(f"{width}x{height}+0+0")
+        self.minsize(1200, min(700, height))
 
     def _build_layout(self):
         self.grid_rowconfigure(1, weight=1)
@@ -92,6 +95,8 @@ class ScaraRobotGUI(ConnectionMixin, SettingsMixin, JogMixin, MonitorMixin, Poin
         self._build_main()
         self._build_settings_view()
         self.settings_view.grid_remove()  # ẩn sẵn, chỉ hiện khi bấm ⚙
+        self._build_visual_view()
+        self.visual_view.grid_remove()    # tab Giám sát: chỉ vẽ + nhận telemetry khi đang mở
 
     # ---------------- HEADER ----------------
     def _build_header(self):
@@ -125,12 +130,11 @@ class ScaraRobotGUI(ConnectionMixin, SettingsMixin, JogMixin, MonitorMixin, Poin
         self._build_header_tabbar(badges)
 
     def _build_header_tabbar(self, parent):
-        """Thanh tab bar 2 nút (Robot / Settings) ở góc phải header — thay
-        cho nút ⚙ đơn lẻ trước đây, để chuyển qua lại rõ ràng hơn."""
+        """Thanh tab ở góc phải header: Robot / Giám sát / Settings."""
         bar = ctk.CTkFrame(parent, fg_color=COL_BTN_DARK, corner_radius=10)
         bar.pack(side="right", padx=(24, 0))
         self.tab_buttons = {}
-        for key, icon, label in (("robot", "🤖", "Robot"), ("settings", "⚙", "Settings")):
+        for key, icon, label in (("robot", "🤖", "Robot"), ("visual", "📊", "Giám sát"), ("settings", "⚙", "Settings")):
             active = (key == self.active_tab)
             b = ctk.CTkButton(
                 bar, text=f"{icon}  {label}", width=104, height=36, corner_radius=8,
@@ -146,32 +150,31 @@ class ScaraRobotGUI(ConnectionMixin, SettingsMixin, JogMixin, MonitorMixin, Poin
         self.clock_badge.set_value(datetime.now().strftime("%H:%M:%S"))
         self.after(1000, self._tick_clock)
 
-    # ---------------- Chuyển tab Robot <-> Settings ----------------
+    # ---------------- Chuyển tab Robot / Giám sát / Settings ----------------
     def _set_active_tab(self, key):
         if key == self.active_tab:
             return
-        self.active_tab = key
+        prev, self.active_tab = self.active_tab, key
         for k, b in self.tab_buttons.items():
             active = (k == key)
             b.configure(fg_color=COL_ACCENT if active else "transparent",
                         hover_color=COL_ACCENT_HOVER if active else COL_BTN_DARK_HOVER,
                         text_color="#ffffff" if active else COL_TEXT_DIM)
+        for view in (self.main_view, self.settings_view, self.visual_view):
+            view.grid_remove()
+        if prev == "visual":
+            self._on_visual_hide()           # tắt telemetry T khi rời tab Giám sát
+        self.settings_open = (key == "settings")
         if key == "settings":
-            self._open_settings()
+            self.settings_view.grid()
+            self._load_settings_into_fields(robot_config.load_config())
+            self.settings_status_label.configure(text="", text_color=COL_TEXT_DIM)
+        elif key == "visual":
+            self.visual_view.grid()
+            self.update_idletasks()          # để canvas có kích thước thật trước lần vẽ đầu
+            self._on_visual_show()
         else:
-            self._close_settings()
-
-    def _open_settings(self):
-        self.settings_open = True
-        self.main_view.grid_remove()
-        self.settings_view.grid()
-        self._load_settings_into_fields(robot_config.load_config())
-        self.settings_status_label.configure(text="", text_color=COL_TEXT_DIM)
-
-    def _close_settings(self):
-        self.settings_open = False
-        self.settings_view.grid_remove()
-        self.main_view.grid()
+            self.main_view.grid()
 
     # ---------------- MAIN (màn hình vận hành) ----------------
     def _build_main(self):
@@ -257,6 +260,8 @@ class ScaraRobotGUI(ConnectionMixin, SettingsMixin, JogMixin, MonitorMixin, Poin
         if self._tick_count % DISPLAY_EVERY == 0:
             self._refresh_position_display()
             self._refresh_status_display()
+            if self.active_tab == "visual":
+                self._refresh_visual()       # hình 2D + đồ thị: chỉ vẽ khi tab Giám sát đang mở
         sig = self._ui_state_signature()
         if sig != self._ui_sig:
             self._ui_sig = sig
