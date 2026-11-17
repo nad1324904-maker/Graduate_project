@@ -524,21 +524,40 @@ class MasterDemo(ctk.CTk):
         def section(parent, title):
             ctk.CTkLabel(parent, text=title, font=(FB, 11), text_color=DIM, anchor="w").pack(fill="x", pady=(10, 0))
 
+        def slave_header(parent, title, state, kind, connected):
+            """Tiêu đề 1 slave: tên + trạng thái + nút Connect / Disconnect riêng."""
+            r = ctk.CTkFrame(parent, fg_color="transparent")
+            r.pack(fill="x", pady=(12, 2))
+            ctk.CTkLabel(r, text=title, font=(FB, 12), text_color=TEXT, anchor="w").pack(side="left")
+            pill(r, state, kind, font_size=10).pack(side="left", padx=(8, 0))
+            if connected:
+                btn = dict(text="Disconnect", fg_color=BTN_SOFT, hover_color=BTN_SOFT_HOVER)
+            else:
+                btn = dict(text="Connect", fg_color=ACCENT, hover_color=ACCENT_HOVER)
+            ctk.CTkButton(r, width=96, height=28, corner_radius=8, font=(FB, 11),
+                          command=lambda: self.log(f"{btn['text']} {title} (demo)"), **btn).pack(side="right")
+
         conn = Card(v, "Kết nối thiết bị", "🔌")
         conn.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
-        section(conn.body, "PLC (Modbus TCP)")
+        slave_header(conn.body, "PLC · Modbus TCP", "ONLINE", "green", True)
         field(conn.body, "Địa chỉ IP", "192.168.0.10")
         field(conn.body, "Cổng", "502")
-        section(conn.body, "Raspberry Pi (TCP)")
+        slave_header(conn.body, "Raspberry Pi · TCP", "ONLINE", "green", True)
         field(conn.body, "Địa chỉ IP", "192.168.0.20")
         field(conn.body, "Cổng", "5000")
-        section(conn.body, "Robot SCARA (UART)")
+        slave_header(conn.body, "Robot SCARA · UART", "OFFLINE", "gray", False)
         r = ctk.CTkFrame(conn.body, fg_color="transparent")
         r.pack(fill="x", pady=4)
         ctk.CTkLabel(r, text="Cổng COM", font=(F, 12), text_color=TEXT).pack(side="left")
+        ctk.CTkButton(r, text="⟳", width=30, height=30, corner_radius=8, font=(F, 13), fg_color=BTN_SOFT,
+                      hover_color=BTN_SOFT_HOVER, command=lambda: self.log("Quét lại cổng COM (demo)")
+                      ).pack(side="right")
         ctk.CTkOptionMenu(r, values=["COM5", "COM3", "COM7"], width=150, height=30, corner_radius=8,
                           fg_color=INPUT, button_color=BTN_SOFT, button_hover_color=BTN_SOFT_HOVER,
-                          text_color=TEXT, font=(F, 12)).pack(side="right", padx=(0, 34))
+                          text_color=TEXT, font=(F, 12)).pack(side="right", padx=(0, 4))
+        ctk.CTkButton(conn.body, text="Connect tất cả", height=32, corner_radius=8, font=(FB, 12),
+                      fg_color=BTN_SOFT, hover_color=BTN_SOFT_HOVER,
+                      command=lambda: self.log("Connect tất cả (demo)")).pack(fill="x", pady=(14, 0))
 
         to = Card(v, "Thời gian chờ (timeout)", "⏱")
         to.grid(row=0, column=1, sticky="nsew", padx=6)
@@ -548,17 +567,59 @@ class MasterDemo(ctk.CTk):
         ctk.CTkLabel(to.body, text="Quá thời gian → hệ thống báo lỗi, dừng, chờ Reset (nhánh B của lưu đồ).",
                      font=(F, 10), text_color=DISABLED, wraplength=320, justify="left").pack(anchor="w", pady=(8, 0))
 
-        oth = Card(v, "Khác", "🗂")
-        oth.grid(row=0, column=2, sticky="nsew", padx=(6, 0))
-        field(oth.body, "Thư mục lưu lịch sử", "data/history")
-        field(oth.body, "Tên ca làm việc", "Ca chiều")
-        for text in ("Tự lưu ảnh PCB lỗi", "Phát âm báo khi có lỗi", "Tự kết nối khi mở app"):
-            sw = ctk.CTkSwitch(oth.body, text=text, font=(F, 12), text_color=TEXT, progress_color=ACCENT)
-            sw.select()
-            sw.pack(anchor="w", pady=5)
-        ctk.CTkButton(oth.body, text="💾  Lưu cài đặt", height=38, corner_radius=10, font=(FB, 13), fg_color=ACCENT,
+        ctk.CTkButton(to.body, text="💾  Lưu cài đặt", height=38, corner_radius=10, font=(FB, 13), fg_color=ACCENT,
                       hover_color=ACCENT_HOVER, command=lambda: self.log("Lưu cài đặt (demo)", "OK")
                       ).pack(fill="x", side="bottom")
+
+        pg = Card(v, "Quản lý chương trình robot", "📝")
+        pg.grid(row=0, column=2, sticky="nsew", padx=(6, 0))
+        # thư mục chứa chương trình (dùng chung với GUI robot)
+        r = ctk.CTkFrame(pg.body, fg_color="transparent")
+        r.pack(fill="x", pady=(0, 4))
+        ctk.CTkLabel(r, text="Thư mục", font=(F, 12), text_color=TEXT).pack(side="left")
+        ctk.CTkButton(r, text="📁", width=30, height=30, corner_radius=8, font=(F, 12), fg_color=BTN_SOFT,
+                      hover_color=BTN_SOFT_HOVER, command=lambda: self.log("Chọn thư mục (demo)")).pack(side="right")
+        e = ctk.CTkEntry(r, height=30, corner_radius=8, fg_color=INPUT, border_color=BORDER, text_color=TEXT, font=(F, 11))
+        e.insert(0, "Giao dien dieu khien/data")
+        e.pack(side="right", fill="x", expand=True, padx=(8, 4))
+
+        # chương trình gán cho từng kết quả phân loại
+        section(pg.body, "Gán chương trình theo kết quả")
+        names = ["Chương trình 1", "Chương trình 2", "Chương trình 3", "TEST"]
+        for res, kind, prog in (("PCB đạt", "green", "Chương trình 1"), ("Lỗi 1 — ngoại quan", "amber", "Chương trình 3"),
+                                ("Lỗi 2 — chức năng", "red", "Chương trình 2")):
+            r = ctk.CTkFrame(pg.body, fg_color="transparent")
+            r.pack(fill="x", pady=3)
+            pill(r, res, kind, width=140).pack(side="left")
+            m = ctk.CTkOptionMenu(r, values=names, width=150, height=30, corner_radius=8, fg_color=INPUT,
+                                  button_color=BTN_SOFT, button_hover_color=BTN_SOFT_HOVER, text_color=TEXT, font=(F, 12))
+            m.set(prog)
+            m.pack(side="right")
+
+        # danh sách chương trình đang có
+        section(pg.body, "Chương trình có trong thư mục")
+        lst = ctk.CTkFrame(pg.body, fg_color=INPUT, corner_radius=10)
+        lst.pack(fill="x", pady=(4, 0))
+        for i, (name, steps, used) in enumerate((("Chương trình 1", 10, "đạt"), ("Chương trình 2", 10, "lỗi 2"),
+                                                 ("Chương trình 3", 10, "lỗi 1"), ("TEST", 4, ""))):
+            r = ctk.CTkFrame(lst, fg_color=ACCENT_SOFT if i == 0 else "transparent", corner_radius=8)
+            r.pack(fill="x", padx=4, pady=(4 if i == 0 else 0, 4 if i == 3 else 0))
+            ctk.CTkLabel(r, text=name, font=(FB, 12), text_color=ACCENT_TEXT if i == 0 else TEXT
+                         ).pack(side="left", padx=8, pady=4)
+            ctk.CTkLabel(r, text=f"{steps} step" + (f" · {used}" if used else " · chưa gán"), font=(F, 10),
+                         text_color=DIM).pack(side="right", padx=8)
+        btns = ctk.CTkFrame(pg.body, fg_color="transparent")
+        btns.pack(fill="x", pady=(8, 0))
+        btns.grid_columnconfigure((0, 1, 2), weight=1)
+        for k, (text, col, hov) in enumerate((("⟳ Tải lại", BTN_SOFT, BTN_SOFT_HOVER),
+                                               ("▶ Chạy thử", ACCENT, ACCENT_HOVER),
+                                               ("👁 Xem step", BTN_SOFT, BTN_SOFT_HOVER))):
+            ctk.CTkButton(btns, text=text, height=32, corner_radius=8, font=(FB, 11), fg_color=col, hover_color=hov,
+                          command=lambda t=text: self.log(f"{t} (demo)")
+                          ).grid(row=0, column=k, sticky="ew", padx=(0 if k == 0 else 3, 0))
+        ctk.CTkLabel(pg.body, text="Soạn / sửa chương trình và Teach điểm làm trong giao diện điều khiển robot; "
+                                   "master chỉ đọc và chạy.", font=(F, 10), text_color=DISABLED, wraplength=320,
+                     justify="left").pack(anchor="w", pady=(8, 0))
         return v
 
     # ============================================================
