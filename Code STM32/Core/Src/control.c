@@ -339,8 +339,42 @@ static void status_poll(ControlSet_t *s)
   if (n > 0 && n < (int)sizeof b && Comm_TxFree(s->comm) > n) Comm_Send(s->comm, b, n);   /* day thi bo mau */
 }
 
+/* Dung an toan 1 truc khi mat ket noi (goi trong vung gang ngat): truc dang chay / dang PAUSE / dang HOMING thi
+   doi dich thanh diem dung theo amax (quang duong phanh = v|v|/2a) -> giam toc em roi GIU vi tri.
+   KHONG tat PID (truc van giu vi tri), KHONG xoa homed (moc vi tri van dung), KHONG chot FAULT. */
+static void link_lost_stop(Control_t *c)
+{
+  if (!c->en || !(c->busy || c->paused || c->homing)) return;
+  double stop;
+  if (c->paused) stop = c->pause_goal;
+  else {
+    double v = (double)c->trap->vel;
+    stop = c->trap->pos + v * fabs(v) / (2.0 * (double)c->trap->amax);
+  }
+  c->homing = 0;
+  c->paused = 0;
+  c->goal = iround(stop);
+  c->settle_cnt = 0;
+  c->busy = 1;
+}
+
+static void watchdog_poll(ControlSet_t *s)
+{
+  if (!s->wdt_ms || s->wdt_tripped) return;
+  if (HAL_GetTick() - s->last_rx_ms <= s->wdt_ms) return;
+  s->wdt_tripped = 1;
+  for (int i = 0; i < CONTROL_COUNT; i++) {
+    Control_t *c = &s->m[i];
+    CRIT_ENTER();
+    link_lost_stop(c);
+    CRIT_EXIT();
+  }
+  Comm_SendStr(s->comm, "LINKLOST\n");      /* xep TRUOC dong S bao busy=0: PC biet day KHONG phai "Step da xong" */
+}
+
 void ControlSet_Poll(ControlSet_t *s)
 {
+  watchdog_poll(s);
   for (int i = 0; i < CONTROL_COUNT; i++) Control_Poll(&s->m[i], i == s->sel);
   status_poll(s);
 }
@@ -354,7 +388,29 @@ void ControlSet_OnLine(void *ctx, char *line)
   char *a1 = strtok(NULL, " "), *a2 = strtok(NULL, " "), *a3 = strtok(NULL, " ");
   long k;
 
-  if (!strcmp(cmd, "GRIP")) {                              /* GRIP <0|1>: khong co so dong co */
+  s->last_rx_ms = HAL_GetTick();                           /* moi dong nhan duoc deu "nuoi" watchdog */
+  s->wdt_tripped = 0;
+
+  if (!strcmp(cmd, "PING")) return;                        /* chi de nuoi watchdog, khong tra loi */
+
+  if (!strcmp(cmd, "WDT")) {                               /* WDT <ms>: 0 = tat, 100..60000 = bat */
+    char b[24];
+    if (!parse_l(ids, &k) || a1 || (k != 0 && (k < 100 || k > 60000))) { Comm_SendStr(s->comm, "ERR WDT ? arg\n"); return; }
+    s->wdt_ms = (uint16_t)k;
+    snprintf(b, sizeof b, "OK WDT %ld\n", k);
+    Comm_SendStr(s->comm, b);
+    return;
+  }
+
+  if (!strcmp(cmd, "SEL")) {                               /* SEL <so>: chon dong co gui telemetry; SEL 0 = tat */
+    if (!parse_l(ids, &k) || k < 0 || k > CONTROL_COUNT) { reply(s->comm, cmd, 0, "id"); return; }
+    s->sel = (k == 0) ? 0xFF : (uint8_t)(k - 1);
+    if (k == 0) Comm_SendStr(s->comm, "OK SEL 0\n");      /* reply() in id 0 thanh "?" nen gui truc tiep */
+    else        reply(s->comm, cmd, (int)k, NULL);
+    return;
+  }
+
+  if (!strcmp(cmd, "GRIP")) {                             /* GRIP <0|1>: khong co so dong co */
     if (!s->grip) { Comm_SendStr(s->comm, "ERR GRIP ? nogrip\n"); return; }
     if (!parse_l(ids, &k) || (k != 0 && k != 1) || a1) { Comm_SendStr(s->comm, "ERR GRIP ? arg\n"); return; }
     Gripper_Set(s->grip, (uint8_t)k);
@@ -364,10 +420,5 @@ void ControlSet_OnLine(void *ctx, char *line)
 
   if (!parse_l(ids, &k) || k < 1 || k > CONTROL_COUNT) { reply(s->comm, cmd, 0, "id"); return; }
 
-  if (!strcmp(cmd, "SEL")) {                               /* SEL <so>: chon dong co gui telemetry */
-    s->sel = (uint8_t)(k - 1);
-    reply(s->comm, cmd, (int)k, NULL);
-    return;
-  }
   exec(&s->m[k - 1], cmd, a1, a2, a3);
 }

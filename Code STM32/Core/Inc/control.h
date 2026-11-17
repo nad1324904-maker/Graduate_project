@@ -92,7 +92,10 @@ void Control_Poll(Control_t *c, int send_tel);
      CLEAR <id>                  xoa FAULT da chot
      PID <id> <kp> <ki> <kd> | VMAX <id> <n> | AMAX <id> <n> | DB <id> <n>
      TRIP  <id> <trip> <home>    nguong sai so bam (counts, > 0): <trip> khi chay -> FAULT trip, <home> khi HOMING -> FAULT home
-     SEL <id>                    chon dong co gui telemetry "T" (mac dinh: khong dong co nao)
+     SEL <id>                    chon dong co gui telemetry "T" (mac dinh: khong dong co nao); SEL 0 = tat telemetry
+     PING                        KHONG co so dong co, KHONG tra loi: bao "PC con song" cho watchdog
+     WDT <ms>                    KHONG co so dong co: bat watchdog mat ket noi (100..60000 ms; 0 = tat). Tra "OK WDT <ms>".
+                                 Qua <ms> khong nhan duoc dong nao -> truc dang chay giam toc dung + giu vi tri, gui "LINKLOST"
      GRIP <0|1>                  KHONG co so dong co: 1 = DONG kep, 0 = MO kep. Tra loi "OK GRIP <0|1>" (= trang thai moi)
                                  hoac "ERR GRIP ? arg". Kep khong tu doi khi STOP / FAULT.
    Tra loi: "OK <lenh> <so>" / "ERR <lenh> <so> <ly do>" (arg | range | fault | unknown | id | homing | nosensor).
@@ -109,6 +112,11 @@ typedef struct {
   Gripper_t *grip;                     /* kep (NULL = chua gan -> GRIP tra "ERR GRIP ? nogrip") */
   uint8_t    sel;                     /* chi so (0..CONTROL_COUNT-1) cua dong co gui telemetry T; 0xFF = khong gui */
   uint32_t   status_ms;                /* moc thoi gian (HAL_GetTick) lan gui dong "S" gan nhat */
+  /* Watchdog mat ket noi: PC gui PING deu dan; qua wdt_ms ms khong nhan duoc dong nao -> moi truc dang chay giam toc
+     dung lai roi GIU vi tri (khong tat PID, khong mat moc vi tri), gui "LINKLOST". wdt_ms = 0: tat (mac dinh). */
+  uint32_t   last_rx_ms;               /* HAL_GetTick() luc nhan dong lenh gan nhat */
+  uint16_t   wdt_ms;
+  uint8_t    wdt_tripped;              /* 1: da dung vi mat ket noi; xoa khi nhan duoc dong lenh moi */
 } ControlSet_t;
 
 /* Goi TRUOC Control_Init cua tung dong co (xoa toan bo roi gan comm, sel = 0xFF: chua gui telemetry T) */

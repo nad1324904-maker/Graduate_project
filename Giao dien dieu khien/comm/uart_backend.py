@@ -39,6 +39,9 @@ DEFAULT_MAX_VELOCITY = {"J1": 30.0, "J2": 30.0, "J3": 30.0, "Z": 5.0}
 ACK_TIMEOUT_S = 0.5          # chờ OK/ERR cho mỗi lệnh
 STATUS_TIMEOUT_S = 1.0       # im lặng (không có dòng S) quá lâu sau khi đã nhận S đầu tiên
 FIRST_STATUS_TIMEOUT_S = 2.0 # chưa nhận được S nào kể từ lúc kết nối
+HEARTBEAT_PERIOD_S = 0.2     # PC gửi PING mỗi 0.2 s (luồng riêng, không phụ thuộc giao diện có đang bận hay không)
+WATCHDOG_MS = 600            # STM32 không nhận được gì quá 0.6 s (= 3 PING liên tiếp bị mất) -> tự dừng an toàn
+TRACE_SECONDS = 60           # giữ 60 s telemetry gần nhất (50 Hz) cho đồ thị / xuất CSV
 # lệnh làm đổi trạng thái chạy/dừng (GRIP cũng tính: Step GRIP chỉ xong khi STM32 đã OK + có dòng S mới)
 MOTION_CMDS = ("GOTO", "JOG", "HOME", "HOMING", "STOP", "PAUSE", "RESUME", "GRIP")
 
@@ -120,7 +123,12 @@ class UartRobotBackend(RobotBackendBase):
         self._rx_buf = b""
         self._rx_thread = None
         self._rx_stop = threading.Event()
+        self._hb_thread = None            # luồng gửi PING (bắt đầu sau khi STM32 nhận cấu hình, gồm WDT)
         self.bad_lines = 0                # số dòng hỏng/không nhận ra (chẩn đoán nhiễu)
+
+        # Telemetry T (đồ thị): trục đang theo dõi (None = tắt) và các mẫu gần nhất (đơn vị độ/mm)
+        self._trace_axis = None
+        self._trace = deque(maxlen=TRACE_SECONDS * 50)
 
     # ==================== Kết nối cổng COM ====================
     def connect(self):
@@ -149,6 +157,10 @@ class UartRobotBackend(RobotBackendBase):
         if self._rx_thread is not None:
             self._rx_thread.join(timeout=1.0)
             self._rx_thread = None
+        if self._hb_thread is not None:
+            self._hb_thread.join(timeout=1.0)
+            self._hb_thread = None
+        self._trace_axis = None
         if self._ser is not None:
             try:
                 self._ser.close()
@@ -251,6 +263,59 @@ class UartRobotBackend(RobotBackendBase):
                 self._config_left += 1
             self._profile[axis] = (float(mp["vmax"]), float(mp["amax"]))
             self._sent_profile[axis] = (vmax, amax)
+        # Tắt telemetry T (STM32 có thể còn giữ SEL từ lần kết nối trước) và bật watchdog mất kết nối
+        for cmd, arg in (("SEL", 0), ("WDT", WATCHDOG_MS)):
+            self._send(cmd, arg, tag="cfg")
+            self._config_left += 1
+
+    # ==================== Watchdog mất kết nối ====================
+    def _heartbeat_loop(self):
+        """Gửi PING mỗi HEARTBEAT_PERIOD_S. Chạy ở luồng riêng: cửa sổ đang bị kéo/đơ một lúc vẫn không làm robot dừng
+        oan. Nếu dây USB tuột hoặc chương trình PC chết, PING ngừng và STM32 tự dừng sau WATCHDOG_MS."""
+        while not self._rx_stop.wait(HEARTBEAT_PERIOD_S):
+            try:
+                self._write(b"PING\n")
+            except UartError:
+                return
+
+    def _start_heartbeat(self):
+        if self._hb_thread is None and self.is_connected():
+            self._hb_thread = threading.Thread(target=self._heartbeat_loop, daemon=True)
+            self._hb_thread.start()
+
+    def _on_link_lost(self):
+        """STM32 báo LINKLOST: quá WATCHDOG_MS không nhận được gì từ PC nên đã cho các trục đang chạy giảm tốc dừng
+        và giữ vị trí. Báo lỗi (dừng chương trình nếu đang chạy) — KHÔNG được coi là 'Step đã xong'."""
+        self._resync_pending = True
+        self._need_fresh_status = True
+        self._report(f"STM32 tự dừng vì quá {WATCHDOG_MS / 1000:g} s không nhận được tín hiệu từ PC (máy tính bị treo "
+                     "hoặc đường truyền gián đoạn). Các trục đã giảm tốc dừng và giữ vị trí, mốc vị trí vẫn đúng.")
+        if self._pending_home:
+            self._abort_homing()
+
+    # ==================== Telemetry T (đồ thị PID) ====================
+    def set_trace_axis(self, axis):
+        """Chọn trục gửi telemetry T 50 Hz (axis = 'J1'..'Z'), hoặc None để tắt (SEL 0). Xóa dữ liệu cũ."""
+        motor = MOTOR_OF_AXIS[axis] if axis else 0
+        self._send("SEL", motor)
+        self._trace_axis = axis
+        self._trace.clear()
+
+    def get_trace(self):
+        """(trục, [(t_s, goal, setpoint, actual, v_đặt, v_thực), ...]) — đơn vị độ, độ/s (J) hoặc mm, mm/s (Z)."""
+        return self._trace_axis, list(self._trace)
+
+    def _on_telemetry(self, d):
+        axis = self._trace_axis
+        if axis is None or d["motor"] != MOTOR_OF_AXIS[axis]:
+            return
+        enc = self._enc[axis]
+        k = robot_config.axis_sign(enc) / robot_config.counts_per_unit(axis, enc)
+        self._trace.append((d["ms"] / 1000.0,
+                            robot_config.counts_to_units(axis, d["goal"], enc),
+                            robot_config.counts_to_units(axis, d["sp"], enc),
+                            robot_config.counts_to_units(axis, d["pos"], enc),
+                            d["sv"] * k, d["v"] * k))
 
     def clear_fault(self):
         """Xóa FAULT đã chốt trên cả 4 động cơ (CLEAR). Motor không tự chạy lại; mốc vị trí vẫn là encoder."""
@@ -493,6 +558,10 @@ class UartRobotBackend(RobotBackendBase):
             self._on_err(*data)
         elif kind == "FAULT":
             self._on_fault(*data)
+        elif kind == "T":
+            self._on_telemetry(data)
+        elif kind == "LINKLOST":
+            self._on_link_lost()
         elif kind == "BOOT":
             if self._configured:
                 self._handle_unexpected_disconnect(
@@ -553,6 +622,8 @@ class UartRobotBackend(RobotBackendBase):
             return
         ok = self._config_err is None
         self._configured = self._configured or ok
+        if ok:
+            self._start_heartbeat()              # STM32 đã bật watchdog -> bắt đầu PING
         cb, self._config_cb = self._config_cb, None
         if cb:
             cb(ok, "CONFIG_OK" if ok else self._config_err)

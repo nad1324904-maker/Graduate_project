@@ -4,8 +4,10 @@ phụ thuộc serial/GUI. Phải khớp với control.c / control.h ở firmware
 
   PC -> STM32 : <LỆNH> <số động cơ 1..4> [tham số]        vd  "GOTO 2 12750"   "PID 3 4.2 0 0"
                 GRIP <0|1>  (kẹp: KHÔNG có số động cơ; 1 = ĐÓNG, 0 = MỞ) -> "OK GRIP <0|1>" / "ERR GRIP ? <lý do>"
+                PING (không trả lời, nuôi watchdog)  |  WDT <ms>  |  SEL <0..4>  (0 = tắt telemetry T)
   STM32 -> PC : OK <lệnh> <số>            |  ERR <lệnh> <số> <lý do>
-                S <ms> (st goal sp pos) x4 <grip> |  FAULT <số> trip|home  |  BOOT  |  T ... (telemetry 1 động cơ, bỏ qua)
+                S <ms> (st goal sp pos) x4 <grip> |  FAULT <số> trip|home  |  BOOT  |  LINKLOST
+                T <số> <ms> <en> <goal> <sp> <pos> <sv> <v>   (telemetry 50 Hz của động cơ được SEL)
 
 Đơn vị trên dây: counts, counts/s, counts/s^2 (backend đổi từ độ/mm). Không có checksum: dòng hỏng sẽ bị
 parse_line() từ chối (ProtocolError) hoặc bị bỏ qua, không làm chương trình chết.
@@ -51,7 +53,8 @@ def parse_line(text: str):
          ("S", {"ms": int, "motors": {1: (st, goal, sp, pos), ... 4: ...}, "grip": 0|1|None})
          ("OK", (cmd, motor))            ("ERR", (cmd, motor_or_None, reason))
          ("FAULT", (motor, kind))        ("BOOT", None)
-         ("T", None)  telemetry 1 động cơ (GUI không dùng)
+         ("T", {"motor", "ms", "en", "goal", "sp", "pos", "sv", "v"})   telemetry 50 Hz (counts, counts/s)
+         ("LINKLOST", None)  STM32 tự dừng vì quá thời gian watchdog không nhận được gì từ PC
        Raise ProtocolError nếu dòng hỏng."""
     tokens = text.strip().split()
     if not tokens:
@@ -81,5 +84,10 @@ def parse_line(text: str):
     if head == "BOOT":
         return "BOOT", None
     if head == "T":
-        return "T", None
+        if len(tokens) != 9:
+            raise ProtocolError(f"Dòng T sai số trường ({len(tokens)}): {text!r}")
+        vals = [_to_int(t) for t in tokens[1:]]
+        return "T", dict(zip(("motor", "ms", "en", "goal", "sp", "pos", "sv", "v"), vals))
+    if head == "LINKLOST":
+        return "LINKLOST", None
     raise ProtocolError(f"Dòng không nhận ra: {text!r}")
