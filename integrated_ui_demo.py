@@ -7,12 +7,19 @@ Bảng màu lấy giống GUI robot (light mode) để hai app nhìn đồng b�
 Chạy:  python integrated_ui_demo.py
 """
 
-import math
+import os
+import sys
 import time
 import tkinter as tk
 from datetime import datetime
 
 import customtkinter as ctk
+
+# Module điều khiển robot nằm ở "Giao dien dieu khien/": nhúng nguyên GUI robot vào tab Robot.
+# Một app duy nhất mở cổng COM của STM32 → master và GUI robot dùng CHUNG một backend.
+ROBOT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Giao dien dieu khien")
+sys.path.insert(0, ROBOT_DIR)
+from ui.app import ScaraRobotPanel        # noqa: E402  (phải sau khi thêm ROBOT_DIR vào sys.path)
 
 # ============================================================
 # Bảng màu (giống "Giao dien dieu khien/ui/theme.py", bản LIGHT)
@@ -102,13 +109,13 @@ class MasterDemo(ctk.CTk):
         self.content.grid(row=1, column=0, sticky="nsew", padx=16, pady=(12, 0))
         self.content.grid_columnconfigure(0, weight=1)
         self.content.grid_rowconfigure(0, weight=1)
+        self._build_log()
         self.views = {
             "operate": self._build_operate_view(),
             "robot": self._build_robot_view(),
             "history": self._build_history_view(),
             "settings": self._build_settings_view(),
         }
-        self._build_log()
         self._show_tab("operate")
         self._tick_clock()
 
@@ -625,187 +632,13 @@ class MasterDemo(ctk.CTk):
     # ============================================================
     # TAB ROBOT
     # ============================================================
-    # Dữ liệu mẫu cho tab Robot (sau này lấy từ module robot: backend + robot_config.json + points)
-    ROBOT_L1, ROBOT_L2 = 220.0, 200.0                       # mm, giống robot_config.json
-    ROBOT_J = {"J1": 42.5, "J2": -18.2, "J3": 90.0, "Z": 312.0}
-    ROBOT_POINTS = (("Gắp · CB3", 360, 80, ACCENT), ("Đạt", 150, 340, GREEN),
-                    ("Lỗi 1", 0, 380, AMBER), ("Lỗi 2", -150, 320, RED))
-
-    def _robot_xy(self):
-        a1 = math.radians(self.ROBOT_J["J1"])
-        a12 = math.radians(self.ROBOT_J["J1"] + self.ROBOT_J["J2"])
-        ex, ey = self.ROBOT_L1 * math.cos(a1), self.ROBOT_L1 * math.sin(a1)
-        return (ex, ey), (ex + self.ROBOT_L2 * math.cos(a12), ey + self.ROBOT_L2 * math.sin(a12))
-
     def _build_robot_view(self):
+        """Tab Robot = NGUYÊN GUI điều khiển robot (Vận hành / Lập trình / Giám sát / Settings), nhúng vào đây.
+        Log của robot ghi chung vào Log của master (có tiền tố "Robot:")."""
         v = ctk.CTkFrame(self.content, fg_color="transparent")
-        v.grid_columnconfigure(0, weight=0, minsize=330)
-        v.grid_columnconfigure(1, weight=1)
-        v.grid_columnconfigure(2, weight=0, minsize=330)
-        v.grid_rowconfigure(0, weight=1)
-
-        # ---------------- cột trái: trạng thái + chương trình đang chạy ----------------
-        left = ctk.CTkFrame(v, fg_color="transparent", width=330)
-        left.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
-
-        st = Card(left, "Trạng thái robot", "🤖", right_text="COM5 · đã HOME")
-        st.pack(fill="x")
-        (_, _), (x, y) = self._robot_xy()
-        theta = self.ROBOT_J["J1"] + self.ROBOT_J["J2"] + self.ROBOT_J["J3"]
-        for vals in ((("J1", "42.50°"), ("J2", "-18.20°"), ("J3", "90.00°"), ("Z", "312.0")),
-                     (("X", f"{x:.1f}"), ("Y", f"{y:.1f}"), ("θ", f"{theta:.1f}°"), ("Kẹp", "MỞ"))):
-            row = ctk.CTkFrame(st.body, fg_color="transparent")
-            row.pack(fill="x", pady=(0, 4))
-            for i, (ax, val) in enumerate(vals):
-                row.grid_columnconfigure(i, weight=1, uniform="j")
-                cell = ctk.CTkFrame(row, fg_color=INPUT, corner_radius=10)
-                cell.grid(row=0, column=i, sticky="ew", padx=(0 if i == 0 else 4, 0))
-                ctk.CTkLabel(cell, text=ax, font=(F, 10), text_color=DIM, height=16).pack(pady=(5, 0))
-                ctk.CTkLabel(cell, text=val, font=(FB, 14), text_color=TEXT, height=20).pack(pady=(0, 5))
-        flags = ctk.CTkFrame(st.body, fg_color="transparent")
-        flags.pack(fill="x", pady=(4, 0))
-        for text, kind in (("BUSY", "blue"), ("HOMED", "green"), ("Không FAULT", "green")):
-            pill(flags, text, kind, font_size=10).pack(side="left", padx=(0, 6))
-        ctk.CTkLabel(flags, text="mm · độ", font=(F, 10), text_color=DISABLED).pack(side="right")
-
-        run = Card(left, "Chương trình đang chạy", "▶", right_text="PCB #0127 · đạt")
-        run.pack(fill="both", expand=True, pady=(12, 0))
-        top = ctk.CTkFrame(run.body, fg_color="transparent")
-        top.pack(fill="x")
-        ctk.CTkLabel(top, text="Chương trình 1", font=(FB, 14), text_color=TEXT).pack(side="left")
-        ctk.CTkLabel(top, text="Step 5 / 10 · 3.2 s", font=(F, 11), text_color=DIM).pack(side="right")
-        bar = ctk.CTkProgressBar(run.body, height=8, corner_radius=4, fg_color=INPUT, progress_color=ACCENT)
-        bar.set(0.5)
-        bar.pack(fill="x", pady=(6, 6))
-        steps = ("MOVE Gap_tren", "MOVE Gap_duoi", "GRIP ON", "DELAY 0.3 s", "MOVE Gap_tren",
-                 "MOVE Dat_tren", "MOVE Dat_duoi", "GRIP OFF", "DELAY 0.3 s", "MOVE Dat_tren")
-        current = 4
-        for i, s in enumerate(steps):
-            done, now = i < current, i == current
-            r = ctk.CTkFrame(run.body, fg_color=ACCENT_SOFT if now else "transparent", corner_radius=6, height=22)
-            r.pack(fill="x")
-            r.pack_propagate(False)
-            mark, col = ("✓", GREEN) if done else (("▶", ACCENT) if now else (str(i + 1), DISABLED))
-            ctk.CTkLabel(r, text=mark, font=(FB, 11), text_color=col, width=22, height=20).pack(side="left", padx=(6, 4))
-            ctk.CTkLabel(r, text=s, font=(FB if now else F, 11), height=20,
-                         text_color=ACCENT_TEXT if now else (TEXT if done else DIM)).pack(side="left")
-
-        # ---------------- cột giữa: robot nhìn từ trên ----------------
-        mid = Card(v, "Vị trí robot (nhìn từ trên)", "🗺", right_text="vùng làm việc theo giới hạn khớp")
-        mid.grid(row=0, column=1, sticky="nsew")
-        self.top_canvas = tk.Canvas(mid.body, bg=CANVAS, highlightthickness=0)
-        self.top_canvas.pack(fill="both", expand=True)
-        self.top_canvas.bind("<Configure>", lambda e: self._draw_robot_top())
-
-        # ---------------- cột phải: chương trình + thống kê + thao tác ----------------
-        right = ctk.CTkFrame(v, fg_color="transparent", width=330)
-        right.grid(row=0, column=2, sticky="nsew", padx=(12, 0))
-
-        pg = Card(right, "Chương trình phân loại", "📝", right_text="lưu trên PC")
-        pg.pack(fill="x")
-        for res, prog, kind in (("PCB đạt", "Chương trình 1", "green"), ("Lỗi 1", "Chương trình 3", "amber"),
-                                ("Lỗi 2", "Chương trình 2", "red")):
-            r = ctk.CTkFrame(pg.body, fg_color=INPUT, corner_radius=10)
-            r.pack(fill="x", pady=1)
-            pill(r, res, kind, width=64, font_size=10).pack(side="left", padx=8, pady=4)
-            ctk.CTkLabel(r, text="→ " + prog, font=(FB, 12), text_color=TEXT).pack(side="left")
-            ctk.CTkButton(r, text="Chạy thử", width=70, height=26, corner_radius=8, font=(FB, 11),
-                          fg_color=BTN_SOFT, hover_color=BTN_SOFT_HOVER,
-                          command=lambda p=prog: self.log(f"Chạy thử {p} (demo)")).pack(side="right", padx=8)
-
-        stc = Card(right, "Thống kê robot (ca này)", "📊")
-        stc.pack(fill="x", pady=(12, 0))
-        stc.body.grid_columnconfigure((0, 1), weight=1, uniform="s")
-        for k, (label, val, col) in enumerate((("Đã phân loại", "126", TEXT), ("Chu kỳ robot TB", "5.8 s", TEXT),
-                                               ("Gắp hụt", "1", AMBER), ("FAULT / mất kết nối", "0", GREEN))):
-            cell = ctk.CTkFrame(stc.body, fg_color=INPUT, corner_radius=10)
-            cell.grid(row=k // 2, column=k % 2, sticky="ew", padx=(0 if k % 2 == 0 else 3, 3 if k % 2 == 0 else 0),
-                      pady=(0 if k < 2 else 6, 0))
-            ctk.CTkLabel(cell, text=label, font=(F, 10), text_color=DIM, height=16).pack(anchor="w", padx=10, pady=(6, 0))
-            ctk.CTkLabel(cell, text=val, font=(FB, 18), text_color=col, height=24).pack(anchor="w", padx=10, pady=(0, 6))
-
-        act = Card(right, "Thao tác (khi hệ thống dừng)", "🛠")
-        act.pack(fill="both", expand=True, pady=(12, 0))
-        r = ctk.CTkFrame(act.body, fg_color="transparent")
-        r.pack(fill="x")
-        ctk.CTkLabel(r, text="Tốc độ robot", font=(F, 12), text_color=TEXT).pack(side="left")
-        sp = ctk.CTkSegmentedButton(r, values=["30%", "60%", "100%"], width=150, height=28, font=(FB, 11),
-                                    command=lambda v: self.log(f"Tốc độ robot: {v} (demo)"),
-                                    fg_color=BTN_SOFT, selected_color=ACCENT_SOFT, selected_hover_color="#bfdbfe",
-                                    unselected_color=BTN_SOFT, unselected_hover_color=BTN_SOFT_HOVER,
-                                    text_color=ACCENT_TEXT)
-        sp.set("100%")
-        sp.pack(side="right")
-        grid = ctk.CTkFrame(act.body, fg_color="transparent")
-        grid.pack(fill="x", pady=(8, 0))
-        grid.grid_columnconfigure((0, 1), weight=1, uniform="a")
-        for k, (text, col, hov) in enumerate((("⌂  HOME", ACCENT, ACCENT_HOVER), ("✋  Mở / đóng kẹp", BTN_SOFT, BTN_SOFT_HOVER),
-                                               ("⟳  Reset lỗi", GRAY_BTN, GRAY_BTN_HOVER),
-                                               ("↗  GUI robot", BTN_SOFT, BTN_SOFT_HOVER))):
-            ctk.CTkButton(grid, text=text, height=34, corner_radius=10, font=(FB, 12), fg_color=col, hover_color=hov,
-                          command=lambda t=text: self.log(f"{t.strip()} (demo)")
-                          ).grid(row=k // 2, column=k % 2, sticky="ew", padx=(0 if k % 2 == 0 else 3, 3 if k % 2 == 0 else 0),
-                                 pady=(0 if k < 2 else 6, 0))
-        ctk.CTkLabel(act.body, text="Teach điểm, soạn chương trình: dùng GUI robot.",
-                     font=(F, 10), text_color=DISABLED, wraplength=290, justify="left").pack(anchor="w", pady=(8, 0))
+        self.robot = ScaraRobotPanel(v, embedded=True, log_sink=lambda msg, lvl: self.log(f"Robot: {msg}", lvl))
+        self.robot.pack(fill="both", expand=True)
         return v
-
-    def _draw_robot_top(self):
-        """Robot nhìn từ trên: vùng với tới (J1 -30..120°), băng tải ở điểm gắp, 3 khay, tay robot hiện tại."""
-        cv = self.top_canvas
-        cv.delete("all")
-        w, h = cv.winfo_width(), cv.winfo_height()
-        if w < 150 or h < 150:
-            return
-        reach = self.ROBOT_L1 + self.ROBOT_L2
-        xmin, xmax, ymin, ymax = -reach * 0.62, reach * 1.08, -reach * 0.62, reach * 1.08   # khung nhìn (mm)
-        k = min((w - 20) / (xmax - xmin), (h - 30) / (ymax - ymin))
-        ox = (w - k * (xmax - xmin)) / 2 - k * xmin
-        oy = (h - 10 + k * (ymax - ymin)) / 2 + k * ymin + 4
-
-        def P(x, y):
-            return ox + k * x, oy - k * y
-
-        # lưới 100 mm
-        for g in range(-200, 500, 100):
-            x, _ = P(g, 0)
-            _, y = P(0, g)
-            cv.create_line(x, 0, x, h, fill="#edf1f6")
-            cv.create_line(0, y, w, y, fill="#edf1f6")
-        # vùng với tới: hình quạt J1 từ -30° đến 120°
-        cx, cy = P(0, 0)
-        R = k * reach
-        cv.create_arc(cx - R, cy - R, cx + R, cy + R, start=-30, extent=150, fill="#e0ecff", outline="#bfdbfe")
-        # băng tải đi vào điểm gắp (CB3)
-        bx0, by0 = P(300, 120)
-        bx1, by1 = P(reach * 1.08, 40)
-        cv.create_rectangle(bx0, by0, bx1, by1, fill="#cbd5e1", outline="#94a3b8")
-        cv.create_text((bx0 + bx1) / 2, by1 + 10, text="băng tải", fill=DIM, font=(F, 9))
-        # điểm gắp + 3 khay
-        for name, x, y, col in self.ROBOT_POINTS:
-            px, py = P(x, y)
-            if name.startswith("Gắp"):
-                cv.create_oval(px - 7, py - 7, px + 7, py + 7, outline=col, width=2)
-                cv.create_line(px - 11, py, px + 11, py, fill=col)
-                cv.create_line(px, py - 11, px, py + 11, fill=col)
-                cv.create_text(px, py - 18, text=name, fill=col, font=(FB, 9))
-            else:
-                s = k * 35
-                cv.create_rectangle(px - s, py - s, px + s, py + s, outline=col, width=2, fill=PANEL)
-                cv.create_text(px, py, text=name, fill=col, font=(FB, 9))
-        # tay robot hiện tại
-        (ex, ey), (tx, ty) = self._robot_xy()
-        (ex, ey), (tx, ty) = P(ex, ey), P(tx, ty)
-        cv.create_line(cx, cy, ex, ey, fill=ACCENT, width=max(6, k * 40), capstyle="round")
-        cv.create_line(ex, ey, tx, ty, fill="#60a5fa", width=max(5, k * 32), capstyle="round")
-        cv.create_oval(cx - 9, cy - 9, cx + 9, cy + 9, fill=PANEL, outline=ACCENT, width=2)
-        cv.create_oval(ex - 5, ey - 5, ex + 5, ey + 5, fill=PANEL, outline=ACCENT, width=2)
-        cv.create_oval(tx - 6, ty - 6, tx + 6, ty + 6, fill=ACCENT, outline=PANEL, width=2)
-        # quỹ đạo đang đi tới (từ điểm hiện tại tới khay Đạt), nét đứt
-        _, gx, gy, _ = self.ROBOT_POINTS[1]
-        gx, gy = P(gx, gy)
-        cv.create_line(tx, ty, gx, gy, fill=GREEN, dash=(4, 4), width=2, arrow="last")
-        cv.create_text(10, h - 10, anchor="w", text="lưới 100 mm · gốc = trục J1", fill=DISABLED, font=(F, 9))
 
     # ============================================================
     # TAB LỊCH SỬ
