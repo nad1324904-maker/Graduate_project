@@ -6,7 +6,7 @@
 |---|---|---|
 | `STM32/` | Firmware robot SCARA 4 trục (STM32F407): điều khiển vị trí 1 kHz, quỹ đạo hình thang, PID, home, kẹp, bảo vệ | đã chạy |
 | `UI/` | **App master trên PC** (Python, customtkinter) — app duy nhất của hệ thống: vận hành dây chuyền, tab **Robot** chứa toàn bộ giao diện điều khiển robot | robot: đã chạy · PLC / Raspberry Pi: mới có giao diện |
-| `PLC/` | Chương trình PLC (băng tải, động cơ bước cấp PCB, 2 xi lanh, E-Stop) | chưa đưa lên |
+| `PLC/` | Chương trình PLC (băng tải, động cơ bước cấp PCB, 2 xi lanh, E-Stop); giao tiếp với PC qua **RS422** (bộ chuyển USB–RS422 → cổng COM) | chưa đưa lên |
 | `Raspberry Pi/` | Xử lý ảnh (kiểm tra ngoại quan) và kiểm tra chức năng | chưa đưa lên |
 
 Ngoài ra ở thư mục gốc: [flow_chart.drawio](flow_chart.drawio) (lưu đồ toàn hệ thống), [CHECKLIST_THU_ROBOT.md](CHECKLIST_THU_ROBOT.md)

@@ -9,12 +9,16 @@ mới có layout + style: số liệu là dữ liệu mẫu, các nút chỉ ghi
 Một app duy nhất mở cổng COM của STM32 → phần tự động của master gọi thẳng self.robot.backend / self.robot.executor.
 """
 
+import os
 import time
 import tkinter as tk
 from datetime import datetime
 
 import customtkinter as ctk
+from PIL import Image
 
+from comm.uart_backend import list_available_ports
+from core.paths import ROOT_DIR
 from ui.robot_panel import ScaraRobotPanel   # import cả ui/theme.py: màu mặc định widget dùng chung với tab Robot
 
 # ============================================================
@@ -41,6 +45,7 @@ ctk.set_default_color_theme("blue")
 
 F = "Segoe UI"
 FB = "Segoe UI Semibold"
+LOGO_FILE = os.path.join(ROOT_DIR, "assets", "logo_iuh.png")
 
 
 # ============================================================
@@ -116,7 +121,7 @@ class MasterApp(ctk.CTk):
         self._tick_clock()
 
         for lvl, msg in (("INFO", "Khởi động app master (phần PLC / Raspberry Pi: dữ liệu mẫu)."),
-                         ("OK", "PLC: kết nối Modbus TCP 192.168.0.10:502."),
+                         ("OK", "PLC: kết nối RS422 (cổng COM, 9600 baud)."),
                          ("OK", "Raspberry Pi: kết nối TCP 192.168.0.20:5000."),
                          ("INFO", "PCB #0128: ngoại quan ĐẠT, đang kiểm tra chức năng...")):
             self.log(msg, lvl)
@@ -128,25 +133,31 @@ class MasterApp(ctk.CTk):
         header.grid_propagate(False)
 
         left = ctk.CTkFrame(header, fg_color="transparent")
-        left.pack(side="left", padx=20, pady=12)
-        ctk.CTkLabel(left, text="🏭", font=(F, 26)).pack(side="left")
+        left.pack(side="left", padx=(16, 0), pady=12)
+        try:                                      # logo trường (UI/assets/logo_iuh.png); thiếu file thì dùng icon cũ
+            img = Image.open(LOGO_FILE)
+            h = 46
+            self._logo = ctk.CTkImage(light_image=img, size=(round(img.width * h / img.height), h))
+            ctk.CTkLabel(left, text="", image=self._logo).pack(side="left")
+        except OSError:
+            ctk.CTkLabel(left, text="🏭", font=(F, 26)).pack(side="left")
         box = ctk.CTkFrame(left, fg_color="transparent")
-        box.pack(side="left", padx=(10, 0))
-        ctk.CTkLabel(box, text="PCB INSPECTION & SORTING", font=(FB, 18), text_color=TEXT).pack(anchor="w")
+        box.pack(side="left", padx=(14, 0))
+        ctk.CTkLabel(box, text="CDT09-KHÓA LUẬN TỐT NGHIỆP IUH K18", font=(FB, 16), text_color=TEXT).pack(anchor="w")
         ctk.CTkLabel(box, text="Master PC — PLC · Raspberry Pi · SCARA robot",
                      font=(F, 11), text_color=DIM).pack(anchor="w")
 
         right = ctk.CTkFrame(header, fg_color="transparent")
-        right.pack(side="right", padx=20, pady=12)
+        right.pack(side="right", padx=(0, 16), pady=12)
         self.clock = HeaderBadge(right, "🕐", "", "--:--:--")
-        self.clock.pack(side="right", padx=(24, 0))
+        self.clock.pack(side="right", padx=(16, 0))
         self.sys_badge = HeaderBadge(right, "●", "Hệ thống", "AUTO · ĐANG CHẠY", ACCENT)
-        self.sys_badge.pack(side="right", padx=(24, 0))
-        HeaderBadge(right, "⏱", "Chu kỳ gần nhất", "12.4 s").pack(side="right", padx=(24, 0))
+        self.sys_badge.pack(side="right", padx=(16, 0))
+        HeaderBadge(right, "⏱", "Chu kỳ gần nhất", "12.4 s").pack(side="right", padx=(16, 0))
 
         # trạng thái các slave: luôn thấy ở mọi tab (Connect / Disconnect nằm ở tab Cài đặt)
         dev = ctk.CTkFrame(right, fg_color="transparent")
-        dev.pack(side="right", padx=(24, 0))
+        dev.pack(side="right", padx=(16, 0))
         ctk.CTkLabel(dev, text="🔌 Thiết bị", font=(F, 11), text_color=DIM).pack(anchor="w")
         row = ctk.CTkFrame(dev, fg_color="transparent")
         row.pack(anchor="w")
@@ -155,10 +166,10 @@ class MasterApp(ctk.CTk):
             ctk.CTkLabel(row, text=name, font=(FB, 12), text_color=TEXT).pack(side="left", padx=(3, 10))
 
         bar = ctk.CTkFrame(right, fg_color=BTN_SOFT, corner_radius=10)
-        bar.pack(side="right", padx=(24, 0))
+        bar.pack(side="right", padx=(16, 0))
         self.tab_buttons = {}
         for key, icon, label in self.TABS:
-            b = ctk.CTkButton(bar, text=f"{icon}  {label}", width=112, height=36, corner_radius=8,
+            b = ctk.CTkButton(bar, text=f"{icon}  {label}", width=100, height=36, corner_radius=8,
                               font=(FB, 12), fg_color="transparent", hover_color=BTN_SOFT_HOVER,
                               text_color=TEXT, command=lambda k=key: self._show_tab(k))
             b.pack(side="left", padx=3, pady=3)
@@ -285,7 +296,8 @@ class MasterApp(ctk.CTk):
     def _build_manual_panel(self, parent):
         p = ctk.CTkFrame(parent, fg_color="transparent")
 
-        self._section(p, "Băng tải & cấp PCB")
+        # ---- PLC: băng tải, động cơ bước cấp PCB, 2 xi lanh (test chức năng = PLC hạ xi lanh 2 cấp nguồn cho PCB) ----
+        self._section(p, "PLC — băng tải & xi lanh")
         self.belt_btn = self._btn(p, "⏵  Giữ để chạy băng tải", None, ACCENT, ACCENT_HOVER, h=36)
         self.belt_btn.pack(fill="x", pady=2)
         self.belt_btn.bind("<ButtonPress-1>", lambda e: self._belt(True), add="+")
@@ -296,14 +308,13 @@ class MasterApp(ctk.CTk):
         self._btn(r, "⏹  Dừng tất cả", lambda: self.log("MANUAL: dừng băng tải, động cơ bước, robot (demo)", "WARN"),
                   RED, RED_HOVER).grid(row=0, column=1, sticky="ew", padx=(3, 0))
 
-        self._section(p, "Xi lanh")
-        self.cyl_state = {}
-        for name in ("Xi lanh 1", "Xi lanh 2"):
+        self.cyl_state, self.cyl_seg = {}, {}
+        for name, role in (("Xi lanh 1", "chặn PCB"), ("Xi lanh 2", "cấp nguồn PCB")):
             r = ctk.CTkFrame(p, fg_color="transparent")
             r.pack(fill="x", pady=2)
             box = ctk.CTkFrame(r, fg_color="transparent")
             box.pack(side="left")
-            ctk.CTkLabel(box, text=name, font=(FB, 12), text_color=TEXT, height=16).pack(anchor="w")
+            ctk.CTkLabel(box, text=f"{name} · {role}", font=(FB, 12), text_color=TEXT, height=16).pack(anchor="w")
             low = self.cyl_down[name]
             st = ctk.CTkLabel(box, text="● đang ở dưới" if low else "● đang ở trên", font=(F, 10),
                               text_color=ACCENT if low else DIM, height=14)
@@ -316,11 +327,11 @@ class MasterApp(ctk.CTk):
                 unselected_color=BTN_SOFT, unselected_hover_color=BTN_SOFT_HOVER, text_color=ACCENT_TEXT)
             seg.set("▼ Hạ" if low else "▲ Nâng")
             seg.pack(side="right")
+            self.cyl_seg[name] = seg
+        self._btn(p, "🔌  Test chức năng (hạ xi lanh 2 cấp nguồn)", self._func_test).pack(fill="x", pady=2)
 
-        self._section(p, "Kiểm tra (Raspberry Pi)")
-        r = self._pair(p)
-        self._btn(r, "📷  Chụp ảnh", self._capture).grid(row=0, column=0, sticky="ew", padx=(0, 3))
-        self._btn(r, "🔌  Test chức năng", self._func_test).grid(row=0, column=1, sticky="ew", padx=(3, 0))
+        self._section(p, "Kiểm tra ngoại quan (Raspberry Pi)")
+        self._btn(p, "📷  Chụp ảnh", self._capture).pack(fill="x", pady=2)
 
         self._section(p, "Robot")
         r = ctk.CTkFrame(p, fg_color="transparent")
@@ -355,8 +366,9 @@ class MasterApp(ctk.CTk):
                                 text="⏵  Băng tải đang chạy..." if on else "⏵  Giữ để chạy băng tải")
         self.log("Băng tải: CHẠY (đang giữ nút)" if on else "Băng tải: DỪNG (đã thả nút)", "INFO" if on else "OK")
 
-    def _cylinder(self, name, value):
+    def _cylinder(self, name, value, on_done=None):
         down = value.startswith("▼")
+        self.cyl_seg[name].set("▼ Hạ" if down else "▲ Nâng")
         self.log(f"{name}: gửi lệnh {'HẠ' if down else 'NÂNG'} cho PLC...")
         self.cyl_state[name].configure(text="● đang di chuyển...", text_color=AMBER)
 
@@ -365,7 +377,9 @@ class MasterApp(ctk.CTk):
                                            text_color=ACCENT if down else DIM)
             self.cyl_down[name] = down
             self._draw_line()
-            self.log(f"{name}: cảm biến xác nhận đã {'hạ xuống' if down else 'nâng lên'}.", "OK")
+            self.log(f"{name}: cảm biến xác nhận đã {'hạ xuống (S2)' if down else 'nâng lên (S1)'}.", "OK")
+            if on_done:
+                on_done()
         self.after(500, done)
 
     def _capture(self):
@@ -387,16 +401,24 @@ class MasterApp(ctk.CTk):
         self.after(800, reply)
 
     def _func_test(self):
-        self.log("Gửi lệnh TEST CHỨC NĂNG cho Raspberry Pi...")
+        """Test chức năng (theo lưu đồ): PC ghi lệnh → PLC hạ xi lanh 2, 2 đầu kim cấp nguồn cho PCB qua domino →
+        xi lanh 2 ở S2 → PC gửi lệnh kiểm tra chức năng cho Raspberry Pi: camera đọc LED 7 đoạn trên PCB, mạch đúng
+        chức năng thì LED đếm lần lượt 1 → 9. Kết quả về PC (ĐẠT / LỖI 2). Giả lập: lần lượt ĐẠT, LỖI."""
         ok = self._fun_demo % 2 == 0
         self._fun_demo += 1
+        self.log("Test chức năng: PLC hạ xi lanh 2 để cấp nguồn cho PCB.")
 
-        def reply():
-            self._m_fun = "ĐẠT" if ok else "LỖI"
-            self.log("Raspberry Pi: chức năng ĐẠT." if ok else "Raspberry Pi: chức năng LỖI (3V3 = 2.71 V).",
-                     "OK" if ok else "WARN")
-            self._refresh_type()
-        self.after(1200, reply)
+        def ask_pi():
+            self.log("PCB đã có nguồn — gửi lệnh kiểm tra chức năng cho Raspberry Pi (đọc LED 7 đoạn, phải đếm 1 → 9)...")
+
+            def reply():
+                self._m_fun = "ĐẠT" if ok else "LỖI"
+                self.log("Raspberry Pi: chức năng ĐẠT — LED 7 đoạn đếm đủ 1 → 9." if ok else
+                         "Raspberry Pi: chức năng LỖI — LED 7 đoạn dừng ở số 4, không đếm tới 9.",
+                         "OK" if ok else "WARN")
+                self._refresh_type()
+            self.after(1200, reply)
+        self._cylinder("Xi lanh 2", "▼ Hạ", on_done=ask_pi)
 
     def _pcb_type(self):
         """Theo lưu đồ: ngoại quan lỗi → Lỗi 1; ngoại quan đạt → xét chức năng (Đạt / Lỗi 2)."""
@@ -450,7 +472,7 @@ class MasterApp(ctk.CTk):
         info.grid(row=0, column=1, sticky="nsew")
         info.grid_columnconfigure(1, weight=1)
         rows = (("Ngoại quan (camera)", "ĐẠT", "green", "0 lỗi · độ tin cậy 0.97"),
-                ("Chức năng (test jig)", "ĐANG TEST", "amber", "bước 3/5 · đo điện áp 3V3"),
+                ("Chức năng (LED 7 đoạn)", "ĐANG TEST", "amber", "xi lanh 2 cấp nguồn · LED đang đếm 4 / 9"),
                 ("Robot phân loại", "CHỜ", "gray", "sẽ chạy chương trình theo kết quả"))
         for i, (name, val, kind, note) in enumerate(rows):
             ctk.CTkLabel(info, text=name, font=(F, 12), text_color=DIM, anchor="w"
@@ -497,8 +519,8 @@ class MasterApp(ctk.CTk):
 
     def _build_steps_card(self, parent):
         c = Card(parent, "Tiến trình chu kỳ", "🧭", right_text="theo lưu đồ")
-        steps = ("Cấp PCB (động cơ bước)", "Băng tải chạy, chờ CB1", "Xi lanh hạ S2, chụp ảnh",
-                 "Kiểm tra chức năng", "Xi lanh về S1, chạy tới CB3", "Robot gắp & phân loại", "Hoàn tất, cộng thống kê")
+        steps = ("Cấp PCB (động cơ bước)", "Băng tải chạy, chờ CB1", "Xi lanh 1 chặn PCB, chụp ảnh",
+                 "Xi lanh 2 cấp nguồn, đếm LED 1 → 9", "Thu 2 xi lanh, chạy tới CB3", "Robot gắp & phân loại", "Hoàn tất, cộng thống kê")
         current = 3
         for i, s in enumerate(steps):
             done, now = i < current, i == current
@@ -671,7 +693,7 @@ class MasterApp(ctk.CTk):
             vis = "LỖI" if kind == "amber" else "ĐẠT"
             fun = "LỖI" if kind == "red" else ("—" if kind == "amber" else "ĐẠT")
             res = {"green": "ĐẠT", "amber": "LỖI 1", "red": "LỖI 2"}[kind]
-            note = {"green": "", "amber": "thiếu linh kiện R12", "red": "3V3 = 2.71 V"}[kind]
+            note = {"green": "", "amber": "thiếu linh kiện R12", "red": "LED 7 đoạn dừng ở số 4"}[kind]
             t = time.strftime("%H:%M:%S", time.localtime(time.time() - k * 13))
             sample.append((f"#{n:04d}", t, vis, fun, res, f"{12 + (k % 5) * 0.3:.1f} s", note, kind))
         for i, (pid, t, vis, fun, res, cyc, note, kind) in enumerate(sample):
@@ -725,11 +747,37 @@ class MasterApp(ctk.CTk):
             ctk.CTkButton(r, width=96, height=28, corner_radius=8, font=(FB, 11),
                           command=lambda: self.log(f"{btn['text']} {title} (demo)"), **btn).pack(side="right")
 
+        def choice(parent, label, values, value, refresh=None):
+            """Ô chọn (cổng COM, baud...) thẳng cột với khối Robot SCARA; refresh: nút ⟳ quét lại cổng COM."""
+            r = ctk.CTkFrame(parent, fg_color="transparent")
+            r.pack(fill="x", pady=4)
+            ctk.CTkLabel(r, text=label, font=(F, 12), text_color=TEXT).pack(side="left")
+            if refresh:
+                ctk.CTkButton(r, text="⟳", width=30, height=30, corner_radius=8, font=(F, 13), fg_color=BTN_SOFT,
+                              hover_color=BTN_SOFT_HOVER, command=lambda: refresh(m)).pack(side="right")
+            else:
+                ctk.CTkFrame(r, fg_color="transparent", width=30, height=30).pack(side="right")
+            m = ctk.CTkOptionMenu(r, values=values, width=150, height=30, corner_radius=8, fg_color=INPUT,
+                                  button_color=BTN_SOFT, button_hover_color=BTN_SOFT_HOVER, text_color=TEXT,
+                                  font=(F, 12))
+            m.set(value)
+            m.pack(side="right", padx=(0, 4))
+            return m
+
+        def refresh_plc_ports(menu):
+            ports = list_available_ports() or ["(không có cổng)"]
+            menu.configure(values=ports)
+            menu.set(ports[0])
+            self.log(f"PLC: đã quét lại cổng COM: {ports}")
+
         conn = Card(v, "Kết nối thiết bị", "🔌")
         conn.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
-        slave_header(conn.body, "PLC · Modbus TCP", "ONLINE", "green", True)
-        field(conn.body, "Địa chỉ IP", "192.168.0.10")
-        field(conn.body, "Cổng", "502")
+        # PLC nối với PC qua RS422 (bộ chuyển USB–RS422 → 1 cổng COM, KHÁC cổng COM của robot)
+        slave_header(conn.body, "PLC · RS422", "ONLINE", "green", True)
+        ports = list_available_ports() or ["(không có cổng)"]
+        self.plc_port_menu = choice(conn.body, "Cổng COM", ports, ports[0], refresh=refresh_plc_ports)
+        self.plc_baud_menu = choice(conn.body, "Baud rate", ["9600", "19200", "38400", "57600", "115200"], "9600")
+        self.plc_frame_menu = choice(conn.body, "Khung dữ liệu", ["8N1", "8E1", "8O1", "7E1", "7O1"], "8N1")
         slave_header(conn.body, "Raspberry Pi · TCP", "ONLINE", "green", True)
         field(conn.body, "Địa chỉ IP", "192.168.0.20")
         field(conn.body, "Cổng", "5000")
