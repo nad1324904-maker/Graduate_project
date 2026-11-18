@@ -73,7 +73,7 @@
         <mxCell id="l2a" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="PC nhận kết quả Lỗi 2 (chức năng) từ Raspberry, lưu lại" vertex="1">
           <mxGeometry height="70" width="140" x="560" y="1230" as="geometry" />
         </mxCell>
-        <mxCell id="n1" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;fontColor=#666666;" value="PC kiểm tra kết nối với PLC, Raspberry, STM32; đưa xi lanh về S1, robot về home" vertex="1">
+        <mxCell id="n1" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;fontColor=#666666;" value="PC kiểm tra kết nối với PLC, Raspberry, STM32; thu 2 xi lanh, robot về home" vertex="1">
           <mxGeometry height="60" width="200" x="100" y="110" as="geometry" />
         </mxCell>
         <mxCell id="n2" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;fontColor=#666666;" value="Nút Start trên tủ điện (PLC đọc) hoặc nút Start trên phần mềm → PC ghi bit Start vào PLC" vertex="1">
@@ -94,7 +94,7 @@
         <mxCell id="n8" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;fontColor=#666666;" value="PC gửi lệnh kiểm tra chức năng cho Raspberry" vertex="1">
           <mxGeometry height="60" width="200" x="100" y="1100" as="geometry" />
         </mxCell>
-        <mxCell id="n9" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;fontColor=#666666;" value="PC ghi lệnh → PLC thu xi lanh 2 (ngắt nguồn PCB) và xi lanh 1 về S1" vertex="1">
+        <mxCell id="n9" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;fontColor=#666666;" value="PC ghi lệnh → PLC thu xi lanh 2 (ngắt nguồn PCB) và xi lanh 1" vertex="1">
           <mxGeometry height="60" width="200" x="100" y="1370" as="geometry" />
         </mxCell>
         <mxCell id="n10" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;fontColor=#666666;" value="PC ghi lệnh → PLC cho động cơ băng tải chạy" vertex="1">
@@ -118,14 +118,14 @@
         <mxCell id="e2" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=2;" value="Cảm biến 2 phát hiện PCB tới vị trí kiểm tra" vertex="1">
           <mxGeometry height="40" width="200" x="388" y="480" as="geometry" />
         </mxCell>
-        <mxCell id="e3" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=2;" value="Xi lanh 1 ở S2 → PC đọc trạng thái PLC" vertex="1">
-          <mxGeometry height="40" width="200" x="388" y="622" as="geometry" />
+        <mxCell id="e3" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=2;" value="Xi lanh 1 đã hạ (hết timer hành trình) → PC đọc trạng thái PLC" vertex="1">
+          <mxGeometry height="56" width="200" x="388" y="614" as="geometry" />
         </mxCell>
-        <mxCell id="e4" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=2;" value="Xi lanh 2 ở S2 → PC đọc trạng thái PLC" vertex="1">
-          <mxGeometry height="40" width="200" x="388" y="1032" as="geometry" />
+        <mxCell id="e4" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=2;" value="Xi lanh 2 đã hạ (hết timer hành trình) → PC đọc trạng thái PLC" vertex="1">
+          <mxGeometry height="56" width="200" x="388" y="1024" as="geometry" />
         </mxCell>
-        <mxCell id="e5" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=2;" value="Xi lanh 1, 2 ở S1 → PC đọc trạng thái PLC" vertex="1">
-          <mxGeometry height="40" width="200" x="388" y="1442" as="geometry" />
+        <mxCell id="e5" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=2;" value="Xi lanh 1, 2 đã thu (hết timer hành trình) → PC đọc trạng thái PLC" vertex="1">
+          <mxGeometry height="56" width="200" x="388" y="1434" as="geometry" />
         </mxCell>
         <mxCell id="e6" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=2;" value="Cảm biến 3 phát hiện PCB → PC đọc trạng thái PLC" vertex="1">
           <mxGeometry height="40" width="200" x="388" y="1580" as="geometry" />
@@ -133,8 +133,8 @@
         <mxCell id="e7" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=2;" value="Robot xong → PC nhận phản hồi từ STM32" vertex="1">
           <mxGeometry height="34" width="200" x="388" y="2066" as="geometry" />
         </mxCell>
-        <mxCell id="e8" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=2;" value="Xi lanh 1 ở S1 → PC đọc trạng thái PLC" vertex="1">
-          <mxGeometry height="40" width="170" x="812" y="1000" as="geometry" />
+        <mxCell id="e8" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=2;" value="Xi lanh 1 đã thu (hết timer hành trình) → PC đọc trạng thái PLC" vertex="1">
+          <mxGeometry height="56" width="170" x="812" y="992" as="geometry" />
         </mxCell>
         <mxCell id="t_d3" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=1;" value="Đạt" vertex="1">
           <mxGeometry height="30" width="60" x="388" y="915" as="geometry" />
@@ -163,7 +163,7 @@
         <mxCell id="t_no" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=1;" value="Có" vertex="1">
           <mxGeometry height="30" width="60" x="388" y="2210" as="geometry" />
         </mxCell>
-        <mxCell id="legend" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;dashed=1;" value="&lt;b&gt;Chú thích&lt;/b&gt;&lt;br&gt;• S1 / S2: xi lanh đã thu về / đã hạ xuống&lt;br&gt;• Lỗi 1: lỗi ngoại quan; Lỗi 2: lỗi chức năng&lt;br&gt;• &lt;i&gt;Chữ nghiêng&lt;/i&gt;: điều kiện chuyển bước&lt;br&gt;• &lt;font color=&quot;#666666&quot;&gt;Chữ xám&lt;/font&gt;: thiết bị thực hiện bước&lt;br&gt;• PC là master (ra lệnh, đọc trạng thái). PLC thực thi lệnh của PC và tự xử lý tín hiệu cần phản ứng nhanh (cảm biến dừng băng tải, E-Stop). Raspberry, STM32 chỉ phản hồi&lt;br&gt;• Chương trình robot 1/2/3 chạy trên PC; STM32 thực hiện từng lệnh&lt;br&gt;• Mọi bước chờ cảm biến/xi lanh/phản hồi có timeout: quá thời gian → (B) PC báo lỗi, dừng hệ thống, chờ Reset&lt;br&gt;• &lt;font color=&quot;#CC0000&quot;&gt;&lt;b&gt;E-Stop tác động ở BẤT KỲ bước nào&lt;/b&gt;&lt;/font&gt;, ưu tiên cao nhất → xem lưu đồ E-Stop / Reset bên phải&lt;br&gt;• (A), (B): điểm nối với lưu đồ E-Stop / Reset" vertex="1">
+        <mxCell id="legend" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;dashed=1;" value="&lt;b&gt;Chú thích&lt;/b&gt;&lt;br&gt;• Xi lanh không có cảm biến hành trình, luôn chạy hết hành trình: PLC báo đã hạ / đã thu bằng timer (thời gian hành trình đo thực tế + dự phòng)&lt;br&gt;• Lỗi 1: lỗi ngoại quan; Lỗi 2: lỗi chức năng&lt;br&gt;• &lt;i&gt;Chữ nghiêng&lt;/i&gt;: điều kiện chuyển bước&lt;br&gt;• &lt;font color=&quot;#666666&quot;&gt;Chữ xám&lt;/font&gt;: thiết bị thực hiện bước&lt;br&gt;• PC là master (ra lệnh, đọc trạng thái). PLC thực thi lệnh của PC và tự xử lý tín hiệu cần phản ứng nhanh (cảm biến dừng băng tải, E-Stop). Raspberry, STM32 chỉ phản hồi&lt;br&gt;• Chương trình robot 1/2/3 chạy trên PC; STM32 thực hiện từng lệnh&lt;br&gt;• Mọi bước chờ cảm biến/xi lanh/phản hồi có timeout: quá thời gian → (B) PC báo lỗi, dừng hệ thống, chờ Reset&lt;br&gt;• &lt;font color=&quot;#CC0000&quot;&gt;&lt;b&gt;E-Stop tác động ở BẤT KỲ bước nào&lt;/b&gt;&lt;/font&gt;, ưu tiên cao nhất → xem lưu đồ E-Stop / Reset bên phải&lt;br&gt;• (A), (B): điểm nối với lưu đồ E-Stop / Reset" vertex="1">
           <mxGeometry height="290" width="340" x="642" y="20" as="geometry" />
         </mxCell>
         <mxCell id="e_start-a1" edge="1" parent="1" source="start" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="a1">
@@ -362,11 +362,11 @@
         <mxCell id="sa_rej" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="PC báo không thể Reset, hiển thị nguyên nhân" vertex="1">
           <mxGeometry height="60" width="180" x="1520" y="1035" as="geometry" />
         </mxCell>
-        <mxCell id="sa4" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="PLC xoá cờ E-Stop/lỗi, tắt đèn đỏ/còi; cấp lại khí, thu xi lanh 1, 2 về S1" vertex="1">
+        <mxCell id="sa4" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="PLC xoá cờ E-Stop/lỗi, tắt đèn đỏ/còi; cấp lại khí, thu xi lanh 1, 2" vertex="1">
           <mxGeometry height="80" width="240" x="1200" y="1165" as="geometry" />
         </mxCell>
-        <mxCell id="c_sa4" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=2;" value="Xi lanh 1, 2 ở S1 → PC đọc trạng thái PLC" vertex="1">
-          <mxGeometry height="40" width="230" x="1328" y="1248" as="geometry" />
+        <mxCell id="c_sa4" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=2;" value="Xi lanh 1, 2 đã thu (hết timer hành trình) → PC đọc trạng thái PLC" vertex="1">
+          <mxGeometry height="40" width="340" x="1328" y="1248" as="geometry" />
         </mxCell>
         <mxCell id="sa5" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="PC cấp lại nguồn robot, gửi lệnh Reset cho STM32 (mở khoá, xoá lỗi) rồi lệnh đưa robot về home; huỷ kết quả của PCB dở dang" vertex="1">
           <mxGeometry height="80" width="240" x="1200" y="1295" as="geometry" />

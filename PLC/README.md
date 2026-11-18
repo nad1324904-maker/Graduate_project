@@ -85,11 +85,12 @@ Ví dụ:
    đúng cổng COM, PLC đã cấp nguồn.
 2. **Đọc M8000:** PLC đang RUN thì = 1. Nếu đọc ra 0 khi PLC đang RUN thì bảng địa chỉ bit không khớp, cần báo lại.
 3. **Đọc D8000:** mặc định = 200 (thời gian watchdog), dùng để xác nhận bảng địa chỉ thanh ghi D đúng.
-4. **Ngõ vào:** kích từng cảm biến / nút bằng tay (CB1–CB3, cảm biến xi lanh, START / STOP / RESET, E-Stop). Đèn X
-   tương ứng phải sáng. Ghi lại nếu đấu dây khác bảng ở mục 5.
+4. **Ngõ vào:** kích từng cảm biến / nút bằng tay (CB1–CB3, START / STOP / RESET, E-Stop). Đèn X tương ứng phải sáng.
+   Ghi lại nếu đấu dây khác bảng ở mục 5.
 5. **Lệnh M:** thử từng lệnh ở khung 4 (khi ladder đã có phần đọc M, xem mục 5). Quan sát Y và cơ cấu thật:
    - băng tải chạy / dừng;
-   - xi lanh 1, 2 hạ / thu, cảm biến S1 / S2 đổi theo;
+   - xi lanh 1, 2 hạ / thu: xi lanh chạy **hết hành trình**, sau đúng thời gian timer thì bit M204–M207 đổi theo
+     (bấm giờ thật một lần hạ / thu để đặt timer, mục 5);
    - cấp 1 PCB.
 6. **Liên động:**
    - Đang cho băng tải chạy, che CB2 → PLC phải tự dừng băng tải và hạ xi lanh 1.
@@ -105,12 +106,13 @@ Bảng này cũng nằm ở đầu `plc_test_ui.py` (`INPUTS`, `OUTPUTS`, `PC_CM
 
 | X | Tín hiệu | X | Tín hiệu |
 |---|---|---|---|
-| X0 | CB1 · PCB ở đầu băng tải | X6 | Xi lanh 2 · S2 (đã hạ) |
-| X1 | CB2 · PCB tới trạm kiểm tra | X7 | E-Stop (tiếp điểm NC: 1 = bình thường) |
-| X2 | CB3 · PCB tới vị trí gắp | X10 | Nút START trên tủ |
-| X3 | Xi lanh 1 · S1 (đã thu) | X11 | Nút STOP trên tủ |
-| X4 | Xi lanh 1 · S2 (đã hạ) | X12 | Nút RESET trên tủ |
-| X5 | Xi lanh 2 · S1 (đã thu) | | |
+| X0 | CB1 · PCB ở đầu băng tải | X4 | Nút START trên tủ |
+| X1 | CB2 · PCB tới trạm kiểm tra | X5 | Nút STOP trên tủ |
+| X2 | CB3 · PCB tới vị trí gắp | X6 | Nút RESET trên tủ |
+| X3 | E-Stop (tiếp điểm NC: 1 = bình thường) | | |
+
+> 2 xi lanh **không có cảm biến hành trình**: van luôn cho chạy tối đa, xi lanh luôn đi hết hành trình. Vị trí
+> "đã hạ / đã thu" do PLC tính bằng timer (bảng trạng thái bên dưới).
 
 **Ngõ ra Y:**
 
@@ -130,17 +132,31 @@ Bảng này cũng nằm ở đầu `plc_test_ui.py` (`INPUTS`, `OUTPUTS`, `PC_CM
 |---|---|---|
 | M100 | Băng tải chạy | giữ: ON = chạy, OFF = dừng |
 | M101 | Cấp 1 PCB | xung ~0.3 s: ladder bắt **cạnh lên** (LDP / PLS) |
-| M102 | Xi lanh 1 hạ (chặn PCB) | giữ: ON = hạ (S2), OFF = thu (S1) |
+| M102 | Xi lanh 1 hạ (chặn PCB) | giữ: ON = hạ, OFF = thu |
 | M103 | Xi lanh 2 hạ (cấp nguồn PCB, dùng khi **test chức năng**) | giữ: ON = hạ, OFF = thu (ngắt nguồn) |
 | M110 / M111 / M112 | START / STOP / RESET từ phần mềm | xung, tác dụng giống nút trên tủ |
 
-**Trạng thái PLC → PC (ladder ghi, PC chỉ đọc):** M200 E-Stop đang chốt · M201 có lỗi · M202 đang cấp PCB · M203 sẵn sàng.
+**Trạng thái PLC → PC (ladder ghi, PC chỉ đọc):**
+
+| Bit | Ý nghĩa |
+|---|---|
+| M200 / M201 / M202 / M203 | E-Stop đang chốt / có lỗi / đang cấp PCB / sẵn sàng |
+| M204 / M205 | Xi lanh 1 **đã hạ** / **đã thu** (hết timer hành trình) |
+| M206 / M207 | Xi lanh 2 **đã hạ** / **đã thu** (hết timer hành trình) |
+
+**Timer hành trình xi lanh** (thay cho cảm biến S1 / S2):
+- Mỗi lần van xi lanh đổi trạng thái (Y2 / Y3 bật hoặc tắt): xóa ngay cả 2 bit "đã hạ" và "đã thu" của xi lanh đó, rồi
+  chạy timer.
+- Hết timer: bật bit "đã hạ" (nếu van đang bật) hoặc "đã thu" (nếu van đang tắt).
+- Giá trị timer = thời gian xi lanh chạy hết hành trình **đo thực tế** + dự phòng (vd đo 0.6 s thì đặt 1.0 s). Dùng
+  timer 100 ms: K10 = 1.0 s.
+- Lúc PLC khởi động: coi như đang ở trạng thái của van (chạy timer một lần).
 
 **Yêu cầu với ladder:**
 - **Không** để PC điều khiển thẳng Y. Ladder đọc M100–M112 rồi mới quyết định Y, để liên động luôn nằm ở PLC:
   - E-Stop chặn mọi lệnh;
   - CB2 dừng băng tải và hạ xi lanh 1;
-  - không hạ xi lanh 2 khi xi lanh 1 chưa ở S2.
+  - không hạ xi lanh 2 khi xi lanh 1 chưa hạ xong (M204).
 - E-Stop có tự giữ (M200). Chỉ RESET (nút tủ hoặc M112) khi E-Stop đã nhả mới được xóa.
 - Lỗi cần PC biết thì ladder ghi vào M201. PC đọc trạng thái mỗi chu kỳ.
 

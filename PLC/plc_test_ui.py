@@ -28,10 +28,8 @@ import serial.tools.list_ports
 # ============================================================
 INPUTS = {                                   # X đánh số BÁT PHÂN (X0..X7, X10..X17)
     "X0": "CB1 · PCB ở đầu băng tải", "X1": "CB2 · PCB tới trạm kiểm tra", "X2": "CB3 · PCB tới vị trí gắp",
-    "X3": "Xi lanh 1 · S1 (đã thu)", "X4": "Xi lanh 1 · S2 (đã hạ)",
-    "X5": "Xi lanh 2 · S1 (đã thu)", "X6": "Xi lanh 2 · S2 (đã hạ)",
-    "X7": "E-Stop (NC: 1 = bình thường)", "X10": "Nút START (tủ)", "X11": "Nút STOP (tủ)", "X12": "Nút RESET (tủ)",
-}
+    "X3": "E-Stop (NC: 1 = bình thường)", "X4": "Nút START (tủ)", "X5": "Nút STOP (tủ)", "X6": "Nút RESET (tủ)",
+}   # 2 xi lanh KHÔNG có cảm biến hành trình (luôn chạy hết hành trình) — "đã hạ / đã thu" là bit M204..M207 do timer
 OUTPUTS = {
     "Y0": "Động cơ bước cấp PCB (xung)", "Y1": "Động cơ băng tải", "Y2": "Van xi lanh 1 (chặn PCB)",
     "Y3": "Van xi lanh 2 (cấp nguồn PCB)", "Y4": "Đèn xanh", "Y5": "Đèn vàng", "Y6": "Đèn đỏ", "Y7": "Còi",
@@ -47,7 +45,10 @@ PC_CMDS = [
     ("M112", "RESET", "xung"),
 ]
 # Trạng thái PLC -> PC (ladder ghi, PC chỉ đọc)
-PLC_STATUS = {"M200": "E-Stop đang chốt", "M201": "Có lỗi", "M202": "Đang cấp PCB", "M203": "Sẵn sàng"}
+PLC_STATUS = {"M200": "E-Stop đang chốt", "M201": "Có lỗi", "M202": "Đang cấp PCB", "M203": "Sẵn sàng",
+              # xi lanh không có cảm biến: van đổi trạng thái -> timer thời gian hành trình -> hết timer thì bật bit
+              "M204": "Xi lanh 1 đã hạ (hết timer)", "M205": "Xi lanh 1 đã thu (hết timer)",
+              "M206": "Xi lanh 2 đã hạ (hết timer)", "M207": "Xi lanh 2 đã thu (hết timer)"}
 
 PULSE_S = 0.3          # độ dài xung cho lệnh kiểu "xung"
 POLL_S = 0.3           # chu kỳ đọc giám sát X / Y / M
@@ -581,7 +582,7 @@ class PlcTestApp(ctk.CTk):
         m.update({f"M{200 + i}": v for i, v in enumerate(data["M200"])})
         for name, lamp in self.lamps.items():
             if name in m:
-                lamp.set(m[name], RED if name in ("M200", "M201") else GREEN)
+                lamp.set(m[name], RED if name in ("M200", "M201") else (ACCENT if name >= "M204" else GREEN))
         for name, (seg, kind) in self.cmd_state.items():
             if kind == "giu" and name in m:
                 seg.set("ON" if m[name] else "OFF")
@@ -614,17 +615,20 @@ class PlcTestApp(ctk.CTk):
                 btn.pack(side="right")
                 self.cmd_btns.append(btn)
         ctk.CTkLabel(b, text="Ladder phải đọc các bit M này (bit 'xung' bắt cạnh lên bằng PLS/LDP) rồi tự điều khiển Y, "
-                            "kèm liên động: E-Stop chặn mọi lệnh, CB2 dừng băng tải + hạ xi lanh 1. Xem README.md.",
+                            "kèm liên động: E-Stop chặn mọi lệnh, CB2 dừng băng tải + hạ xi lanh 1. Xi lanh không có "
+                            "cảm biến: PLC báo 'đã hạ / đã thu' bằng timer (M204–M207). Xem README.md.",
                      font=(F, 10), text_color=DISABLED, wraplength=380, justify="left", anchor="w").pack(fill="x", pady=(8, 0))
         box = ctk.CTkFrame(b, fg_color=INPUT, corner_radius=10)
         box.pack(fill="x", pady=(10, 0))
         ctk.CTkLabel(box, text="Trạng thái PLC báo về (ladder ghi, PC chỉ đọc)", font=(FB, 11), text_color=DIM
                      ).pack(anchor="w", padx=8, pady=(6, 2))
-        for name, desc in PLC_STATUS.items():
-            lamp = Lamp(box, name, desc)
-            lamp.pack(fill="x", padx=8)
+        grid = ctk.CTkFrame(box, fg_color="transparent")          # 2 cột: M200–M203 | M204–M207 (xi lanh)
+        grid.pack(fill="x", padx=8, pady=(0, 6))
+        grid.grid_columnconfigure((0, 1), weight=1, uniform="st")
+        for k, (name, desc) in enumerate(PLC_STATUS.items()):
+            lamp = Lamp(grid, name, desc)
+            lamp.grid(row=k % 4, column=k // 4, sticky="w")
             self.lamps[name] = lamp
-        ctk.CTkFrame(box, fg_color="transparent", height=4).pack()
         return c
 
     def _cmd_hold(self, name, on):

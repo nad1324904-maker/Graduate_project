@@ -103,7 +103,9 @@ class MasterApp(ctk.CTk):
             pass
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
-        self.cyl_down = {"Xi lanh 1": True, "Xi lanh 2": True}     # True = đã hạ (S2), False = đã thu (S1)
+        # Xi lanh KHÔNG có cảm biến hành trình, luôn chạy hết hành trình: "đã hạ / đã thu" do PLC tính bằng timer
+        # (thời gian hành trình) và báo qua bit trạng thái. True = đã hạ, False = đã thu.
+        self.cyl_down = {"Xi lanh 1": True, "Xi lanh 2": True}
 
         self._build_header()
         self.content = ctk.CTkFrame(self, fg_color="transparent")
@@ -316,16 +318,16 @@ class MasterApp(ctk.CTk):
             box.pack(side="left")
             ctk.CTkLabel(box, text=f"{name} · {role}", font=(FB, 12), text_color=TEXT, height=16).pack(anchor="w")
             low = self.cyl_down[name]
-            st = ctk.CTkLabel(box, text="● đang ở dưới" if low else "● đang ở trên", font=(F, 10),
+            st = ctk.CTkLabel(box, text="● đã hạ" if low else "● đã thu", font=(F, 10),
                               text_color=ACCENT if low else DIM, height=14)
             st.pack(anchor="w")
             self.cyl_state[name] = st
             seg = ctk.CTkSegmentedButton(
-                r, values=["▲ Nâng", "▼ Hạ"], width=140, height=30, font=(FB, 11),
+                r, values=["▲ Thu", "▼ Hạ"], width=140, height=30, font=(FB, 11),
                 command=lambda v, n=name: self._cylinder(n, v),
                 fg_color=BTN_SOFT, selected_color=ACCENT_SOFT, selected_hover_color="#bfdbfe",
                 unselected_color=BTN_SOFT, unselected_hover_color=BTN_SOFT_HOVER, text_color=ACCENT_TEXT)
-            seg.set("▼ Hạ" if low else "▲ Nâng")
+            seg.set("▼ Hạ" if low else "▲ Thu")
             seg.pack(side="right")
             self.cyl_seg[name] = seg
         self._btn(p, "🔌  Test chức năng (hạ xi lanh 2 cấp nguồn)", self._func_test).pack(fill="x", pady=2)
@@ -367,17 +369,19 @@ class MasterApp(ctk.CTk):
         self.log("Băng tải: CHẠY (đang giữ nút)" if on else "Băng tải: DỪNG (đã thả nút)", "INFO" if on else "OK")
 
     def _cylinder(self, name, value, on_done=None):
+        """Xi lanh không có cảm biến hành trình: PLC đổi van rồi đếm timer thời gian hành trình; hết timer thì bật bit
+        'đã hạ' / 'đã thu' cho PC đọc (giả lập: 0.5 s)."""
         down = value.startswith("▼")
-        self.cyl_seg[name].set("▼ Hạ" if down else "▲ Nâng")
-        self.log(f"{name}: gửi lệnh {'HẠ' if down else 'NÂNG'} cho PLC...")
-        self.cyl_state[name].configure(text="● đang di chuyển...", text_color=AMBER)
+        self.cyl_seg[name].set("▼ Hạ" if down else "▲ Thu")
+        self.log(f"{name}: gửi lệnh {'HẠ' if down else 'THU'} cho PLC...")
+        self.cyl_state[name].configure(text="● đang chạy hết hành trình...", text_color=AMBER)
 
         def done():
-            self.cyl_state[name].configure(text="● đang ở dưới" if down else "● đang ở trên",
+            self.cyl_state[name].configure(text="● đã hạ" if down else "● đã thu",
                                            text_color=ACCENT if down else DIM)
             self.cyl_down[name] = down
             self._draw_line()
-            self.log(f"{name}: cảm biến xác nhận đã {'hạ xuống (S2)' if down else 'nâng lên (S1)'}.", "OK")
+            self.log(f"{name}: PLC báo đã {'hạ' if down else 'thu'} xong (hết timer hành trình).", "OK")
             if on_done:
                 on_done()
         self.after(500, done)
@@ -402,7 +406,7 @@ class MasterApp(ctk.CTk):
 
     def _func_test(self):
         """Test chức năng (theo lưu đồ): PC ghi lệnh → PLC hạ xi lanh 2, 2 đầu kim cấp nguồn cho PCB qua domino →
-        xi lanh 2 ở S2 → PC gửi lệnh kiểm tra chức năng cho Raspberry Pi: camera đọc LED 7 đoạn trên PCB, mạch đúng
+        PLC báo xi lanh 2 đã hạ (hết timer hành trình) → PC gửi lệnh kiểm tra chức năng cho Raspberry Pi: camera đọc LED 7 đoạn trên PCB, mạch đúng
         chức năng thì LED đếm lần lượt 1 → 9. Kết quả về PC (ĐẠT / LỖI 2). Giả lập: lần lượt ĐẠT, LỖI."""
         ok = self._fun_demo % 2 == 0
         self._fun_demo += 1
@@ -536,13 +540,13 @@ class MasterApp(ctk.CTk):
 
     # ---------------- vẽ ----------------
     def _draw_cylinder(self, cv, xc, body_top, tip_y, lowered, label, label_anchor, label_x, probes):
-        """1 xi lanh nhìn từ bên cạnh: thân + ty. lowered = đã hạ (S2) / đã thu (S1).
+        """1 xi lanh nhìn từ bên cạnh: thân + ty. lowered = đã hạ / đã thu (hết hành trình, không có cảm biến).
         probes=True: đầu ty mang 2 đầu kim cấp nguồn; False: đầu ty là thanh chặn PCB."""
         body_bot = body_top + 28
         active = ACCENT if lowered else "#94a3b8"
         cv.create_text(label_x, body_top - 8, anchor=label_anchor, font=(FB, 9),
-                       text=f"{label}  {'S2 ▼' if lowered else 'S1 ▲'}", fill=ACCENT_TEXT if lowered else DIM)
-        # ty (đầu ty hạ xuống tip_y khi lowered, thu ngắn khi S1)
+                       text=f"{label}  {'HẠ ▼' if lowered else 'THU ▲'}", fill=ACCENT_TEXT if lowered else DIM)
+        # ty (đầu ty hạ xuống tip_y khi lowered, thu ngắn khi đã thu)
         rod_end = (tip_y - (8 if probes else 0)) if lowered else body_bot + 12
         cv.create_rectangle(xc - 3, body_bot, xc + 3, rod_end, fill="#94a3b8", outline="#64748b")
         if probes:
@@ -788,7 +792,7 @@ class MasterApp(ctk.CTk):
 
         to = Card(v, "Thời gian chờ (timeout)", "⏱")
         to.grid(row=0, column=1, sticky="nsew", padx=6)
-        for label, val in (("Chờ cảm biến CB1", "10"), ("Chờ xi lanh S1 / S2", "3"), ("Chờ kết quả camera", "5"),
+        for label, val in (("Chờ cảm biến CB1", "10"), ("Chờ xi lanh xong hành trình", "3"), ("Chờ kết quả camera", "5"),
                            ("Chờ test chức năng", "20"), ("Chờ cảm biến CB3", "10"), ("Chờ robot phân loại", "30")):
             field(to.body, label, val, "s")
         ctk.CTkLabel(to.body, text="Quá thời gian → hệ thống báo lỗi, dừng, chờ Reset (nhánh B của lưu đồ).",
