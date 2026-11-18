@@ -3,20 +3,24 @@ master_app.py — App MASTER (PC) của hệ thống kiểm tra & phân loại P
 
 Tab:  Vận hành (AUTO / MANUAL, sơ đồ dây chuyền, PCB hiện tại, thống kê) | Robot (nguyên giao diện điều khiển robot,
       ui/robot_panel.py) | Lịch sử | Cài đặt.
-Hiện trạng: tab Robot đã chạy THẬT (kết nối STM32 ở tab Cài đặt → Kết nối thiết bị → Robot SCARA). Các phần PLC / Raspberry Pi
-mới có layout + style: số liệu là dữ liệu mẫu, các nút chỉ ghi Log (hoặc giả lập phản hồi).
+Hiện trạng:
+  - Robot: THẬT (kết nối STM32 ở tab Cài đặt → Kết nối thiết bị → Robot SCARA).
+  - Raspberry Pi: THẬT (TCP, comm/pi_link.py; kết nối ở tab Cài đặt; MANUAL: Chụp ảnh / Kiểm tra PCB / Test chức năng).
+  - PLC, chế độ AUTO, thống kê, lịch sử: dữ liệu mẫu, các nút chỉ ghi Log (hoặc giả lập phản hồi).
 
 Một app duy nhất mở cổng COM của STM32 → phần tự động của master gọi thẳng self.robot.backend / self.robot.executor.
 """
 
+import io
 import os
 import time
 import tkinter as tk
 from datetime import datetime
 
 import customtkinter as ctk
-from PIL import Image
+from PIL import Image, ImageTk
 
+from comm.pi_link import DEFAULT_HOST as PI_HOST, DEFAULT_PORT as PI_PORT, RESULTS as PI_RESULTS, PiClient
 from comm.uart_backend import list_available_ports
 from core.paths import ROOT_DIR
 from ui.robot_panel import ScaraRobotPanel   # import cả ui/theme.py: màu mặc định widget dùng chung với tab Robot
@@ -38,7 +42,8 @@ PILL = {  # (nền, chữ) cho nhãn trạng thái dạng viên thuốc
     "green": (GREEN_SOFT, GREEN_TEXT), "amber": (AMBER_SOFT, AMBER_TEXT),
     "red": (RED_SOFT, RED_TEXT), "blue": (ACCENT_SOFT, ACCENT_TEXT), "gray": (INPUT, DIM),
 }
-LOG_COLOR = {"INFO": ACCENT, "OK": GREEN, "WARN": AMBER, "ERROR": RED}
+LOG_COLOR = {"INFO": ACCENT, "OK": GREEN, "WARN": AMBER, "ERROR": RED, "TX": DIM, "RX": "#7c3aed"}
+PI_RESULT = {"PASS": ("ĐẠT", "green"), "FAIL1": ("LỖI 1", "amber"), "FAIL2": ("LỖI 2", "red")}   # kết quả Pi -> loại PCB
 
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
@@ -106,6 +111,9 @@ class MasterApp(ctk.CTk):
         # Xi lanh KHÔNG có cảm biến hành trình, luôn chạy hết hành trình: "đã hạ / đã thu" do PLC tính bằng timer
         # (thời gian hành trình) và báo qua bit trạng thái. True = đã hạ, False = đã thu.
         self.cyl_down = {"Xi lanh 1": True, "Xi lanh 2": True}
+        # Raspberry Pi: kết nối THẬT (TCP, giao thức JSON có độ dài — comm/pi_link.py)
+        self.pi = PiClient(log=lambda lvl, msg: self.log(f"Pi: {msg}", lvl))
+        self.pi.set_state_callback(self._on_pi_state)
 
         self._build_header()
         self.content = ctk.CTkFrame(self, fg_color="transparent")
@@ -121,12 +129,9 @@ class MasterApp(ctk.CTk):
         }
         self._show_tab("operate")
         self._tick_clock()
+        self._poll_devices()
 
-        for lvl, msg in (("INFO", "Khởi động app master (phần PLC / Raspberry Pi: dữ liệu mẫu)."),
-                         ("OK", "PLC: kết nối RS422 (cổng COM, 9600 baud)."),
-                         ("OK", "Raspberry Pi: kết nối TCP 192.168.0.20:5000."),
-                         ("INFO", "PCB #0128: ngoại quan ĐẠT, đang kiểm tra chức năng...")):
-            self.log(msg, lvl)
+        self.log("Khởi động app master. Robot và Raspberry Pi: kết nối thật ở tab Cài đặt; PLC: dữ liệu mẫu.")
 
     # ---------------- HEADER ----------------
     def _build_header(self):
@@ -163,9 +168,12 @@ class MasterApp(ctk.CTk):
         ctk.CTkLabel(dev, text="🔌 Thiết bị", font=(F, 11), text_color=DIM).pack(anchor="w")
         row = ctk.CTkFrame(dev, fg_color="transparent")
         row.pack(anchor="w")
-        for name, kind in (("PLC", "green"), ("Pi", "green"), ("Robot", "blue"), ("Cam", "green")):
-            ctk.CTkLabel(row, text="●", font=(F, 12), text_color=PILL[kind][1]).pack(side="left")
+        self.dev_dots = {}                        # Pi, Robot: theo kết nối thật (_poll_devices); PLC: mẫu
+        for name, kind in (("PLC", "green"), ("Pi", "gray"), ("Robot", "gray")):
+            dot = ctk.CTkLabel(row, text="●", font=(F, 12), text_color=PILL[kind][1] if kind != "gray" else DISABLED)
+            dot.pack(side="left")
             ctk.CTkLabel(row, text=name, font=(FB, 12), text_color=TEXT).pack(side="left", padx=(3, 10))
+            self.dev_dots[name] = dot
 
         bar = ctk.CTkFrame(right, fg_color=BTN_SOFT, corner_radius=10)
         bar.pack(side="right", padx=(16, 0))
@@ -190,6 +198,13 @@ class MasterApp(ctk.CTk):
     def _tick_clock(self):
         self.clock.value.configure(text=datetime.now().strftime("%H:%M:%S"))
         self.after(1000, self._tick_clock)
+
+    def _poll_devices(self):
+        """Mỗi 50 ms: nhận kết quả từ Raspberry Pi (luồng nền) + cập nhật đèn Pi / Robot trên header."""
+        self.pi.poll()
+        self.dev_dots["Pi"].configure(text_color=GREEN if self.pi.connected else DISABLED)
+        self.dev_dots["Robot"].configure(text_color=GREEN if self.robot._connected() else DISABLED)
+        self.after(50, self._poll_devices)
 
     # ============================================================
     # TAB VẬN HÀNH
@@ -242,7 +257,7 @@ class MasterApp(ctk.CTk):
         self.mode_seg.pack(fill="x", pady=(0, 6))
 
         # kết quả kiểm tra trong chế độ MANUAL (để biết robot phải chạy chương trình nào)
-        self._m_vis = self._m_fun = None
+        self._m_result = None                     # "ĐẠT" / "LỖI 1" / "LỖI 2" theo kết quả inspect của Pi
         self._cam_demo = 0
         self._fun_demo = 0
         self.auto_panel = self._build_auto_panel(b)
@@ -332,8 +347,10 @@ class MasterApp(ctk.CTk):
             self.cyl_seg[name] = seg
         self._btn(p, "🔌  Test chức năng (hạ xi lanh 2 cấp nguồn)", self._func_test).pack(fill="x", pady=2)
 
-        self._section(p, "Kiểm tra ngoại quan (Raspberry Pi)")
-        self._btn(p, "📷  Chụp ảnh", self._capture).pack(fill="x", pady=2)
+        self._section(p, "Raspberry Pi (xử lý ảnh)")
+        r = self._pair(p)
+        self._btn(r, "📷  Chụp ảnh", self._capture).grid(row=0, column=0, sticky="ew", padx=(0, 3))
+        self._btn(r, "🔍  Kiểm tra PCB", self._inspect).grid(row=0, column=1, sticky="ew", padx=(3, 0))
 
         self._section(p, "Robot")
         r = ctk.CTkFrame(p, fg_color="transparent")
@@ -386,109 +403,181 @@ class MasterApp(ctk.CTk):
                 on_done()
         self.after(500, done)
 
-    def _capture(self):
-        """Chỉ GỬI lệnh chụp; Raspberry Pi tự xử lý ảnh rồi gửi kết quả về (ở đây giả lập, lần lượt 3 kiểu)."""
-        self.log("Gửi lệnh CHỤP cho Raspberry Pi...")
-        k = self._cam_demo % 3
-        self._cam_demo += 1
+    # ---------------- Raspberry Pi (THẬT, qua comm/pi_link.py) ----------------
+    def _pi_ready(self, action):
+        if not self.pi.connected:
+            self.log(f"{action}: chưa kết nối Raspberry Pi (tab Cài đặt → Kết nối thiết bị → Raspberry Pi).", "WARN")
+            return False
+        if self.pi.busy():
+            self.log(f"{action}: Raspberry Pi đang xử lý lệnh trước — đợi xong rồi bấm lại.", "WARN")
+            return False
+        return True
 
-        def reply():
-            if k == 0:
-                self.log("Raspberry Pi: không phát hiện PCB trong ảnh — kiểm tra PCB đã tới vị trí camera chưa.", "WARN")
+    def _capture(self):
+        """Lệnh capture: Pi chụp và gửi ảnh JPEG về, hiện ở thẻ PCB hiện tại."""
+        if not self._pi_ready("Chụp ảnh"):
+            return
+        self._set_pcb_row("img", "ĐANG CHỤP", "blue")
+
+        def done(reply, img, rtt, err):
+            if err or not reply or reply.get("status") != "ok" or not img:
+                why = err or (reply or {}).get("message", "không có ảnh")
+                self._set_pcb_row("img", "LỖI", "red", f"capture thất bại: {why}")
+                self.log(f"Pi: chụp ảnh thất bại — {why}", "ERROR")
                 return
-            self._m_vis = "ĐẠT" if k == 1 else "LỖI"
-            if k == 1:
-                self.log("Raspberry Pi: ngoại quan ĐẠT.", "OK")
-            else:
-                self.log("Raspberry Pi: ngoại quan LỖI (thiếu linh kiện R12).", "WARN")
+            pil = self._show_camera_image(img)
+            if pil:
+                self._set_pcb_row("img", "OK", "green", f"{pil.width}×{pil.height} · {len(img) / 1024:.0f} KB · "
+                                                        f"{rtt:.0f} ms")
+                self.log(f"Pi: nhận ảnh {pil.width}×{pil.height} ({len(img) / 1024:.0f} KB) sau {rtt:.0f} ms.", "OK")
+        self.pi.request("capture", done)
+
+    def _inspect(self, on_done=None):
+        """Lệnh inspect: Pi kiểm tra PCB và trả PASS / FAIL1 / FAIL2 (+ process_time_ms, có thể kèm ảnh)."""
+        if not self._pi_ready("Kiểm tra PCB"):
+            return
+        self._set_pcb_row("pi", "ĐANG KIỂM TRA", "blue", "Pi đang xử lý ảnh...")
+        self.conclusion.configure(text="— đang kiểm tra —", text_color=DIM)
+
+        def done(reply, img, rtt, err):
+            code = (reply or {}).get("result")
+            if err or reply.get("status") != "ok" or code not in PI_RESULTS:
+                why = err or reply.get("message") or f"phản hồi không hợp lệ (result={code!r})"
+                self._set_pcb_row("pi", "LỖI", "red", str(why))
+                self.conclusion.configure(text="— lỗi kiểm tra —", text_color=RED)
+                self.log(f"Pi: kiểm tra PCB thất bại — {why}", "ERROR")
+                return
+            text, kind = PI_RESULT[code]
+            pt = reply.get("process_time_ms")
+            extra = {k: v for k, v in reply.items()
+                     if k not in ("id", "cmd", "status", "result", "process_time_ms", "image_size")}
+            note = (f"{code} · Pi xử lý {pt:.0f} ms" if isinstance(pt, (int, float)) else code) + f" · tổng {rtt:.0f} ms"
+            if extra:
+                note += " · " + ", ".join(f"{k}={v}" for k, v in extra.items())
+            self._set_pcb_row("pi", text, kind, note)
+            if img:
+                pil = self._show_camera_image(img)
+                if pil:
+                    self._set_pcb_row("img", "OK", "green", f"ảnh Pi dùng để kết luận · {pil.width}×{pil.height}")
+            self._m_result = text
             self._refresh_type()
-        self.after(800, reply)
+            self.log(f"Pi: kết quả kiểm tra {code} → PCB {text} ({note}).", "OK" if code == "PASS" else "WARN")
+            if on_done:
+                on_done(code)
+        self.pi.request("inspect", done)
 
     def _func_test(self):
         """Test chức năng (theo lưu đồ): PC ghi lệnh → PLC hạ xi lanh 2, 2 đầu kim cấp nguồn cho PCB qua domino →
-        PLC báo xi lanh 2 đã hạ (hết timer hành trình) → PC gửi lệnh kiểm tra chức năng cho Raspberry Pi: camera đọc LED 7 đoạn trên PCB, mạch đúng
-        chức năng thì LED đếm lần lượt 1 → 9. Kết quả về PC (ĐẠT / LỖI 2). Giả lập: lần lượt ĐẠT, LỖI."""
-        ok = self._fun_demo % 2 == 0
-        self._fun_demo += 1
+        PLC báo xi lanh 2 đã hạ (hết timer hành trình) → PC gửi inspect cho Raspberry Pi (camera xem LED 7 đoạn
+        đếm 1 → 9 + kiểm tra linh kiện) → PASS / FAIL1 / FAIL2. Phần PLC vẫn là giả lập; phần Pi là THẬT."""
+        if not self._pi_ready("Test chức năng"):
+            return
         self.log("Test chức năng: PLC hạ xi lanh 2 để cấp nguồn cho PCB.")
+        self._cylinder("Xi lanh 2", "▼ Hạ", on_done=self._inspect)
 
-        def ask_pi():
-            self.log("PCB đã có nguồn — gửi lệnh kiểm tra chức năng cho Raspberry Pi (đọc LED 7 đoạn, phải đếm 1 → 9)...")
-
-            def reply():
-                self._m_fun = "ĐẠT" if ok else "LỖI"
-                self.log("Raspberry Pi: chức năng ĐẠT — LED 7 đoạn đếm đủ 1 → 9." if ok else
-                         "Raspberry Pi: chức năng LỖI — LED 7 đoạn dừng ở số 4, không đếm tới 9.",
-                         "OK" if ok else "WARN")
-                self._refresh_type()
-            self.after(1200, reply)
-        self._cylinder("Xi lanh 2", "▼ Hạ", on_done=ask_pi)
+    def _on_pi_state(self, connected, message):
+        """PiClient báo đổi trạng thái kết nối (Connect / Disconnect / mất kết nối)."""
+        self.log(f"Pi: {message}", "OK" if connected else ("INFO" if "Đã ngắt" in message else "ERROR"))
+        self._refresh_pi_ui()
 
     def _pcb_type(self):
-        """Theo lưu đồ: ngoại quan lỗi → Lỗi 1; ngoại quan đạt → xét chức năng (Đạt / Lỗi 2)."""
-        if self._m_vis is None:
-            return None
-        if self._m_vis == "LỖI":
-            return "LỖI 1"
-        if self._m_fun is None:
-            return None
-        return "ĐẠT" if self._m_fun == "ĐẠT" else "LỖI 2"
+        return self._m_result
 
     def _refresh_type(self):
         t = self._pcb_type()
-        if t is None:
-            text, kind = ("CHỜ TEST CHỨC NĂNG", "blue") if self._m_vis == "ĐẠT" else ("CHƯA XÁC ĐỊNH", "gray")
-        else:
-            text, kind = t, {"ĐẠT": "green", "LỖI 1": "amber", "LỖI 2": "red"}[t]
+        text, kind = ("CHƯA XÁC ĐỊNH", "gray") if t is None else (t, {"ĐẠT": "green", "LỖI 1": "amber", "LỖI 2": "red"}[t])
         bg, fg = PILL[kind]
         self.type_pill.configure(text=text, fg_color=bg, text_color=fg)
+        if t is None:
+            self.conclusion.configure(text="— chưa kiểm tra —", text_color=DIM)
+            self._set_pcb_row("robot", "CHỜ", "gray", "sẽ chạy chương trình theo kết quả")
+        else:
+            self.conclusion.configure(text=f"PCB {t}", text_color={"green": GREEN, "amber": AMBER, "red": RED}[kind])
+            prog = {"ĐẠT": "Chương trình 1", "LỖI 2": "Chương trình 2", "LỖI 1": "Chương trình 3"}[t]
+            self._set_pcb_row("robot", "SẴN SÀNG", "blue", f"sẽ chạy {prog}")
 
     def _clear_manual_result(self):
-        self._m_vis = self._m_fun = None
+        self._m_result = None
+        self._set_pcb_row("pi", "CHƯA CÓ", "gray", "chưa có kết quả inspect")
         self._refresh_type()
         self.log("Đã xóa kết quả kiểm tra của PCB hiện tại.")
 
     def _robot_sort(self):
         t = self._pcb_type()
         if t is None:
-            why = "chưa chụp ảnh" if self._m_vis is None else "chưa test chức năng"
-            self.log(f"Chưa xác định được loại PCB ({why}) — robot KHÔNG chạy.", "WARN")
+            self.log("Chưa xác định được loại PCB (chưa Kiểm tra PCB / Test chức năng) — robot KHÔNG chạy.", "WARN")
             return
         prog = {"ĐẠT": "Chương trình 1", "LỖI 2": "Chương trình 2", "LỖI 1": "Chương trình 3"}[t]
         self.log(f"Gửi robot chạy {prog} (PCB {t})...")
 
         def done():
-            self.log(f"Robot: {prog} xong.", "OK")
-            self._m_vis = self._m_fun = None
+            self.log(f"Robot: {prog} xong (demo).", "OK")
+            self._m_result = None
             self._refresh_type()
         self.after(1500, done)
 
     def _build_current_pcb_card(self, parent):
-        c = Card(parent, "PCB hiện tại", "🔍", right_text="#0128 · vào lúc 14:32:05")
+        c = Card(parent, "PCB hiện tại", "🔍")
         b = c.body
         b.grid_columnconfigure(0, weight=0)
         b.grid_columnconfigure(1, weight=1)
-        img = tk.Canvas(b, bg="#e2e8f0", highlightthickness=0, width=260, height=170)
-        img.grid(row=0, column=0, sticky="nsw", padx=(0, 14))
-        img.bind("<Configure>", lambda e: self._draw_camera_placeholder(img))
+        self.cam_canvas = tk.Canvas(b, bg="#e2e8f0", highlightthickness=0, width=260, height=170)
+        self.cam_canvas.grid(row=0, column=0, sticky="nsw", padx=(0, 14))
+        self.cam_canvas.bind("<Configure>", lambda e: self._draw_camera())
+        self._cam_jpeg = None                     # ảnh JPEG gần nhất Pi gửi về
+        self._cam_photo = None                    # giữ tham chiếu để Tk không xóa ảnh
 
         info = ctk.CTkFrame(b, fg_color="transparent")
         info.grid(row=0, column=1, sticky="nsew")
         info.grid_columnconfigure(1, weight=1)
-        rows = (("Ngoại quan (camera)", "ĐẠT", "green", "0 lỗi · độ tin cậy 0.97"),
-                ("Chức năng (LED 7 đoạn)", "ĐANG TEST", "amber", "xi lanh 2 cấp nguồn · LED đang đếm 4 / 9"),
-                ("Robot phân loại", "CHỜ", "gray", "sẽ chạy chương trình theo kết quả"))
-        for i, (name, val, kind, note) in enumerate(rows):
+        self.pcb_rows = {}
+        rows = (("pi", "Kiểm tra (Raspberry Pi)", "CHƯA CÓ", "gray", "chưa có kết quả inspect"),
+                ("img", "Ảnh camera", "CHƯA CÓ", "gray", "bấm Chụp ảnh hoặc kiểm tra PCB"),
+                ("robot", "Robot phân loại", "CHỜ", "gray", "sẽ chạy chương trình theo kết quả"))
+        for i, (key, name, val, kind, note) in enumerate(rows):
             ctk.CTkLabel(info, text=name, font=(F, 12), text_color=DIM, anchor="w"
                          ).grid(row=i * 2, column=0, sticky="w", pady=(4 if i else 0, 0))
-            pill(info, val, kind, width=96).grid(row=i * 2, column=1, sticky="e", pady=(4 if i else 0, 0))
-            ctk.CTkLabel(info, text=note, font=(F, 10), text_color=DISABLED, anchor="w"
-                         ).grid(row=i * 2 + 1, column=0, columnspan=2, sticky="w")
+            p = pill(info, val, kind, width=96)
+            p.grid(row=i * 2, column=1, sticky="e", pady=(4 if i else 0, 0))
+            n = ctk.CTkLabel(info, text=note, font=(F, 10), text_color=DISABLED, anchor="w")
+            n.grid(row=i * 2 + 1, column=0, columnspan=2, sticky="w")
+            self.pcb_rows[key] = (p, n)
         res = ctk.CTkFrame(info, fg_color=INPUT, corner_radius=10)
         res.grid(row=6, column=0, columnspan=2, sticky="ew", pady=(10, 0))
         ctk.CTkLabel(res, text="Kết luận", font=(F, 12), text_color=DIM).pack(side="left", padx=12, pady=8)
-        ctk.CTkLabel(res, text="— chờ test chức năng —", font=(FB, 14), text_color=DIM).pack(side="right", padx=12)
+        self.conclusion = ctk.CTkLabel(res, text="— chưa kiểm tra —", font=(FB, 14), text_color=DIM)
+        self.conclusion.pack(side="right", padx=12)
         return c
+
+    def _set_pcb_row(self, key, text, kind, note=None):
+        p, n = self.pcb_rows[key]
+        bg, fg = PILL[kind]
+        p.configure(text=text, fg_color=bg, text_color=fg)
+        if note is not None:
+            n.configure(text=note)
+
+    def _show_camera_image(self, jpeg):
+        try:
+            img = Image.open(io.BytesIO(jpeg))
+            img.load()
+        except Exception as e:  # noqa: BLE001 - ảnh hỏng: chỉ báo Log
+            self.log(f"Pi: không giải mã được ảnh ({len(jpeg)} byte): {e}", "ERROR")
+            return None
+        self._cam_jpeg = img
+        self._draw_camera()
+        return img
+
+    def _draw_camera(self):
+        cv = self.cam_canvas
+        if self._cam_jpeg is None:
+            self._draw_camera_placeholder(cv)
+            return
+        cv.delete("all")
+        w, h = max(cv.winfo_width(), 50), max(cv.winfo_height(), 50)
+        img = self._cam_jpeg
+        s = min(w / img.width, h / img.height)
+        self._cam_photo = ImageTk.PhotoImage(img.resize((max(1, int(img.width * s)), max(1, int(img.height * s)))))
+        cv.create_image(w / 2, h / 2, image=self._cam_photo)
 
     def _build_stats_card(self, parent):
         c = Card(parent, "Thống kê ca làm việc", "📊", right_text="từ 13:00")
@@ -782,9 +871,7 @@ class MasterApp(ctk.CTk):
         self.plc_port_menu = choice(conn.body, "Cổng COM", ports, ports[0], refresh=refresh_plc_ports)
         self.plc_baud_menu = choice(conn.body, "Baud rate", ["9600", "19200", "38400", "57600", "115200"], "9600")
         self.plc_frame_menu = choice(conn.body, "Khung dữ liệu", ["8N1", "8E1", "8O1", "7E1", "7O1"], "8N1")
-        slave_header(conn.body, "Raspberry Pi · TCP", "ONLINE", "green", True)
-        field(conn.body, "Địa chỉ IP", "192.168.0.20")
-        field(conn.body, "Cổng", "5000")
+        self._build_pi_connection(conn.body)              # THẬT: TCP tới Raspberry Pi (comm/pi_link.py)
         self.robot.build_connection_section(conn.body)     # THẬT: cổng COM + Connect STM32 (ui/settings_tab/connection.py)
         ctk.CTkButton(conn.body, text="Connect tất cả", height=32, corner_radius=8, font=(FB, 12),
                       fg_color=BTN_SOFT, hover_color=BTN_SOFT_HOVER,
@@ -792,7 +879,7 @@ class MasterApp(ctk.CTk):
 
         to = Card(v, "Thời gian chờ (timeout)", "⏱")
         to.grid(row=0, column=1, sticky="nsew", padx=6)
-        for label, val in (("Chờ cảm biến CB1", "10"), ("Chờ xi lanh xong hành trình", "3"), ("Chờ kết quả camera", "5"),
+        for label, val in (("Chờ cảm biến CB1", "10"), ("Chờ xi lanh xong hành trình", "3"), ("Chờ ảnh camera (Pi)", "10"),
                            ("Chờ test chức năng", "20"), ("Chờ cảm biến CB3", "10"), ("Chờ robot phân loại", "30")):
             field(to.body, label, val, "s")
         ctk.CTkLabel(to.body, text="Quá thời gian → hệ thống báo lỗi, dừng, chờ Reset (nhánh B của lưu đồ).",
@@ -854,9 +941,87 @@ class MasterApp(ctk.CTk):
         return v
 
     def _connect_all(self):
-        self.log("Connect PLC + Raspberry Pi (demo)")
+        self.log("Connect PLC (demo)")
+        if not self.pi.connected and not self.pi.busy():
+            self._pi_toggle_connect()
         if not self.robot._connected():
             self.robot._connect_uart()
+
+    # ---------------- Raspberry Pi: khối kết nối trong tab Cài đặt ----------------
+    def _build_pi_connection(self, parent):
+        r = ctk.CTkFrame(parent, fg_color="transparent")
+        r.pack(fill="x", pady=(12, 2))
+        ctk.CTkLabel(r, text="Raspberry Pi · TCP/IP", font=(FB, 12), text_color=TEXT, anchor="w").pack(side="left")
+        self.pi_pill = pill(r, "OFFLINE", "gray", font_size=10)
+        self.pi_pill.pack(side="left", padx=(8, 0))
+        self.pi_btn = ctk.CTkButton(r, text="Connect", width=96, height=28, corner_radius=8, font=(FB, 11),
+                                    fg_color=ACCENT, hover_color=ACCENT_HOVER, command=self._pi_toggle_connect)
+        self.pi_btn.pack(side="right")
+        self.pi_ping_btn = ctk.CTkButton(r, text="Ping", width=52, height=28, corner_radius=8, font=(FB, 11),
+                                         fg_color=BTN_SOFT, hover_color=BTN_SOFT_HOVER, text_color=TEXT,
+                                         command=self._pi_ping)
+        self.pi_ping_btn.pack(side="right", padx=(0, 4))
+        self.pi_entries = {}
+        for key, label, value in (("host", "Địa chỉ IP", PI_HOST), ("port", "Cổng", str(PI_PORT))):
+            row = ctk.CTkFrame(parent, fg_color="transparent")
+            row.pack(fill="x", pady=4)
+            ctk.CTkLabel(row, text=label, font=(F, 12), text_color=TEXT, anchor="w").pack(side="left")
+            ctk.CTkFrame(row, fg_color="transparent", width=30, height=30).pack(side="right")   # thẳng cột ô COM
+            e = ctk.CTkEntry(row, width=150, height=30, corner_radius=8, fg_color=INPUT, border_color=BORDER,
+                             text_color=TEXT, font=(F, 12))
+            e.insert(0, value)
+            e.pack(side="right", padx=(0, 4))
+            self.pi_entries[key] = e
+        self._refresh_pi_ui()
+
+    def _refresh_pi_ui(self):
+        if not hasattr(self, "pi_btn"):
+            return
+        on, busy = self.pi.connected, self.pi.busy()
+        if on:
+            host, port = self.pi.peer
+            self.pi_pill.configure(text=f"ONLINE · {host}", fg_color=PILL["green"][0], text_color=PILL["green"][1])
+            self.pi_btn.configure(text="Disconnect", fg_color=BTN_SOFT, hover_color=BTN_SOFT_HOVER, text_color=TEXT)
+        else:
+            text = "ĐANG KẾT NỐI" if busy else "OFFLINE"
+            kind = "amber" if busy else "gray"
+            self.pi_pill.configure(text=text, fg_color=PILL[kind][0], text_color=PILL[kind][1])
+            self.pi_btn.configure(text="Connect", fg_color=ACCENT, hover_color=ACCENT_HOVER, text_color="#ffffff")
+        self.pi_ping_btn.configure(state="normal" if on else "disabled")
+        for e in self.pi_entries.values():
+            e.configure(state="disabled" if on or busy else "normal")
+
+    def _pi_toggle_connect(self):
+        if self.pi.connected:
+            self.pi.disconnect()
+            return
+        if self.pi.busy():
+            self.log("Pi: đang kết nối, đợi một chút.", "WARN")
+            return
+        host = self.pi_entries["host"].get().strip()
+        try:
+            port = int(self.pi_entries["port"].get())
+            if not host or not 1 <= port <= 65535:
+                raise ValueError
+        except ValueError:
+            self.log("Pi: địa chỉ IP hoặc cổng không hợp lệ.", "ERROR")
+            return
+        self.log(f"Pi: đang kết nối {host}:{port}...")
+
+        def done(ok, message):
+            if not ok:
+                self.log(f"Pi: {message}. Kiểm tra Pi đã chạy server, cùng mạng LAN, đúng IP / cổng, tường lửa.", "ERROR")
+            self._refresh_pi_ui()
+        self.pi.connect(host, port, done)
+        self._refresh_pi_ui()
+
+    def _pi_ping(self):
+        def done(reply, img, rtt, err):
+            ok = not err and reply and reply.get("status") == "ok"
+            self.log(f"Pi: ping {'OK' if ok else 'LỖI'} — " + (f"khứ hồi {rtt:.0f} ms" if ok else str(err or reply)),
+                     "OK" if ok else "ERROR")
+        if self._pi_ready("Ping"):
+            self.pi.request("ping", done)
 
     # ============================================================
     # LOG

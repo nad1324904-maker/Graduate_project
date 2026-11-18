@@ -5,11 +5,12 @@
 | Thư mục | Nội dung | Trạng thái |
 |---|---|---|
 | `STM32/` | Firmware robot SCARA 4 trục (STM32F407): điều khiển vị trí 1 kHz, quỹ đạo hình thang, PID, home, kẹp, bảo vệ | đã chạy |
-| `UI/` | **App master trên PC** (Python, customtkinter) — app duy nhất của hệ thống: vận hành dây chuyền, tab **Robot** chứa toàn bộ giao diện điều khiển robot | robot: đã chạy · PLC / Raspberry Pi: mới có giao diện |
-| `PLC/` | Chương trình PLC (băng tải, động cơ bước cấp PCB, 2 xi lanh, E-Stop); giao tiếp với PC qua **RS422** (bộ chuyển USB–RS422 → cổng COM) | chưa đưa lên |
-| `Raspberry Pi/` | Xử lý ảnh (kiểm tra ngoại quan) và kiểm tra chức năng | chưa đưa lên |
+| `UI/` | **App master trên PC** (Python, customtkinter) — app duy nhất của hệ thống: vận hành dây chuyền, tab **Robot** chứa toàn bộ giao diện điều khiển robot | robot, Raspberry Pi: đã chạy · PLC: mới có giao diện |
+| `PLC/` | Chương trình PLC (băng tải, động cơ bước cấp PCB, 2 xi lanh, E-Stop); giao tiếp với PC qua **RS422** (bộ chuyển USB–RS422 → cổng COM). Có tool thử `plc_test_ui.py` | chưa đưa lên |
+| `Raspberry Pi/` | Xử lý ảnh kiểm tra PCB (PASS / FAIL1 linh kiện / FAIL2 chức năng); giao tiếp với PC qua **TCP/IP**. Có tool thử `pi_tcp_test_ui.py` | giao tiếp đã chạy, đã tích hợp vào app master |
 
-Ngoài ra ở thư mục gốc: [flow_chart.drawio](flow_chart.drawio) (lưu đồ toàn hệ thống), [CHECKLIST_THU_ROBOT.md](CHECKLIST_THU_ROBOT.md)
+Ngoài ra ở thư mục gốc: [HUONG_DAN_KET_NOI.md](HUONG_DAN_KET_NOI.md) (**hướng dẫn kết nối Pi / robot / PLC với app master**),
+[flow_chart.drawio](flow_chart.drawio) (lưu đồ toàn hệ thống), [CHECKLIST_THU_ROBOT.md](CHECKLIST_THU_ROBOT.md)
 (checklist thử robot thật), [mo_phong_scara.html](mo_phong_scara.html) (mô phỏng 3D robot, mục 6.4).
 
 Phần còn lại của tài liệu này mô tả **robot SCARA** (**J1, J2, J3, Z**): firmware `STM32/` và phần điều khiển robot trong `UI/`.
@@ -71,7 +72,7 @@ PCB INSPECTION/
 │       └── ...                     Mã HAL do CubeMX sinh
 ├── UI/                             App master trên PC (Python)
 │   ├── main.py                     Điểm khởi động (python main.py)
-│   ├── comm/                       Giao tiếp robot: uart_protocol.py, uart_backend.py, offline_backend.py
+│   ├── comm/                       Giao tiếp robot: uart_protocol.py, uart_backend.py, offline_backend.py · Raspberry Pi: pi_link.py
 │   ├── core/                       Logic robot: kinematics, robot_config, point_store, program_store, program_executor
 │   ├── ui/
 │   │   ├── master_app.py           App master: tab Vận hành / Robot / Lịch sử / Cài đặt
@@ -81,7 +82,7 @@ PCB INSPECTION/
 │   ├── data/                       robot_config.json, points.json, programs.json
 │   └── tools/uart_tool.py          Gửi lệnh tay tới STM32 không cần GUI (dùng khi thử phần cứng)
 ├── PLC/                            (chưa có)
-└── Raspberry Pi/                   (chưa có)
+└── Raspberry Pi/                   Tool thử pi_tcp_test_ui.py + README (giao thức TCP/IP)
 ```
 
 ---
