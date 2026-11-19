@@ -25,8 +25,22 @@
   .badge b { font-size: 13px; }
   .dots span { margin-right: 10px; font-weight: 600; }
   .dots i { font-style: normal; color: var(--green); margin-right: 3px; }
-  main { flex: 1; min-height: 0; display: grid; grid-template-columns: 268px 1fr 392px; grid-template-rows: 1fr 150px;
-         gap: 10px; padding: 10px; }
+  /* minmax(0, 1fr): cột giữa KHÔNG nới theo nội dung (dòng Log dài cuộn ngang trong khung Log, không đẩy bảng bên phải) */
+  main { flex: 1; min-height: 0; min-width: 0; display: grid; grid-template-columns: 268px minmax(0, 1fr) 392px;
+         grid-template-rows: minmax(0, 1fr) 150px; gap: 10px; padding: 10px; }
+  main > * { min-width: 0; min-height: 0; }
+  header .title { min-width: 0; overflow: hidden; }
+  header .title b, header .title span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  @media (max-width: 1600px) {
+    main { grid-template-columns: 220px minmax(0, 1fr) 350px; grid-template-rows: minmax(0, 1fr) 128px; gap: 8px; padding: 8px; }
+    #flow li { font-size: 11px; }
+    header .title span { display: none; }
+  }
+  @media (max-width: 1280px) {
+    main { grid-template-columns: 190px minmax(0, 1fr) 320px; }
+    .badge { min-width: 70px; }
+    header .badge.dots { display: none; }
+  }
   .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
   .card h3 { margin: 0 0 8px; font-size: 13px; display: flex; align-items: center; gap: 6px; }
   .card h3 .r { margin-left: auto; color: var(--dim); font-weight: 400; font-size: 11px; }
@@ -1040,22 +1054,24 @@ function buildStation() {
   mesh(box(46, 46, 44), M.black, g, X, -30, 380);
   mesh(vcyl(14, 20), M.ic, g, X, -30, 350);
   const lb = label("Camera (Raspberry Pi)", "#1e40af", 15); lb.position.set(X, -30, 445); g.add(lb);
-  // Xi lanh 2 (đứng) + 2 đầu kim cấp nguồn
-  mesh(box(12, 12, 160), M.alu, g, X, 24, 330);
-  mesh(box(26, 26, 55), M.white, g, X, 24, 222);
-  G.xl2 = new THREE.Group(); g.add(G.xl2);
-  mesh(vcyl(3, 40), M.steel, G.xl2, 0, 0, 20);
-  mesh(box(20, 10, 4), M.black, G.xl2, 0, 0, 0);
-  for (const dx of [-4, 4]) mesh(vcyl(0.9, 10), M.red, G.xl2, dx, 0, -5);
-  const lb2 = label("XL2 · cấp nguồn", "#0f172a", 13); lb2.position.set(X + 60, 24, 250); g.add(lb2);
-  // Xi lanh 1 + thanh chặn gỗ (quay quanh trục đứng ở mép băng)
-  const pv = { x: LAY.stopFace + 4, y: -(LAY.beltW / 2 + 14) };
-  mesh(vcyl(6, 50), M.steel, g, pv.x, pv.y, Z + 10);
-  G.stopper = new THREE.Group(); G.stopper.position.set(pv.x, pv.y, Z + 16); g.add(G.stopper);
-  mesh(box(170, 8, 10), M.wood, G.stopper, 85, 0, 0);
-  mesh(box(70, 22, 22), M.white, g, pv.x + 50, pv.y - 20, Z - 40);
-  G.xl1rod = mesh(xcyl(3, 60), M.steel, g, pv.x, pv.y - 20, Z - 40);
-  const lb3 = label("XL1 · thanh chặn", "#0f172a", 13); lb3.position.set(pv.x + 40, pv.y - 40, Z + 60); g.add(lb3);
+  // Xi lanh 2 (đứng, treo trên khung) + khối giữ 2 đầu kim cấp nguồn; hạ xuống chạm 2 vít terminal xanh của PCB
+  mesh(box(12, 12, 80), M.alu, g, X, 24, 370);                  // thanh treo từ khung xuống
+  mesh(box(28, 28, 90), M.white, g, X, 24, 285);                // thân xi lanh (z 240..330)
+  mesh(box(34, 34, 6), M.grey, g, X, 24, 333);
+  G.xl2 = new THREE.Group(); g.add(G.xl2);                      // gốc nhóm = đầu mũi kim
+  mesh(vcyl(4, 80), M.steel, G.xl2, 0, 0, 10 + 40);             // ty xi lanh
+  mesh(box(26, 14, 10), M.black, G.xl2, 0, 0, 15);              // khối giữ kim
+  for (const dx of [-4, 4]) { mesh(vcyl(1.1, 10), M.red, G.xl2, dx, 0, 5); mesh(vcyl(1.8, 2), M.pin, G.xl2, dx, 0, 0.8); }
+  const lb2 = label("XL2 · cấp nguồn", "#0f172a", 13); lb2.position.set(X + 60, 24, 300); g.add(lb2);
+  // Xi lanh 1 (đứng, gắn hông khung phía -Y) nâng / hạ thanh chặn gỗ nằm ngang qua băng tải
+  const sx = LAY.stopFace + 4, sy = -(LAY.beltW / 2 + 24);
+  mesh(box(24, 24, 80), M.white, g, sx, sy, Z - 50);            // thân xi lanh 1 (dưới mặt băng)
+  mesh(box(30, 6, 30), M.grey, g, sx, sy + 15, Z - 30);         // bát gá vào khung
+  G.stopper = new THREE.Group(); G.stopper.position.set(sx, 0, Z + 7); g.add(G.stopper);
+  mesh(box(8, LAY.beltW - 2, 12), M.wood, G.stopper, 0, 0, 0);  // thanh chặn gỗ (lọt giữa 2 thanh dẫn)
+  mesh(box(10, 22, 10), M.wood, G.stopper, 0, sy + 11, 0);      // tay nối ra trục xi lanh
+  mesh(vcyl(3.5, 110), M.steel, G.stopper, 0, sy, -55);         // ty xi lanh 1
+  const lb3 = label("XL1 · thanh chặn", "#0f172a", 13); lb3.position.set(sx + 40, sy - 30, Z + 70); g.add(lb3);
 }
 
 function buildBins() {
@@ -1167,9 +1183,10 @@ function updateScene() {
   G.rod.position.set((px + sx) / 2, py / 2, LAY.beltZ + 12); G.rod.rotation.z = Math.atan2(-py, sx - px);
   G.slider.position.x = sx;
   // xi lanh
-  G.stopper.rotation.z = CYL[0].pos * Math.PI / 2;
-  G.xl1rod.position.x = LAY.stopFace + 4 + 10 - CYL[0].pos * 22;
-  const tipUp = 200, tipDn = LAY.beltZ + LAY.tray.floor + 1.6 + 10.6 + 10;   // đầu kim (dài 10) chạm mặt vít terminal
+  // XL1: thu = thanh chặn nâng cao 40 mm trên mặt băng (khay 25 mm lọt qua) · hạ = thanh sát mặt băng, chặn khay
+  G.stopper.position.z = LAY.beltZ + 7 + (1 - CYL[0].pos) * 40;
+  // XL2: đầu kim từ z 225 hạ xuống chạm mặt 2 vít terminal (hành trình ~60 mm)
+  const tipUp = 225, tipDn = LAY.beltZ + LAY.tray.floor + 1.6 + 11;
   G.xl2.position.set(LAY.station, 24, tipUp - CYL[1].pos * (tipUp - tipDn));
   // đèn tháp
   for (const k of ["RED", "AMBER", "GREEN"]) G.lamps[k].material.emissiveIntensity = IO.Y[k] ? 1.6 : 0.0;
@@ -1537,6 +1554,8 @@ function runSelftest() {
   log("Mô phỏng hệ thống: bấm START (chế độ AUTO) để chạy chu trình theo lưu đồ. Có thể đổi tốc độ ×0.5 … ×10 ở góc phải khung 3D.");
   // Tùy chọn trên URL: #selftest (tự kiểm tra) · #auto (tự bấm START) · #speed=5 (tốc độ ban đầu), vd ...html#auto&speed=5
   const opt = location.hash.slice(1).split("&");
+  const sd = opt.find(o => o.startsWith("seed="));                // #seed=7: chuỗi phôi lặp lại được (để trình bày / chụp)
+  if (sd) { seed(+sd.slice(5)); for (const t of [...FEED.stack]) removeTray(t); FEED.stack = []; refill(); }
   const sp = opt.find(o => o.startsWith("speed="));
   if (sp) { const b = document.querySelector(`[data-speed="${sp.slice(6)}"]`); if (b) b.onclick(); }
   startProc("init", procInit());
