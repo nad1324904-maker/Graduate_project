@@ -11,7 +11,8 @@
 
 Ngoài ra ở thư mục gốc: [HUONG_DAN_KET_NOI.md](HUONG_DAN_KET_NOI.md) (**hướng dẫn kết nối Pi / robot / PLC với app master**),
 [flow_chart.drawio](flow_chart.drawio) (lưu đồ toàn hệ thống), [CHECKLIST_THU_ROBOT.md](CHECKLIST_THU_ROBOT.md)
-(checklist thử robot thật), [mo_phong_scara.html](mo_phong_scara.html) (mô phỏng 3D robot, mục 6.4).
+(checklist thử robot thật), [mo_phong_scara.html](mo_phong_scara.html) (mô phỏng 3D robot, mục 6.4),
+[mo_phong_he_thong.html](mo_phong_he_thong.html) (**mô phỏng 3D toàn hệ thống** để trình bày quy trình, mục 6.5).
 
 Phần còn lại của tài liệu này mô tả **robot SCARA** (**J1, J2, J3, Z**): firmware `STM32/` và phần điều khiển robot trong `UI/`.
 Hai phần giao tiếp qua **UART dạng văn bản, 115200 baud**, mỗi lệnh một dòng.
@@ -338,6 +339,39 @@ Nhấp đúp file **`mo_phong_scara.html`** ở thư mục gốc để mở bằ
   - Chưa mở thư mục thì trang dùng bản chụp nhúng sẵn lúc tạo file. Vẫn có thể **Nạp file JSON…** hoặc kéo-thả file vào trang.
 - **Khác với robot thật:** Tạm dừng trong mô phỏng là dừng hình ngay, còn robot thật giảm tốc rồi mới dừng. Mô phỏng
   không mô phỏng PID, ma sát hay sai số bám.
+
+### 6.5. Mô phỏng 3D toàn hệ thống (trình bày quy trình)
+
+Nhấp đúp **`mo_phong_he_thong.html`** (Chrome / Edge; lần đầu cần Internet để tải three.js). Chỉ dùng để giải thích quy
+trình cho nhóm, **không** phải phần mềm điều khiển thật.
+
+- **Mô hình:**
+  - băng tải 1000 × 150 mm cao 150 mm, 3 cảm biến CB1 / CB2 / CB3;
+  - cấp phôi tay quay – con trượt (động cơ bước 1 vòng = 1 phôi), tháp chứa khay vàng;
+  - trạm kiểm tra: camera, xi lanh 1 (thanh chặn gỗ), xi lanh 2 (2 đầu kim cấp nguồn vào terminal);
+  - PCB 70 × 70 trong khay; LED 7 đoạn đếm **0 → 9** khi được cấp nguồn;
+  - robot SCARA (động học, Vmax / Amax, quỹ đạo đồng bộ khớp theo `robot_config.json`), 3 khay Đạt / Lỗi 1 / Lỗi 2;
+  - đèn tháp.
+- **Điều khiển giống app master:**
+  - E-STOP (bấm lại để nhả), AUTO / MANUAL, START / STOP / RESET;
+  - MANUAL có giữ để chạy băng tải, cấp 1 PCB, thu / hạ xi lanh, test chức năng, chụp ảnh, robot phân loại, robot về home;
+  - thẻ PCB hiện tại (ảnh camera Pi chụp, kết quả, kết luận), thống kê, Log.
+- **Lưu đồ** bên trái tô sáng bước đang chạy, kèm thanh thời gian chờ và timeout. Có cả nhánh **Lỗi 1**, nhánh **B**
+  (timeout / lỗi thiết bị) và lưu đồ **E-Stop / Reset**.
+- **Khung Tín hiệu PLC** (X / Y / M) cho thấy PC ra lệnh qua bit M, PLC tự liên động:
+  - CB2 → PLC dừng băng tải và hạ xi lanh 1;
+  - CB3 → PLC dừng băng tải;
+  - xi lanh không có cảm biến, "đã hạ / đã thu" là bit timer M204–M207.
+- **Để trình bày:**
+  - tốc độ ⏸ / ×0.5 … ×10;
+  - tỉ lệ Lỗi 1 / Lỗi 2;
+  - nút **gây lỗi**: CB2 hỏng, Pi không phản hồi, robot FAULT;
+  - các góc nhìn Tổng thể / Cấp phôi / Trạm kiểm tra / Robot / Trên xuống.
+- **Robot:** nếu `UI/data/programs.json` có "Chương trình 1 / 2 / 3" (và đủ Point) thì dùng dữ liệu đó (bấm 📂 Mở thư mục
+  UI\data). Không có thì dùng bộ điểm dựng sẵn `GAP_tren` / `GAP_duoi`, `DAT_*`, `LOI1_*`, `LOI2_*`. Robot chạy đúng tốc
+  độ cài đặt (trục Z 7 mm/s nên một lần gắp – thả khoảng 1 phút; dùng ×5 cho nhanh).
+- **Tùy chọn trên đường dẫn:** `mo_phong_he_thong.html#auto&speed=5` (tự START, tốc độ ×5) · `#view=station`
+  (góc nhìn ban đầu) · `#selftest` (tự kiểm tra toàn bộ kịch bản: chạy, E-Stop, Reset, STOP, CB2 hỏng, Lỗi 1, robot FAULT).
 
 ---
 

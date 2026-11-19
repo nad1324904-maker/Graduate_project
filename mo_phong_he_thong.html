@@ -1,0 +1,1561 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mô phỏng hệ thống PCB</title>
+<style>
+  :root {
+    --bg: #eef2f7; --panel: #ffffff; --border: #dbe3ee; --input: #f1f5f9; --text: #1e293b; --dim: #64748b;
+    --dis: #94a3b8; --accent: #2563eb; --accent-h: #1d4ed8; --accent-soft: #dbeafe; --accent-text: #1e40af;
+    --green: #16a34a; --green-soft: #dcfce7; --green-text: #166534; --amber: #d97706; --amber-soft: #fef3c7;
+    --amber-text: #92400e; --red: #dc2626; --red-soft: #fee2e2; --red-text: #991b1b; --soft: #e8eef6; --soft-h: #d9e2ee;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 13px "Segoe UI", system-ui, sans-serif; }
+  body { display: flex; flex-direction: column; overflow: hidden; }
+  header { height: 64px; flex: none; background: #fff; display: flex; align-items: center; gap: 14px; padding: 0 16px;
+           border-bottom: 1px solid var(--border); }
+  header img { height: 40px; }
+  header .title b { font-size: 15px; display: block; }
+  header .title span { color: var(--dim); font-size: 11px; }
+  header .sp { flex: 1; }
+  .badge { display: flex; flex-direction: column; min-width: 88px; }
+  .badge small { color: var(--dim); font-size: 11px; }
+  .badge b { font-size: 13px; }
+  .dots span { margin-right: 10px; font-weight: 600; }
+  .dots i { font-style: normal; color: var(--green); margin-right: 3px; }
+  main { flex: 1; min-height: 0; display: grid; grid-template-columns: 268px 1fr 392px; grid-template-rows: 1fr 150px;
+         gap: 10px; padding: 10px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
+  .card h3 { margin: 0 0 8px; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+  .card h3 .r { margin-left: auto; color: var(--dim); font-weight: 400; font-size: 11px; }
+  #flow { grid-column: 1; grid-row: 1 / span 2; overflow: auto; }
+  #view { grid-column: 2; grid-row: 1; }
+  #logCard { grid-column: 2; grid-row: 2; }
+  #side { grid-column: 3; grid-row: 1 / span 2; }
+  #flow ol { list-style: none; margin: 0; padding: 0; }
+  #flow li { padding: 4px 6px 4px 26px; border-radius: 7px; position: relative; color: var(--dim); line-height: 1.3;
+             margin-bottom: 2px; font-size: 12px; }
+  #flow li::before { content: attr(data-n); position: absolute; left: 4px; top: 4px; width: 18px; text-align: center;
+                     font-weight: 600; color: var(--dis); }
+  #flow li.done { color: var(--text); }
+  #flow li.done::before { content: "✓"; color: var(--green); }
+  #flow li.now { background: var(--accent-soft); color: var(--accent-text); font-weight: 600; }
+  #flow li.now::before { content: "▶"; color: var(--accent); }
+  #flow li.br { margin-left: 14px; font-style: italic; }
+  #flow li.err.now { background: var(--red-soft); color: var(--red-text); }
+  #flow li.err.now::before { color: var(--red); }
+  #flow .sec { font-size: 11px; color: var(--dim); font-weight: 600; margin: 10px 0 4px; text-transform: uppercase; }
+  #waitBox { margin-top: 10px; background: var(--input); border-radius: 8px; padding: 8px; font-size: 12px; }
+  #waitBox .bar { height: 6px; background: #e2e8f0; border-radius: 4px; margin-top: 5px; overflow: hidden; }
+  #waitBox .bar i { display: block; height: 100%; width: 0; background: var(--accent); }
+  #view { position: relative; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); background: #e9eef5; }
+  #view canvas { display: block; width: 100%; height: 100%; }
+  #viewBtns { position: absolute; left: 10px; top: 10px; display: flex; gap: 4px; flex-wrap: wrap; }
+  #stepBanner { position: absolute; left: 10px; bottom: 10px; right: 10px; background: rgba(255,255,255,0.92);
+                border-radius: 10px; padding: 8px 12px; font-size: 13px; border: 1px solid var(--border); }
+  #stepBanner b { color: var(--accent-text); }
+  #speedBox { position: absolute; right: 10px; top: 10px; display: flex; gap: 3px; background: rgba(255,255,255,0.9);
+              padding: 4px; border-radius: 10px; border: 1px solid var(--border); }
+  #logCard { display: flex; flex-direction: column; min-height: 0; padding: 8px 12px; }
+  #log { flex: 1; overflow: auto; font: 11.5px Consolas, monospace; background: var(--input); border-radius: 8px; padding: 4px 8px; }
+  #log div { white-space: nowrap; }
+  #log .t { color: var(--dim); } #log .INFO { color: var(--accent); } #log .OK { color: var(--green); }
+  #log .WARN { color: var(--amber); } #log .ERROR { color: var(--red); } #log .PLC { color: #7c3aed; }
+  #side { grid-row: 1 / span 2; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 2px; }
+  .btn { border: 0; border-radius: 8px; padding: 7px 10px; font: 600 12px "Segoe UI", sans-serif; cursor: pointer;
+         background: var(--soft); color: var(--text); }
+  .btn:hover { background: var(--soft-h); }
+  .btn.primary { background: var(--accent); color: #fff; } .btn.primary:hover { background: var(--accent-h); }
+  .btn.green { background: var(--green); color: #fff; } .btn.red { background: var(--red); color: #fff; }
+  .btn.gray { background: #64748b; color: #fff; }
+  .btn.small { padding: 4px 8px; font-size: 11px; }
+  .btn.on { background: var(--accent-soft); color: var(--accent-text); }
+  .btn:disabled { background: #eef1f5 !important; color: var(--dis) !important; cursor: default; }
+  .row { display: flex; align-items: center; gap: 6px; margin: 5px 0; }
+  .row > .grow { flex: 1; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 5px 0; }
+  .sec { font-size: 11px; color: var(--dim); font-weight: 600; margin: 9px 0 2px; }
+  .seg { display: flex; background: var(--soft); border-radius: 9px; padding: 3px; gap: 3px; }
+  .seg button { flex: 1; border: 0; background: transparent; border-radius: 7px; padding: 6px; font: 600 12px "Segoe UI";
+                color: var(--accent-text); cursor: pointer; }
+  .seg button.on { background: var(--accent-soft); }
+  .seg button:disabled { color: var(--dis); cursor: default; }
+  #estop { width: 100%; border: 0; border-radius: 10px; padding: 10px; font: 700 14px "Segoe UI"; cursor: pointer;
+           background: var(--green-soft); color: var(--green-text); display: flex; justify-content: space-between; }
+  #estop.on { background: var(--red); color: #fff; animation: blink 0.8s infinite; }
+  @keyframes blink { 50% { opacity: 0.6; } }
+  .pill { display: inline-block; border-radius: 8px; padding: 2px 9px; font-weight: 600; font-size: 11px;
+          background: var(--input); color: var(--dim); }
+  .pill.green { background: var(--green-soft); color: var(--green-text); }
+  .pill.amber { background: var(--amber-soft); color: var(--amber-text); }
+  .pill.red { background: var(--red-soft); color: var(--red-text); }
+  .pill.blue { background: var(--accent-soft); color: var(--accent-text); }
+  .kv { display: flex; justify-content: space-between; align-items: center; margin: 4px 0; }
+  .kv small { color: var(--dis); display: block; font-size: 10.5px; }
+  .note { color: var(--dis); font-size: 11px; line-height: 1.35; }
+  #camCanvas { width: 100%; border-radius: 8px; background: #1e293b; display: block; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .stats div { background: var(--input); border-radius: 8px; padding: 5px 8px; }
+  .stats small { color: var(--dim); font-size: 10.5px; display: block; }
+  .stats b { font-size: 17px; }
+  input[type=range] { width: 100%; }
+  .io { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px 8px; font-size: 11px; }
+  .io span::before { content: "●"; color: #cbd5e1; margin-right: 4px; }
+  .io span.on::before { color: var(--green); }
+  .io span.on.r::before { color: var(--red); }
+  details summary { cursor: pointer; font-weight: 600; font-size: 13px; }
+  #errors { display: none; position: fixed; left: 50%; top: 80px; transform: translateX(-50%); background: var(--red-soft);
+            color: var(--red-text); padding: 10px 14px; border-radius: 10px; white-space: pre-wrap; z-index: 9; max-width: 70%; }
+  #loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--dim); }
+</style>
+</head>
+<body>
+<header>
+  <img src="UI/assets/logo_iuh.png" alt="" onerror="this.style.display='none'">
+  <div class="title"><b>CDT09 · MÔ PHỎNG HỆ THỐNG KIỂM TRA &amp; PHÂN LOẠI PCB</b>
+    <span>PLC FX0N · Raspberry Pi · Robot SCARA — mô phỏng để trình bày quy trình (không phải phần mềm thật)</span></div>
+  <div class="sp"></div>
+  <div class="badge dots"><small>🔌 Thiết bị (giả lập)</small><b><span><i>●</i>PLC</span><span><i>●</i>Pi</span><span><i id="dotRobot">●</i>Robot</span></b></div>
+  <div class="badge"><small>⏱ Chu kỳ gần nhất</small><b id="cycleBadge">—</b></div>
+  <div class="badge"><small>● Hệ thống</small><b id="sysBadge">KHỞI TẠO</b></div>
+  <div class="badge"><small>🕐 Thời gian mô phỏng</small><b id="simClock">00:00</b></div>
+</header>
+<main>
+  <section id="flow" class="card">
+    <h3>🧭 Lưu đồ <span class="r">bước đang chạy</span></h3>
+    <div class="sec">Chu trình chính</div>
+    <ol id="flowMain"></ol>
+    <div class="sec">E-Stop / Reset</div>
+    <ol id="flowEstop"></ol>
+    <div id="waitBox"><div id="waitText">—</div><div class="bar"><i id="waitBar"></i></div></div>
+  </section>
+  <section id="view">
+    <div id="loading">Đang tải thư viện 3D (three.js)… lần đầu cần Internet.</div>
+    <div id="viewBtns">
+      <button class="btn small on" data-cam="all">Tổng thể</button>
+      <button class="btn small" data-cam="feed">Cấp phôi</button>
+      <button class="btn small" data-cam="station">Trạm kiểm tra</button>
+      <button class="btn small" data-cam="robot">Robot</button>
+      <button class="btn small" data-cam="top">Trên xuống</button>
+    </div>
+    <div id="speedBox">
+      <button class="btn small" data-speed="0">⏸</button>
+      <button class="btn small" data-speed="0.5">×0.5</button>
+      <button class="btn small on" data-speed="1">×1</button>
+      <button class="btn small" data-speed="2">×2</button>
+      <button class="btn small" data-speed="5">×5</button>
+      <button class="btn small" data-speed="10">×10</button>
+    </div>
+    <div id="stepBanner">—</div>
+  </section>
+  <section id="logCard" class="card">
+    <h3>📜 Log <span class="r"><button class="btn small" id="btnClearLog">Xóa</button></span></h3>
+    <div id="log"></div>
+  </section>
+  <aside id="side">
+    <div class="card">
+      <h3>🎛 Điều khiển hệ thống</h3>
+      <button id="estop"><span>⛔ E-STOP</span><span id="estopText">● Bình thường</span></button>
+      <div class="seg" style="margin-top:8px"><button id="mAuto" class="on">AUTO</button><button id="mManual">MANUAL</button></div>
+      <div id="autoPanel">
+        <button class="btn green" id="btnStart" style="width:100%;margin-top:8px;padding:10px;font-size:14px">▶ START</button>
+        <div class="pair"><button class="btn red" id="btnStop">■ STOP</button><button class="btn gray" id="btnReset">⟳ RESET</button></div>
+        <div class="note">STOP: dừng sau khi xong PCB hiện tại. E-STOP: dừng ngay ở bất kỳ bước nào (bấm lại để nhả), rồi RESET.</div>
+      </div>
+      <div id="manualPanel" hidden>
+        <div class="sec">PLC — băng tải &amp; xi lanh</div>
+        <button class="btn primary" id="mBelt" style="width:100%">⏵ Giữ để chạy băng tải</button>
+        <div class="pair"><button class="btn" id="mFeed">⇥ Cấp 1 PCB</button><button class="btn red" id="mStopAll">⏹ Dừng tất cả</button></div>
+        <div class="row"><div class="grow">Xi lanh 1 · chặn PCB <small class="note" id="mXl1s"></small></div>
+          <div class="seg" style="width:130px"><button data-cyl="1" data-dn="0">▲ Thu</button><button data-cyl="1" data-dn="1">▼ Hạ</button></div></div>
+        <div class="row"><div class="grow">Xi lanh 2 · cấp nguồn <small class="note" id="mXl2s"></small></div>
+          <div class="seg" style="width:130px"><button data-cyl="2" data-dn="0">▲ Thu</button><button data-cyl="2" data-dn="1">▼ Hạ</button></div></div>
+        <button class="btn" id="mFunc" style="width:100%">🔌 Test chức năng (hạ xi lanh 2 cấp nguồn)</button>
+        <div class="sec">Raspberry Pi</div>
+        <button class="btn" id="mCap" style="width:100%">📷 Chụp ảnh (kiểm tra ngoại quan)</button>
+        <div class="sec">Robot</div>
+        <div class="row"><span class="grow">Loại PCB</span><span class="pill" id="mType">CHƯA XÁC ĐỊNH</span>
+          <button class="btn small" id="mClear">✕</button></div>
+        <div class="pair"><button class="btn primary" id="mSort">🤖 Robot phân loại</button><button class="btn" id="mHome">⌂ Robot về Home</button></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>🔍 PCB hiện tại <span class="r" id="pcbId">—</span></h3>
+      <canvas id="camCanvas" width="360" height="230"></canvas>
+      <div class="kv"><div>Ngoại quan (camera)<small id="visNote">chưa chụp</small></div><span class="pill" id="visPill">—</span></div>
+      <div class="kv"><div>Chức năng (LED 7 đoạn)<small id="funNote">chưa kiểm tra</small></div><span class="pill" id="funPill">—</span></div>
+      <div class="kv"><div>Robot phân loại<small id="robNote">—</small></div><span class="pill" id="robPill">CHỜ</span></div>
+      <div class="kv" style="background:var(--input);border-radius:8px;padding:6px 8px"><span>Kết luận</span><b id="concl">—</b></div>
+    </div>
+    <div class="card">
+      <h3>📊 Thống kê <span class="r" id="rate">—</span></h3>
+      <div class="stats">
+        <div><small>Tổng</small><b id="sTotal">0</b></div>
+        <div><small>Đạt</small><b id="sOk" style="color:var(--green)">0</b></div>
+        <div><small>PCB / giờ</small><b id="sRate">—</b></div>
+        <div><small>Lỗi 1 · linh kiện</small><b id="sL1" style="color:var(--amber)">0</b></div>
+        <div><small>Lỗi 2 · chức năng</small><b id="sL2" style="color:var(--red)">0</b></div>
+        <div><small>Phôi trong ống</small><b id="sStack">0</b></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>🧪 Mô phỏng</h3>
+      <div class="row"><span style="width:110px">Tỉ lệ Lỗi 1</span><input id="p1" type="range" min="0" max="100" value="15"><b id="p1v" style="width:36px">15%</b></div>
+      <div class="row"><span style="width:110px">Tỉ lệ Lỗi 2</span><input id="p2" type="range" min="0" max="100" value="10"><b id="p2v" style="width:36px">10%</b></div>
+      <div class="note">Áp dụng cho phôi nạp mới. Lỗi 1: thiếu linh kiện; Lỗi 2: LED dừng giữa chừng hoặc không sáng.</div>
+      <div class="pair"><button class="btn" id="btnRefill">📦 Nạp đầy ống cấp (8)</button><button class="btn" id="btnClearBins">🗑 Dọn 3 khay</button></div>
+      <div class="sec">Gây lỗi (xem hệ thống xử lý)</div>
+      <label class="row"><input type="checkbox" id="fCB2"> Cảm biến CB2 hỏng (không tác động)</label>
+      <label class="row"><input type="checkbox" id="fPi"> Raspberry Pi không phản hồi</label>
+      <button class="btn" id="btnFaultRobot" style="width:100%">⚠ Robot báo FAULT ở lần di chuyển kế tiếp</button>
+    </div>
+    <div class="card">
+      <details>
+        <summary>🔌 Tín hiệu PLC (X / Y / M)</summary>
+        <div class="sec">Ngõ vào X</div><div class="io" id="ioX"></div>
+        <div class="sec">Ngõ ra Y</div><div class="io" id="ioY"></div>
+        <div class="sec">Bit M (PC ↔ PLC)</div><div class="io" id="ioM"></div>
+      </details>
+    </div>
+    <div class="card">
+      <h3>📂 Dữ liệu robot</h3>
+      <div class="pair"><button class="btn" id="btnDir">📂 Mở thư mục UI\data</button><label class="btn" style="text-align:center">📄 Nạp file JSON…<input id="fileInput" type="file" accept=".json" multiple hidden></label></div>
+      <div class="note" id="dataInfo"></div>
+      <div class="note" style="margin-top:6px">Robot dùng Vmax / Amax và động học trong <b>robot_config.json</b>, quỹ đạo đồng bộ khớp như robot thật.
+        Nếu <b>programs.json</b> có "Chương trình 1/2/3" (và points.json có đủ Point) thì dùng dữ liệu đó, không thì dùng bộ điểm dựng sẵn
+        (GAP_tren, GAP_duoi, DAT_*, LOI1_*, LOI2_*).</div>
+    </div>
+  </aside>
+</main>
+<div id="errors"></div>
+<pre id="selftest" hidden></pre>
+
+<script type="module">
+// =====================================================================================================================
+// Dữ liệu robot nhúng sẵn: bản chụp UI/data/robot_config.json lúc tạo file
+// =====================================================================================================================
+const EMBEDDED_CONFIG = {
+  kinematics: { h1: 180.0, l1: 180.0, l2: 85.0, h2: 100.0 },
+  joint_limits: { J1: { min: -30.0, max: 180.0 }, J2: { min: -30.0, max: 180.0 }, J3: { min: 0.0, max: 180.0 },
+                  Z: { min: 150.0, max: 350.0 } },
+  home_position: { J1: -30.0, J2: -30.0, J3: 0.0, Z: 350.0 },
+  motion_profile: { J1: { vmax: 30.0, amax: 50.0 }, J2: { vmax: 50.0, amax: 50.0 }, J3: { vmax: 10.0, amax: 50.0 },
+                    Z: { vmax: 7.0, amax: 50.0 } },
+};
+
+// =====================================================================================================================
+// Bố trí dây chuyền (mm, gốc = đầu băng tải phía cấp phôi, X dọc băng tải, Z hướng lên, sàn z = 0)
+// =====================================================================================================================
+const LAY = {
+  beltLen: 1000, beltW: 150, beltZ: 150,
+  cb: { CB1: 70, CB2: 420, CB3: 950 },            // vị trí cảm biến (mm theo X)
+  stopFace: 428,                                   // mặt thanh chặn khi hạ (đầu khay không vượt quá đây)
+  station: 382,                                    // tâm khay khi dừng ở trạm kiểm tra (đầu khay ở CB2)
+  tray: { w: 76, h: 25, wall: 3, floor: 2 }, pcb: 70,
+  feedX: -60, crankX: -330, crankR: 55, rodL: 150, pusherL: 135,
+  robot: { x: 1250, y: -240, phi: 120 },           // đế robot (gốc tọa độ robot) + góc xoay trục X robot
+  bins: { DAT: { x: 1064, y: 31 }, LOI1: { x: 972, y: -153 }, LOI2: { x: 1074, y: 151 } },
+  binFloor: 95, binWall: 70, zUp: 240, zDn: 155,   // TCP: độ cao di chuyển / độ cao gắp-thả
+  pick: { x: 912, y: 0 },
+};
+// Thông số thời gian (giả định hợp lý; đổi ở đây)
+const TC = { beltV: 60, strokeT: 0.6, cylTimer: 1.0, feedT: 2.0, piVisT: 1.0, ledStep: 0.5, piStall: 2.0, gripT: 0.3 };
+// Thời gian chờ của PC (giống tab Cài đặt → Thời gian chờ của app master; robot dài hơn vì trục Z chỉ 7 mm/s)
+const TO = { cb1: 10, cb2: 10, cyl: 3, cam: 10, func: 20, cb3: 15, robot: 150, home: 90 };
+const PROG_OF = { "ĐẠT": "Chương trình 1", "LỖI 2": "Chương trình 2", "LỖI 1": "Chương trình 3" };
+const BIN_OF = { "ĐẠT": "DAT", "LỖI 1": "LOI1", "LỖI 2": "LOI2" };
+
+// ---------------- Toán robot (giống core/kinematics.py, comm/uart_backend.py) ----------------
+const AXES = ["J1", "J2", "J3", "Z"], DEG = Math.PI / 180;
+const wrap180 = a => ((((a + 180) % 360) + 360) % 360) - 180;
+const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+function fk(j, p) {
+  const t1 = j.J1 * DEG, t12 = (j.J1 + j.J2) * DEG;
+  return { x: p.h1 + p.l1 * Math.cos(t1) + p.l2 * Math.cos(t12), y: p.l1 * Math.sin(t1) + p.l2 * Math.sin(t12),
+           z: j.Z - p.h2, th: wrap180(j.J1 + j.J2 + j.J3) };
+}
+function fitAngle(angle, lo, hi, ref) {
+  let best = null; const base = wrap180(angle);
+  for (let k = -2; k <= 2; k++) {
+    let a = base + 360 * k;
+    if (a >= lo - 0.01 && a <= hi + 0.01) { a = clamp(a, lo, hi); if (best === null || Math.abs(a - ref) < Math.abs(best - ref)) best = a; }
+  }
+  return best;
+}
+function ik(x, y, z, th, p, lim, cur) {
+  const ref = { J1: 0, J2: 0, J3: 0, ...(cur || {}) }, zj = z + p.h2;
+  if (zj < lim.Z[0] - 0.01 || zj > lim.Z[1] + 0.01) throw new Error(`Z ngoài giới hạn (${zj.toFixed(1)} mm)`);
+  const xp = x - p.h1, r = Math.hypot(xp, y);
+  if (r > p.l1 + p.l2 + 0.01 || r < Math.abs(p.l1 - p.l2) - 0.01 || r < 1e-6) throw new Error("ngoài tầm với");
+  const c2 = clamp((r * r - p.l1 * p.l1 - p.l2 * p.l2) / (2 * p.l1 * p.l2), -1, 1), sols = [];
+  for (const s of [1, -1]) {
+    const t2 = s * Math.acos(c2), t1 = Math.atan2(y, xp) - Math.atan2(p.l2 * Math.sin(t2), p.l1 + p.l2 * Math.cos(t2));
+    const q = { J1: fitAngle(t1 / DEG, ...lim.J1, ref.J1), J2: fitAngle(t2 / DEG, ...lim.J2, ref.J2) };
+    if (q.J1 === null || q.J2 === null) continue;
+    q.J3 = fitAngle(th - q.J1 - q.J2, ...lim.J3, ref.J3);
+    if (q.J3 === null) continue;
+    q.Z = clamp(zj, ...lim.Z); sols.push(q);
+  }
+  if (!sols.length) throw new Error("vượt giới hạn khớp");
+  const cost = s => (s.J1 - ref.J1) ** 2 + (s.J2 - ref.J2) ** 2 + (s.J3 - ref.J3) ** 2;
+  return sols.reduce((b, s) => (cost(s) < cost(b) ? s : b));
+}
+function syncMotion(q0, q1, prof) {               // quỹ đạo hình thang ĐỒNG BỘ (giống _sync_profiles)
+  const mv = AXES.filter(a => Math.abs(q1[a] - q0[a]) > 1e-9);
+  if (!mv.length) return { T: 0, at: () => ({ ...q1 }) };
+  let V = Infinity, A = Infinity;
+  for (const a of mv) { const d = Math.abs(q1[a] - q0[a]); V = Math.min(V, prof[a].vmax / d); A = Math.min(A, prof[a].amax / d); }
+  let ta = V / A, vp = V, T;
+  if (A * ta * ta > 1) { ta = Math.sqrt(1 / A); vp = A * ta; T = 2 * ta; } else T = 2 * ta + (1 - A * ta * ta) / V;
+  const s = t => (t <= 0 ? 0 : t >= T ? 1 : t < ta ? 0.5 * A * t * t : t < T - ta ? 0.5 * A * ta * ta + vp * (t - ta)
+    : 1 - 0.5 * A * (T - t) * (T - t));
+  return { T, at: t => { const f = s(t), q = {}; for (const a of AXES) q[a] = q0[a] + f * (q1[a] - q0[a]); return q; } };
+}
+
+// ---------------- Tiện ích ----------------
+const $ = id => document.getElementById(id);
+let rngState = 1;
+function seed(s) { rngState = s >>> 0 || 1; }
+function rnd() {                                  // mulberry32: có thể đặt seed để tự kiểm tra lặp lại được
+  rngState = (rngState + 0x6D2B79F5) >>> 0; let t = rngState;
+  t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+seed(Date.now());
+window.addEventListener("error", e => showError(e.message));
+window.addEventListener("unhandledrejection", e => showError(String(e.reason && e.reason.message || e.reason)));
+function showError(t) {
+  if (/ResizeObserver loop/.test(t)) return;          // cảnh báo vô hại của trình duyệt khi đổi kích thước khung
+  const el = $("errors"); el.style.display = "block"; el.textContent += (el.textContent ? "\n" : "") + "⚠ " + t; }
+const fmtT = t => { const s = Math.floor(t); return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`; };
+
+// =====================================================================================================================
+// TRẠNG THÁI MÔ PHỎNG
+// =====================================================================================================================
+const SIM = { t: 0, speed: 1 };
+const IO = {
+  X: { CB1: 0, CB2: 0, CB3: 0, ESTOP_NC: 1 },
+  Y: { STEP: 0, BELT: 0, V1: 0, V2: 0, GREEN: 0, AMBER: 0, RED: 0, BUZZ: 0 },
+  M: { BELT: 0, FEED: 0, XL1: 0, XL2: 0, ARM_CB2: 0, ARM_CB3: 0, ESTOP: 0, FEEDING: 0,
+       XL1_DN: 0, XL1_UP: 1, XL2_DN: 0, XL2_UP: 1 },
+};
+const CYL = [
+  { v: "V1", dn: "XL1_DN", up: "XL1_UP", lastV: 0, timer: 99, pos: 0 },     // xi lanh 1: thanh chặn
+  { v: "V2", dn: "XL2_DN", up: "XL2_UP", lastV: 0, timer: 99, pos: 0 },     // xi lanh 2: đầu kim cấp nguồn
+];
+const FEED = { theta: Math.PI, running: false, turned: 0, stack: [], drop: 0 };
+const ST = { mode: "AUTO", sys: "INIT", step: null, stopReq: false, estopBtn: false, cycleStart: 0, lastCycle: null,
+             firstSort: null, manual: { vis: null, fun: null } };
+const STATS = { total: 0, "ĐẠT": 0, "LỖI 1": 0, "LỖI 2": 0 };
+const FAULT = { cb2: false, pi: false, robot: false };
+let trays = [], trayId = 0;
+const BINS = { DAT: [], LOI1: [], LOI2: [] };
+let current = null;                               // PCB đang xử lý (thẻ "PCB hiện tại")
+
+// ---------------- Robot (STM32 + chương trình chạy trên PC) ----------------
+const R = {
+  cfg: EMBEDDED_CONFIG, p: {}, lim: {}, prof: {}, home: {}, points: {}, programs: {}, builtin: true, layoutErr: null,
+  q: { J1: -30, J2: -30, J3: 0, Z: 350 }, motion: null, prog: null, state: "idle", homed: false, estop: false,
+  fault: false, faultArm: false, grip: 0, gripCmd: 0, held: null,
+};
+
+// =====================================================================================================================
+// LOG + LƯU ĐỒ
+// =====================================================================================================================
+function log(msg, lvl = "INFO") {
+  const box = $("log"), d = document.createElement("div");
+  d.innerHTML = `<span class="t">${fmtT(SIM.t)}</span> <span class="${lvl}">[${lvl.padEnd(5)}]</span> `;
+  d.appendChild(document.createTextNode(msg));
+  box.appendChild(d);
+  while (box.childElementCount > 400) box.firstChild.remove();
+  box.scrollTop = box.scrollHeight;
+}
+const FLOW_MAIN = [
+  ["S0", "Khởi tạo: PC kiểm tra kết nối PLC, Pi, STM32; thu 2 xi lanh; robot về home"],
+  ["S1", "Chờ lệnh START"],
+  ["S2", "Cấp PCB: động cơ bước quay 1 vòng (tay quay – con trượt) → chờ CB1"],
+  ["S3", "Băng tải chạy → chờ CB2 (PLC tự dừng băng tải)"],
+  ["S4", "Xi lanh 1 hạ thanh chặn → chờ 'đã hạ' (timer)"],
+  ["S5", "Raspberry Pi chụp ảnh, kiểm tra ngoại quan"],
+  ["L1", "Ngoại quan LỖI → lưu Lỗi 1, thu xi lanh 1", "br"],
+  ["S6", "Xi lanh 2 hạ: 2 đầu kim cấp nguồn cho PCB"],
+  ["S7", "Raspberry Pi kiểm tra chức năng: LED 7 đoạn đếm 0 → 9"],
+  ["S8", "Thu xi lanh 1, 2 (ngắt nguồn PCB) → chờ 'đã thu'"],
+  ["S9", "Băng tải chạy → chờ CB3 (PLC tự dừng băng tải)"],
+  ["S10", "Robot gắp, phân loại: CT1 Đạt · CT3 Lỗi 1 · CT2 Lỗi 2"],
+  ["S11", "Có lệnh STOP? Có → về Chờ START · Không → PCB kế tiếp"],
+  ["B", "Lỗi timeout / thiết bị: PC dừng băng tải, động cơ bước, robot; chờ RESET", "err"],
+];
+const FLOW_ESTOP = [
+  ["E1", "E-Stop: PLC dừng khẩn cấp (không chờ PC), khóa van khí; PC khóa robot", "err"],
+  ["E2", "Chờ nhả nút E-Stop (E-Stop tự giữ)"],
+  ["E3", "Chờ lệnh RESET"],
+  ["R1", "PLC xóa cờ lỗi, cấp lại khí, thu xi lanh 1, 2"],
+  ["R2", "PC reset STM32, robot về home; hủy PCB dở dang"],
+  ["R3", "SẴN SÀNG → về bước Chờ START"],
+];
+const ORDER = FLOW_MAIN.map(f => f[0]);
+function buildFlow() {
+  for (const [list, id] of [[FLOW_MAIN, "flowMain"], [FLOW_ESTOP, "flowEstop"]]) {
+    const ol = $(id); ol.innerHTML = "";
+    list.forEach(([k, text, cls], i) => {
+      const li = document.createElement("li"); li.dataset.id = k; li.dataset.n = k.startsWith("S") ? k.slice(1) : k;
+      li.textContent = text; if (cls) li.className = cls; ol.appendChild(li);
+    });
+  }
+}
+function setStep(id) {
+  ST.step = id;
+  const main = ORDER.indexOf(id);
+  document.querySelectorAll("#flow li").forEach(li => {
+    const k = li.dataset.id, i = ORDER.indexOf(k);
+    li.classList.toggle("now", k === id);
+    li.classList.toggle("done", main >= 2 && i >= 2 && i < main && k !== "B" && !(k === "L1" && id !== "L1" && !ST.l1Path)
+                                && !(ST.l1Path && ["S6", "S7", "S8"].includes(k)));
+  });
+  const all = [...FLOW_MAIN, ...FLOW_ESTOP].find(f => f[0] === id);
+  $("stepBanner").innerHTML = all ? `<b>${id}</b> · ${all[1]}` : "—";
+}
+
+// =====================================================================================================================
+// TIẾN TRÌNH PC (máy trạng thái viết bằng generator: mỗi "yield" là một bước chờ có timeout như lưu đồ)
+// =====================================================================================================================
+const PROC = { gen: null, wait: null, kind: null };
+const W = (label, until, timeout = 0) => ({ label, until, timeout });
+const sleep = (s, label) => { const t = SIM.t + s; return W(label || `Chờ ${s} s`, () => SIM.t >= t - 1e-9); };
+function startProc(kind, gen) { PROC.kind = kind; PROC.gen = gen; PROC.wait = null; procAdvance(); }
+function abortProc() { PROC.gen = null; PROC.wait = null; PROC.kind = null; }
+function procAdvance() {
+  while (PROC.gen) {
+    let r;
+    try { r = PROC.gen.next(); } catch (e) { return procFail(e.message); }
+    if (r.done) { const k = PROC.kind; abortProc(); return onProcDone(k); }
+    const w = r.value;
+    if (w.until()) continue;
+    PROC.wait = { ...w, t0: SIM.t };
+    return;
+  }
+}
+function procTick() {
+  const w = PROC.wait;
+  if (!w) return;
+  if (w.until()) { PROC.wait = null; return procAdvance(); }
+  if (w.timeout && SIM.t - w.t0 > w.timeout) procFail(`Quá ${w.timeout} s chưa có: ${w.label}`);
+}
+function procFail(msg) {
+  const k = PROC.kind; abortProc(); PI.cancel();
+  if (k === "manual") { log(`MANUAL: ${msg}`, "ERROR"); ST.sys = "MANUAL"; return; }
+  enterError(msg);
+}
+function onProcDone(kind) {
+  if (kind === "manual") { ST.sys = "MANUAL"; return; }
+  ST.sys = ST.mode === "MANUAL" ? "MANUAL" : "READY";
+  setStep(ST.mode === "MANUAL" ? null : "S1");
+  if (kind !== "auto" || ST.mode === "AUTO") log(ST.mode === "MANUAL" ? "Sẵn sàng (MANUAL)." : "Sẵn sàng — nhấn START để chạy.", "OK");
+}
+
+function* procInit() {
+  ST.sys = "INIT"; setStep("S0");
+  log("PC: kiểm tra kết nối PLC (RS422), Raspberry Pi (TCP/IP), STM32 (UART) — OK (giả lập).", "OK");
+  IO.M.XL1 = 0; IO.M.XL2 = 0;
+  yield W("Xi lanh 1, 2 đã thu", () => IO.M.XL1_UP && IO.M.XL2_UP, TO.cyl);
+  if (!robotHome()) throw new Error(R.layoutErr || "Robot không HOME được");
+  yield W("Robot về home", () => R.state === "idle", TO.home);
+  if (!R.homed) throw new Error("Robot HOME lỗi");
+  log("STM32: HOME_DONE.", "OK");
+}
+
+function* procAuto() {
+  ST.sys = "RUNNING";
+  while (true) {
+    if (!FEED.stack.length) { log("Hết phôi trong ống cấp — dừng hệ thống. Bấm 'Nạp đầy ống cấp' rồi START.", "WARN"); break; }
+    ST.cycleStart = SIM.t; ST.l1Path = false;
+    setStep("S2"); log("PC → PLC: cấp 1 PCB (M101) — động cơ bước quay 1 vòng.");
+    IO.M.FEED = 1;
+    yield W("CB1 phát hiện PCB (cấp phôi xong)", () => IO.X.CB1 && !IO.M.FEEDING, TO.cb1);
+    log("CB1: có PCB trên băng tải.", "OK");
+    setStep("S3"); IO.M.ARM_CB2 = 1; IO.M.BELT = 1; log("PC → PLC: băng tải chạy (M100).");
+    yield W("CB2: PCB tới trạm kiểm tra", () => IO.X.CB2 && !IO.Y.BELT, TO.cb2);
+    log("PLC: CB2 tác động → dừng băng tải, hạ xi lanh 1 (liên động tại PLC).", "PLC");
+    setStep("S4");
+    yield W("Xi lanh 1 đã hạ (timer hành trình)", () => IO.M.XL1_DN, TO.cyl);
+    const tray = trayAtStation();
+    setCurrent(tray);
+    setStep("S5"); log("PC → Pi: {\"cmd\":\"capture\"} — chụp ảnh, kiểm tra ngoại quan.");
+    const vis = yield* piCall("capture");
+    if (vis.result === "NOPCB") throw new Error("Raspberry Pi không thấy PCB ở trạm kiểm tra");
+    showVis(vis);
+    let result;
+    if (vis.result === "NG") {
+      result = "LỖI 1"; ST.l1Path = true;
+      log(`Pi: ngoại quan LỖI (${vis.detail}) → PC lưu Lỗi 1.`, "WARN");
+      setStep("L1"); IO.M.XL1 = 0; log("PC → PLC: thu xi lanh 1.");
+      yield W("Xi lanh 1 đã thu", () => IO.M.XL1_UP, TO.cyl);
+      showFun(null, "bỏ qua (đã lỗi ngoại quan, không cấp nguồn)");
+    } else {
+      log("Pi: ngoại quan ĐẠT.", "OK");
+      setStep("S6"); IO.M.XL2 = 1; log("PC → PLC: hạ xi lanh 2 cấp nguồn cho PCB (M103).");
+      yield W("Xi lanh 2 đã hạ (timer hành trình)", () => IO.M.XL2_DN, TO.cyl);
+      setStep("S7"); log("PC → Pi: kiểm tra chức năng — xem LED 7 đoạn đếm 0 → 9.");
+      const fn = yield* piCall("func");
+      showFun(fn);
+      result = fn.result === "OK" ? "ĐẠT" : "LỖI 2";
+      log(fn.result === "OK" ? "Pi: chức năng ĐẠT — LED đếm đủ 0 → 9." : `Pi: chức năng LỖI — ${fn.detail} → PC lưu Lỗi 2.`,
+          fn.result === "OK" ? "OK" : "WARN");
+      setStep("S8"); IO.M.XL1 = 0; IO.M.XL2 = 0; log("PC → PLC: thu xi lanh 1, 2 (ngắt nguồn PCB).");
+      yield W("Xi lanh 1, 2 đã thu", () => IO.M.XL1_UP && IO.M.XL2_UP, TO.cyl);
+    }
+    if (tray) tray.result = result;
+    showConclusion(result);
+    setStep("S9"); IO.M.ARM_CB3 = 1; IO.M.BELT = 1; log("PC → PLC: băng tải chạy tới vị trí gắp.");
+    yield W("CB3: PCB tới vị trí gắp", () => IO.X.CB3 && !IO.Y.BELT, TO.cb3);
+    log("PLC: CB3 tác động → dừng băng tải.", "PLC");
+    setStep("S10");
+    const prog = PROG_OF[result];
+    if (!robotRun(prog)) throw new Error(`Không chạy được ${prog}: ${R.layoutErr || "thiếu chương trình"}`);
+    log(`PC → STM32: chạy ${prog} (PCB ${result}).`);
+    $("robPill").className = "pill blue"; $("robPill").textContent = "ĐANG CHẠY"; $("robNote").textContent = prog;
+    yield W(`Robot chạy xong ${prog}`, () => R.state === "idle", TO.robot);
+    if (R.fault) throw new Error("STM32 báo FAULT trong lúc robot chạy");
+    $("robPill").className = "pill green"; $("robPill").textContent = "XONG";
+    ST.lastCycle = SIM.t - ST.cycleStart;
+    log(`Hoàn tất PCB #${tray ? tray.id : "?"} → khay ${result}. Chu kỳ ${ST.lastCycle.toFixed(1)} s.`, "OK");
+    setStep("S11");
+    if (ST.stopReq) { log("Có lệnh STOP: hệ thống dừng sau khi xong PCB hiện tại.", "WARN"); break; }
+  }
+  ST.stopReq = false;
+}
+
+function* piCall(kind) {
+  const req = PI.start(kind);
+  yield W(kind === "capture" ? "Raspberry Pi trả kết quả ngoại quan" : "Raspberry Pi trả kết quả chức năng",
+          () => req.done, kind === "capture" ? TO.cam : TO.func);
+  return req;
+}
+
+function enterError(msg) {
+  abortProc(); PI.cancel();
+  IO.M.BELT = 0; IO.M.ARM_CB2 = 0; IO.M.ARM_CB3 = 0; FEED.running = false; IO.M.FEEDING = 0;
+  robotStop();
+  ST.sys = "ERROR"; setStep("B");
+  log(`LỖI: ${msg}. PC dừng băng tải, động cơ bước, gửi STOP cho STM32. Bấm RESET sau khi khắc phục.`, "ERROR");
+}
+
+function onEstop() {
+  abortProc(); PI.cancel();
+  R.estop = true; R.homed = false; R.motion = null; R.prog = null; R.state = "idle";
+  ST.sys = "ESTOP"; setStep("E1");
+  log("E-STOP! PLC dừng băng tải, động cơ bước, khóa van khí (xi lanh giữ nguyên), ngắt nguồn robot. "
+      + "PC gửi ESTOP 1 cho STM32, dừng chương trình.", "ERROR");
+}
+
+function* procReset() {
+  const from = ST.sys;
+  ST.sys = "RESETTING";
+  if (from === "ESTOP" || IO.M.ESTOP) {
+    setStep("R1");
+    log("RESET: PLC xóa cờ E-Stop / lỗi, tắt đèn đỏ / còi, cấp lại khí, thu xi lanh 1, 2.", "PLC");
+  } else {
+    setStep("R1"); log("RESET: xóa lỗi, thu xi lanh 1, 2.");
+  }
+  IO.M.ESTOP = 0; IO.M.XL1 = 0; IO.M.XL2 = 0; IO.M.BELT = 0;
+  for (const c of CYL) { c.lastV = -1; }           // khởi động lại timer hành trình (vị trí sau E-Stop chưa biết)
+  yield W("Xi lanh 1, 2 đã thu", () => IO.M.XL1_UP && IO.M.XL2_UP, TO.cyl);
+  setStep("R2");
+  R.estop = false; R.fault = false; R.faultArm = false;
+  log("PC → STM32: ESTOP 0 / CLEAR rồi HOMING — robot về home.");
+  // động cơ bước về vị trí đầu; phôi đang đẩy dở được đẩy lại vào tháp
+  FEED.running = false; FEED.theta = Math.PI; FEED.turned = 0; FEED.pending = false; FEED.drop = 0; IO.M.FEEDING = 0;
+  for (const t of FEED.stack) if (t.state === "feed") { t.state = "stack"; t.x = LAY.feedX; }
+  if (R.held) { removeTray(R.held); R.held = null; }
+  R.gripCmd = 0;
+  const removed = trays.filter(t => ["belt", "falling", "floor"].includes(t.state));
+  removed.forEach(removeTray);
+  if (removed.length) log(`Người vận hành lấy ${removed.length} PCB dở dang ra khỏi băng tải (hủy kết quả).`, "WARN");
+  if (!robotHome()) throw new Error(R.layoutErr || "Robot không HOME được");
+  yield W("Robot về home", () => R.state === "idle", TO.home);
+  setStep("R3"); log("Robot ở home — hệ thống SẴN SÀNG.", "OK");
+  yield sleep(0.8, "Sẵn sàng");
+  clearCurrent();
+}
+
+// =====================================================================================================================
+// PLC (quét mỗi bước mô phỏng): ngõ vào -> liên động -> ngõ ra; timer hành trình thay cho cảm biến xi lanh
+// =====================================================================================================================
+function readInputs() {
+  const on = xs => trays.some(t => t.state === "belt" && Math.abs(t.x - xs) <= LAY.tray.w / 2);
+  IO.X.CB1 = on(LAY.cb.CB1) ? 1 : 0;
+  IO.X.CB2 = !FAULT.cb2 && on(LAY.cb.CB2) ? 1 : 0;
+  IO.X.CB3 = on(LAY.cb.CB3) ? 1 : 0;
+  IO.X.ESTOP_NC = ST.estopBtn ? 0 : 1;
+}
+let interlockLogged = false;
+function plcScan(h) {
+  const { X, Y, M } = IO;
+  if (!X.ESTOP_NC && !M.ESTOP) { M.ESTOP = 1; for (const c of CYL) { c.timer = 0; M[c.dn] = 0; M[c.up] = 0; } }
+  if (M.ESTOP) {
+    Y.BELT = 0; Y.STEP = 0; M.BELT = 0; M.FEED = 0; M.ARM_CB2 = 0; M.ARM_CB3 = 0;
+    FEED.running = false; M.FEEDING = 0;
+  } else {
+    if (M.ARM_CB2 && X.CB2) { M.BELT = 0; M.XL1 = 1; M.ARM_CB2 = 0; }
+    if (M.ARM_CB3 && X.CB3) { M.BELT = 0; M.ARM_CB3 = 0; }
+    Y.BELT = M.BELT;
+    if (M.FEED && !FEED.running) {
+      if (Math.abs(FEED.theta - Math.PI) < 1e-3) { FEED.running = true; FEED.turned = 0; M.FEEDING = 1; }
+    }
+    M.FEED = 0;
+    Y.STEP = FEED.running ? 1 : 0;
+    if (M.XL2 && !Y.V2 && !M.XL1_DN) {
+      M.XL2 = 0;
+      if (!interlockLogged) log("PLC: liên động — xi lanh 1 chưa hạ xong nên KHÔNG hạ xi lanh 2.", "PLC");
+      interlockLogged = true;
+    } else if (!M.XL2) interlockLogged = false;
+    Y.V1 = M.XL1; Y.V2 = M.XL2;
+    for (const c of CYL) {
+      if (Y[c.v] !== c.lastV) { c.lastV = Y[c.v]; c.timer = 0; M[c.dn] = 0; M[c.up] = 0; }
+      else if (c.timer < TC.cylTimer) { c.timer += h; if (c.timer >= TC.cylTimer) M[Y[c.v] ? c.dn : c.up] = 1; }
+    }
+  }
+  // Đèn tháp + còi
+  const blink = Math.floor(SIM.t * 2) % 2 === 0;
+  const s = ST.sys;
+  Y.RED = (s === "ERROR" || s === "ESTOP") ? (blink ? 1 : 0) : 0;
+  Y.BUZZ = (s === "ERROR" || s === "ESTOP") ? 1 : 0;
+  Y.GREEN = s === "RUNNING" ? 1 : (s === "STOPPING" ? (blink ? 1 : 0) : 0);
+  Y.AMBER = (s === "READY" || s === "INIT" || s === "RESETTING") ? 1 : (s === "MANUAL" || s === "MANUAL_BUSY") ? (blink ? 1 : 0) : 0;
+}
+
+// =====================================================================================================================
+// VẬT LÝ: cơ cấu cấp phôi, băng tải, xi lanh, khay rơi, LED trên PCB
+// =====================================================================================================================
+const HW = LAY.tray.w / 2;
+function sliderX(theta) {                          // tay quay – con trượt: vị trí chốt con trượt
+  const r = LAY.crankR, L = LAY.rodL;
+  return LAY.crankX + r * Math.cos(theta) + Math.sqrt(L * L - (r * Math.sin(theta)) ** 2);
+}
+const pusherFront = () => sliderX(FEED.theta) + LAY.pusherL;
+function physics(h) {
+  // Xi lanh (khóa van khí khi E-Stop: giữ nguyên vị trí)
+  if (!IO.M.ESTOP) for (const c of CYL) {
+    const tgt = IO.Y[c.v] ? 1 : 0, d = h / TC.strokeT;
+    c.pos = c.pos < tgt ? Math.min(tgt, c.pos + d) : Math.max(tgt, c.pos - d);
+  }
+  // Cấp phôi: 1 vòng động cơ bước = 1 phôi
+  if (FEED.running && !IO.M.ESTOP) {
+    const dth = 2 * Math.PI / TC.feedT * h;
+    FEED.turned += dth;
+    FEED.theta = ((FEED.theta - dth) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+    const back = FEED.turned >= 2 * Math.PI || (FEED.turned > Math.PI && Math.abs(FEED.theta - Math.PI) < dth);
+    if (back) { FEED.theta = Math.PI; FEED.running = false; IO.M.FEEDING = 0; FEED.turned = 0; }
+  }
+  const front = pusherFront();
+  const bottom = FEED.stack[0];
+  if (bottom && !FEED.pending && FEED.drop <= 0 && front + HW > bottom.x) {
+    bottom.x = front + HW; bottom.state = "feed";
+    if (bottom.x - HW >= 1) { FEED.stack.shift(); bottom.state = "belt"; FEED.pending = true; }
+  }
+  for (const t of trays) if (t.state === "belt" && t.x < 80 && front + HW > t.x) t.x = front + HW;
+  // con trượt lùi qua khỏi đáy tháp: chồng phôi tụt xuống 1 tầng
+  if (FEED.pending && front < LAY.feedX - HW + 4) { FEED.pending = false; if (FEED.stack.length) FEED.drop = LAY.tray.h; }
+  if (FEED.drop > 0) FEED.drop = Math.max(0, FEED.drop - 220 * h);
+  FEED.stack.forEach((t, i) => { t.z = LAY.beltZ + i * LAY.tray.h + FEED.drop; if (t.state !== "feed") t.x = LAY.feedX; });
+  // Băng tải: khay chạy theo băng, bị chặn bởi thanh chặn / khay phía trước / cuối băng
+  const onBelt = trays.filter(t => t.state === "belt").sort((a, b) => b.x - a.x);
+  let aheadBack = Infinity;
+  for (const t of onBelt) {
+    let nx = IO.Y.BELT ? t.x + TC.beltV * h : t.x;
+    if (CYL[0].pos > 0.6 && t.x + HW <= LAY.stopFace + 0.5) nx = Math.min(nx, LAY.stopFace - HW);
+    nx = Math.min(nx, aheadBack - HW - 1, LAY.beltLen - HW + 6);
+    if (nx >= LAY.beltLen - HW + 6 && IO.Y.BELT && !t.endWarn) { t.endWarn = true; log(`PCB #${t.id} chạm cuối băng tải.`, "WARN"); }
+    t.x = Math.max(t.x, nx); aheadBack = t.x - HW; t.z = LAY.beltZ;
+  }
+  // Khay rơi (thả từ robot)
+  for (const t of trays) if (t.state === "falling") {
+    t.vz = (t.vz || 0) - 9810 * h; t.z += t.vz * h;
+    const sup = supportAt(t);
+    if (t.z <= sup.z) { t.z = sup.z; t.vz = 0; landTray(t, sup); }
+  }
+  // LED trên PCB: có nguồn khi xi lanh 2 hạ hết và khay nằm đúng trạm
+  for (const t of trays) {
+    const powered = CYL[1].pos > 0.97 && t.state === "belt" && Math.abs(t.x - LAY.station) < 6;
+    const L = t.led;
+    if (powered) {
+      L.t += h; const n = Math.floor(L.t / TC.ledStep);
+      L.digit = t.defect.type === "L2" ? (t.defect.dark ? null : Math.min(n, t.defect.stallAt)) : n % 10;
+    } else { L.t = 0; L.digit = null; }
+    L.powered = powered;
+  }
+}
+function supportAt(t) {
+  for (const [k, b] of Object.entries(LAY.bins)) {
+    if (Math.abs(t.x - b.x) < 48 && Math.abs(t.y - b.y) < 48)
+      return { z: LAY.binFloor + Math.min(BINS[k].length, 3) * LAY.tray.h, bin: k };
+  }
+  if (t.x > 0 && t.x < LAY.beltLen && Math.abs(t.y) < LAY.beltW / 2) return { z: LAY.beltZ, belt: true };
+  return { z: 0 };
+}
+function landTray(t, sup) {
+  if (sup.bin) {
+    t.state = "bin"; const arr = BINS[sup.bin]; arr.push(t);
+    if (arr.length > 3) removeTray(arr.shift(), true);          // chỉ vẽ 3 khay trên cùng, số đếm vẫn giữ
+    arr.forEach((x, i) => { x.z = LAY.binFloor + i * LAY.tray.h; });
+    STATS.total++; const res = { DAT: "ĐẠT", LOI1: "LỖI 1", LOI2: "LỖI 2" }[sup.bin]; STATS[res]++;
+    if (ST.firstSort === null) ST.firstSort = SIM.t;
+  } else if (sup.belt) { t.state = "belt"; t.y = 0; }
+  else { t.state = "floor"; log(`PCB #${t.id} rơi xuống sàn!`, "WARN"); }
+}
+function trayAtStation() { return trays.find(t => t.state === "belt" && Math.abs(t.x - LAY.station) < 8) || null; }
+
+// =====================================================================================================================
+// RASPBERRY PI (giả lập): chụp ảnh → ngoại quan; xem LED → chức năng
+// =====================================================================================================================
+const PI = {
+  req: null,
+  start(kind) { this.req = { kind, done: false, t: 0, seen: [], last: undefined, lastChange: 0, result: null, detail: "" }; return this.req; },
+  cancel() { this.req = null; },
+  tick(h) {
+    const q = this.req;
+    if (!q || q.done) return;
+    q.t += h;
+    if (FAULT.pi) return;                         // "Pi không phản hồi": không bao giờ trả lời
+    const tray = trayAtStation();
+    if (q.kind === "capture") {
+      if (q.t < TC.piVisT) return;
+      snapshot(tray);
+      if (!tray) { q.result = "NOPCB"; q.detail = "không thấy PCB"; }
+      else if (tray.defect.type === "L1") { q.result = "NG"; q.detail = `thiếu ${tray.defect.missingName}`; }
+      else { q.result = "OK"; q.detail = "đủ linh kiện"; }
+      q.done = true;
+    } else {
+      const d = tray && tray.led.powered ? tray.led.digit : null;
+      if (d !== q.last) { q.last = d; q.lastChange = q.t; if (d !== null) q.seen.push(d); }
+      const s = q.seen.join(",");
+      if (s.includes("0,1,2,3,4,5,6,7,8,9")) { q.result = "OK"; q.detail = "LED đếm đủ 0 → 9"; q.done = true; }
+      else if (q.t - q.lastChange > TC.piStall) {
+        q.result = "NG"; q.detail = d === null ? "LED 7 đoạn không sáng" : `LED dừng ở số ${d}, không đếm tới 9`; q.done = true;
+      }
+    }
+  },
+};
+
+// =====================================================================================================================
+// ROBOT: điểm / chương trình, chạy chương trình (MOVE đồng bộ khớp, GRIP, DELAY), HOME, STOP, E-STOP, FAULT
+// =====================================================================================================================
+function applyConfig(cfg) {
+  R.cfg = cfg;
+  const k = cfg.kinematics || {};
+  R.p = { h1: +k.h1 || 0, l1: +k.l1 || 120, l2: +k.l2 || 100, h2: +k.h2 || 0 };
+  for (const a of AXES) {
+    const L = (cfg.joint_limits || {})[a] || {}, mp = (cfg.motion_profile || {})[a] || {};
+    R.lim[a] = [+(L.min ?? -90), +(L.max ?? 90)];
+    R.prof[a] = { vmax: Math.max(1e-3, +(mp.vmax ?? 30)), amax: Math.max(1e-3, +(mp.amax ?? 60)) };
+    R.home[a] = clamp(+((cfg.home_position || {})[a] ?? 0), ...R.lim[a]);
+  }
+}
+function worldToRobot(x, y) {
+  const c = Math.cos(-LAY.robot.phi * DEG), s = Math.sin(-LAY.robot.phi * DEG), dx = x - LAY.robot.x, dy = y - LAY.robot.y;
+  return { x: dx * c - dy * s, y: dx * s + dy * c };
+}
+function tcpWorld(q = R.q) {
+  const f = fk(q, R.p), c = Math.cos(LAY.robot.phi * DEG), s = Math.sin(LAY.robot.phi * DEG);
+  return { x: LAY.robot.x + f.x * c - f.y * s, y: LAY.robot.y + f.x * s + f.y * c, z: f.z, th: f.th + LAY.robot.phi };
+}
+function solvePair(xw, yw, ref) {                  // điểm trên + dưới cùng một hướng kẹp (khay vuông: 0/90/180/270°)
+  const r = worldToRobot(xw, yw);
+  for (const thw of [0, 90, 180, 270]) {
+    try {
+      const up = ik(r.x, r.y, LAY.zUp, thw - LAY.robot.phi, R.p, R.lim, ref);
+      const dn = ik(r.x, r.y, LAY.zDn, thw - LAY.robot.phi, R.p, R.lim, up);
+      return { up, dn };
+    } catch (_) { /* thử hướng khác */ }
+  }
+  throw new Error(`không với tới (${xw.toFixed(0)}, ${yw.toFixed(0)})`);
+}
+function buildBuiltinProgram() {
+  const pts = { CHO: { ...R.home } };
+  const gap = solvePair(LAY.pick.x, LAY.pick.y, R.home);
+  pts.GAP_tren = gap.up; pts.GAP_duoi = gap.dn;
+  for (const [k, name] of [["DAT", "DAT"], ["LOI1", "LOI1"], ["LOI2", "LOI2"]]) {
+    const b = solvePair(LAY.bins[k].x, LAY.bins[k].y, gap.up);
+    pts[`${name}_tren`] = b.up; pts[`${name}_duoi`] = b.dn;
+  }
+  const prog = bin => ({ description: `Gắp ở CB3, thả vào khay ${bin}`, steps: [
+    { type: "MOVE", point: "GAP_tren" }, { type: "MOVE", point: "GAP_duoi" }, { type: "GRIP", action: "ON" },
+    { type: "DELAY", seconds: 0.5 }, { type: "MOVE", point: "GAP_tren" }, { type: "MOVE", point: `${bin}_tren` },
+    { type: "MOVE", point: `${bin}_duoi` }, { type: "GRIP", action: "OFF" }, { type: "DELAY", seconds: 0.5 },
+    { type: "MOVE", point: `${bin}_tren` }] });
+  return { points: pts, programs: { "Chương trình 1": prog("DAT"), "Chương trình 2": prog("LOI2"), "Chương trình 3": prog("LOI1") } };
+}
+function setRobotData(cfg, points, programs, sourceLabel) {
+  applyConfig(cfg);
+  R.layoutErr = null;
+  let builtin = null;
+  try { builtin = buildBuiltinProgram(); } catch (e) { R.layoutErr = "Bố trí dựng sẵn không với tới được với cấu hình này: " + e.message; }
+  const need = ["Chương trình 1", "Chương trình 2", "Chương trình 3"];
+  const useData = programs && points && need.every(n => programs[n] && programs[n].steps.every(
+    s => s.type !== "MOVE" || points[s.point]));
+  if (useData) { R.points = points; R.programs = programs; R.builtin = false; R.layoutErr = null; }
+  else if (builtin) { R.points = builtin.points; R.programs = builtin.programs; R.builtin = true; }
+  $("dataInfo").innerHTML = `${sourceLabel}<br>Robot: h1 ${R.p.h1} · l1 ${R.p.l1} · l2 ${R.p.l2} · h2 ${R.p.h2} mm · `
+    + `Vmax J1/J2/J3/Z ${AXES.map(a => R.prof[a].vmax).join("/")} · `
+    + (useData ? "<b>dùng Chương trình 1/2/3 trong programs.json</b>" : (builtin ? "dùng bộ điểm dựng sẵn" : `<span style="color:var(--red)">${R.layoutErr}</span>`));
+  if (G.robot) buildRobot();
+}
+function robotMoveTo(q1, scale = 1) {
+  const prof = {}; for (const a of AXES) prof[a] = { vmax: R.prof[a].vmax * scale, amax: R.prof[a].amax * scale };
+  R.motion = { m: syncMotion({ ...R.q }, q1, prof), t: 0 };
+}
+function robotHome() {
+  if (R.estop) return false;
+  R.prog = null; R.state = "homing"; R.homed = false; R.gripCmd = 0;
+  robotMoveTo(R.home, 0.6);
+  return true;
+}
+function robotRun(name) {
+  const prog = R.programs[name];
+  if (!prog || R.estop || !R.homed) return false;
+  R.prog = { name, steps: prog.steps, idx: -1, delay: 0 }; R.state = "running"; R.fault = false;
+  nextStep();
+  return true;
+}
+function robotStop() { R.motion = null; R.prog = null; if (!R.estop) R.state = "idle"; }
+function nextStep() {
+  const P = R.prog;
+  while (P) {
+    P.idx++;
+    if (P.idx >= P.steps.length) { R.prog = null; R.state = "idle"; return; }
+    const s = P.steps[P.idx];
+    if (s.type === "MOVE") {
+      const q = R.points[s.point];
+      if (!q) { R.prog = null; R.state = "idle"; R.fault = true; log(`Robot: Point '${s.point}' không tồn tại.`, "ERROR"); return; }
+      robotMoveTo(q); return;
+    }
+    if (s.type === "DELAY") { P.delay = +s.seconds || 0; return; }
+    if (s.type === "GRIP") { gripCommand(s.action === "ON"); continue; }
+  }
+}
+function gripCommand(on) {
+  R.gripCmd = on ? 1 : 0;
+  const tcp = tcpWorld();
+  if (on && !R.held) {
+    const t = trays.find(t => ["belt", "floor", "bin"].includes(t.state) && Math.hypot(t.x - tcp.x, t.y - tcp.y) < 15
+                             && t.z <= tcp.z && t.z >= tcp.z - 30);
+    if (t) {
+      if (t.state === "bin") for (const k in BINS) BINS[k] = BINS[k].filter(x => x !== t);
+      R.held = t; t.state = "held"; t.yawOff = (t.yaw || 0) - tcp.th;
+    } else log("Robot: GRIP ON nhưng không có khay giữa 2 ngón kẹp (kẹp hụt).", "WARN");
+  } else if (!on && R.held) { R.held.state = "falling"; R.held.vz = 0; R.held = null; }
+}
+function robotTick(h) {
+  if (R.estop) return;                                            // mất nguồn động lực: đứng yên
+  R.grip += clamp(R.gripCmd - R.grip, -h / TC.gripT, h / TC.gripT);
+  if (R.motion) {
+    const m = R.motion; m.t += h;
+    if (R.faultArm && R.state === "running" && m.t > 0.4 * m.m.T) {
+      R.faultArm = false; R.fault = true; R.motion = null; R.prog = null; R.state = "idle";
+      log("STM32: FAULT 2 trip — sai số bám J1 vượt ngưỡng, đã phanh và tắt PID.", "ERROR");
+      return;
+    }
+    R.q = m.m.at(Math.min(m.t, m.m.T));
+    if (m.t >= m.m.T) {
+      R.motion = null;
+      if (R.state === "homing") { R.state = "idle"; R.homed = true; }
+      else nextStep();
+    }
+  } else if (R.prog && R.prog.delay > 0) {
+    R.prog.delay -= h; if (R.prog.delay <= 0) nextStep();
+  }
+  if (R.held) {
+    const tcp = tcpWorld(); const t = R.held;
+    t.x = tcp.x; t.y = tcp.y; t.z = tcp.z - 5; t.yaw = tcp.th + t.yawOff;
+  }
+}
+
+// =====================================================================================================================
+// PHÔI (khay + PCB)
+// =====================================================================================================================
+const PARTS = [["IC8", "IC 8 chân"], ["R3", "điện trở R3"], ["C1", "tụ C1"], ["VR1", "biến trở VR1"], ["SW1", "nút nhấn SW1"]];
+function newTray() {
+  const p1 = +$("p1").value / 100, p2 = +$("p2").value / 100, r = rnd();
+  const defect = { type: "OK" };
+  if (r < p1) { const k = Math.floor(rnd() * PARTS.length); defect.type = "L1"; defect.missing = PARTS[k][0]; defect.missingName = PARTS[k][1]; }
+  else if (r < p1 + p2) { defect.type = "L2"; defect.dark = rnd() < 0.25; defect.stallAt = 2 + Math.floor(rnd() * 6); }
+  const t = { id: ++trayId, x: LAY.feedX, y: 0, z: 0, yaw: 0, state: "stack", defect, led: { t: 0, digit: null, drawn: undefined } };
+  trays.push(t);
+  if (G.trays) buildTrayMesh(t);
+  return t;
+}
+function refill() {
+  if (FEED.running) return log("Đang cấp phôi — đợi xong rồi nạp.", "WARN");
+  while (FEED.stack.length < 8) FEED.stack.push(newTray());
+  log(`Nạp ống cấp: ${FEED.stack.length} phôi.`, "OK");
+}
+function removeTray(t, keepCount) {
+  trays = trays.filter(x => x !== t);
+  if (!keepCount) for (const k in BINS) BINS[k] = BINS[k].filter(x => x !== t);
+  if (t.mesh) { G.trays.remove(t.mesh); t.mesh.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
+}
+
+// =====================================================================================================================
+// CẢNH 3D
+// =====================================================================================================================
+let THREE, renderer, scene, camera, prevRenderer, prevCam;
+const G = {}, M = {};
+async function loadThree() {
+  for (const u of ["https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                   "https://unpkg.com/three@0.160.0/build/three.module.js"]) {
+    try { return await import(u); } catch (e) { console.warn(u, e); }
+  }
+  throw new Error("Không tải được three.js (cần Internet lần đầu).");
+}
+const std = (c, r = 0.55, m = 0.1, x = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: m, ...x });
+function mesh(geo, mat, parent, x = 0, y = 0, z = 0, shadow = true) {
+  const o = new THREE.Mesh(geo, mat); o.position.set(x, y, z); o.castShadow = shadow; o.receiveShadow = shadow;
+  if (parent) parent.add(o); return o;
+}
+const box = (w, d, h) => new THREE.BoxGeometry(w, d, h);
+function vcyl(r, h, seg = 28) { const g = new THREE.CylinderGeometry(r, r, h, seg); g.rotateX(Math.PI / 2); return g; }   // trục Z
+function xcyl(r, h, seg = 16) { const g = new THREE.CylinderGeometry(r, r, h, seg); g.rotateZ(Math.PI / 2); return g; }   // trục X
+function ycyl(r, h, seg = 16) { return new THREE.CylinderGeometry(r, r, h, seg); }                                        // trục Y
+function label(text, color = "#334155", px = 16) {
+  const f = 30, pad = 10, cv = document.createElement("canvas"), ctx = cv.getContext("2d");
+  ctx.font = `600 ${f}px Segoe UI, sans-serif`;
+  cv.width = Math.ceil(ctx.measureText(text).width) + pad * 2; cv.height = f + pad * 2;
+  ctx.font = `600 ${f}px Segoe UI, sans-serif`; ctx.fillStyle = "rgba(255,255,255,0.9)";
+  if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(0, 0, cv.width, cv.height, 12); ctx.fill(); } else ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.fillStyle = color; ctx.textBaseline = "middle"; ctx.fillText(text, pad, cv.height / 2 + 1);
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+  sp.scale.set(px * cv.width / cv.height, px, 1); sp.renderOrder = 20; sp.layers.set(1);
+  sp.userData.draw = (t, c) => {
+    ctx.clearRect(0, 0, cv.width, cv.height); ctx.fillStyle = "rgba(255,255,255,0.9)";
+    if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(0, 0, cv.width, cv.height, 12); ctx.fill(); } else ctx.fillRect(0, 0, cv.width, cv.height);
+    ctx.font = `600 ${f}px Segoe UI, sans-serif`; ctx.fillStyle = c || color; ctx.textBaseline = "middle"; ctx.fillText(t, pad, cv.height / 2 + 1);
+    tex.needsUpdate = true;
+  };
+  return sp;
+}
+
+function setupScene() {
+  const host = $("view");
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  host.prepend(renderer.domElement);
+  scene = new THREE.Scene(); scene.background = new THREE.Color(0xe9eef5);
+  camera = new THREE.PerspectiveCamera(38, 1, 5, 40000); camera.up.set(0, 0, 1); camera.layers.enable(1);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xb6c2d2, 2.0));
+  const sun = new THREE.DirectionalLight(0xffffff, 2.3);
+  sun.position.set(700, -900, 1600); sun.target.position.set(450, 0, 0); scene.add(sun.target);
+  sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+  Object.assign(sun.shadow.camera, { left: -1100, right: 1100, top: 900, bottom: -900, near: 100, far: 4000 });
+  sun.shadow.bias = -0.0004; scene.add(sun);
+  Object.assign(M, {
+    floor: std(0xf3f5f8, 0.95, 0), black: std(0x1f2430, 0.6, 0.2), grey: std(0x7c8796, 0.5, 0.3), alu: std(0xcbd5e1, 0.35, 0.55),
+    steel: std(0x9aa6b5, 0.3, 0.8), yellow: std(0xf6b81c, 0.55, 0.05), wood: std(0xc8a06a, 0.75, 0), white: std(0xf1f5f9, 0.5, 0.1),
+    pcb: std(0xc98a3c, 0.6, 0.05), green: std(0x2f9e57, 0.5, 0.05), ic: std(0x1b1d22, 0.45, 0.2), blue: std(0x2d5bd3, 0.45, 0.1),
+    beige: std(0xe2c79b, 0.6, 0), cap: std(0x2a2f3a, 0.4, 0.3), pin: std(0xd4d8de, 0.3, 0.9), red: std(0xdc2626, 0.5, 0.1),
+    motor: std(0x1f2937, 0.45, 0.35), accent: std(0x2563eb, 0.4, 0.2), link: std(0xf8fafc, 0.42, 0.08), link2: std(0xe6ecf4, 0.42, 0.08),
+    tool: std(0x475569, 0.45, 0.4), finger: std(0x94a3b8, 0.45, 0.3), brass: std(0xc59a52, 0.4, 0.6),
+  });
+  mesh(new THREE.PlaneGeometry(4000, 2600), M.floor, scene, 450, 0, 0).castShadow = false;
+  const grid = new THREE.GridHelper(4000, 40, 0xd5dde8, 0xe4e9f0); grid.rotation.x = Math.PI / 2; grid.position.set(450, 0, 0.3); scene.add(grid);
+  for (const k of ["line", "trays", "robot"]) { G[k] = new THREE.Group(); scene.add(G[k]); }
+  buildConveyor(); buildFeeder(); buildStation(); buildBins(); buildTower();
+  G.robotRoot = new THREE.Group(); G.robotRoot.position.set(LAY.robot.x, LAY.robot.y, 0); G.robotRoot.rotation.z = LAY.robot.phi * DEG;
+  G.robot.add(G.robotRoot); buildRobot();
+  // Camera xem trước (ảnh Pi chụp): nhìn từ camera của trạm xuống, không thấy nhãn
+  prevRenderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  prevRenderer.setSize(360, 230, false);
+  prevCam = new THREE.PerspectiveCamera(30, 360 / 230, 5, 3000); prevCam.up.set(0, 1, 0);
+  prevCam.position.set(LAY.station, -30, 332); prevCam.lookAt(LAY.station, 0, LAY.beltZ);   // ngay dưới ống kính camera
+  new ResizeObserver(() => requestAnimationFrame(resize)).observe($("view")); resize();
+  setupOrbit(renderer.domElement); setView("all");
+}
+function resize() {
+  const v = $("view"), w = v.clientWidth, h = v.clientHeight;
+  if (!w || !h) return;
+  renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+
+function buildConveyor() {
+  const g = G.line, L = LAY.beltLen, Wd = LAY.beltW, Z = LAY.beltZ;
+  for (const s of [-1, 1]) mesh(box(L + 20, 8, Z), M.black, g, L / 2, s * (Wd / 2 + 10), Z / 2);       // khung thép đen 2 bên
+  mesh(box(L, Wd, 4), M.black, g, L / 2, 0, Z - 8);
+  for (const x of [0, L]) mesh(ycyl(14, Wd + 4), M.steel, g, x, 0, Z - 14);                          // rulo 2 đầu
+  // Băng tải xanh: texture có vạch, dịch theo vận tốc băng
+  const cv = document.createElement("canvas"); cv.width = 512; cv.height = 64; const c = cv.getContext("2d");
+  c.fillStyle = "#1e7a3c"; c.fillRect(0, 0, 512, 64); c.fillStyle = "#18692f";
+  for (let i = 0; i < 16; i++) c.fillRect(i * 32, 0, 3, 64);
+  const tex = new THREE.CanvasTexture(cv); tex.wrapS = THREE.RepeatWrapping; tex.repeat.set(L / 512 * 4, 1); tex.colorSpace = THREE.SRGBColorSpace;
+  G.beltTex = tex;
+  mesh(box(L, Wd, 3), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7 }), g, L / 2, 0, Z - 1.5);
+  // Thanh dẫn hướng màu xám 2 bên (phía -Y chừa chỗ cho thanh chặn)
+  mesh(box(950, 6, 34), M.grey, g, 515, Wd / 2 + 6, Z + 17);
+  mesh(box(330, 6, 34), M.grey, g, 205, -(Wd / 2 + 6), Z + 17);
+  mesh(box(520, 6, 34), M.grey, g, 730, -(Wd / 2 + 6), Z + 17);
+  // Cảm biến CB1..CB3 (gắn trên thanh dẫn phía +Y) + tia quét
+  G.beams = {};
+  for (const [k, x] of Object.entries(LAY.cb)) {
+    mesh(box(16, 18, 26), M.black, g, x, Wd / 2 + 18, Z + 22);
+    const led = mesh(box(6, 2, 6), std(0x334155, 0.4, 0, { emissive: 0x000000 }), g, x, Wd / 2 + 8, Z + 28, false);
+    const beam = mesh(box(2, Wd, 2), new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.0 }), g, x, 0, Z + 14, false);
+    G.beams[k] = { led, beam };
+    const lb = label(k, "#0f172a", 15); lb.position.set(x, Wd / 2 + 22, Z + 56); g.add(lb);
+  }
+  const lb = label("Băng tải 1000 × 150 mm", "#475569", 14); lb.position.set(700, -Wd / 2 - 40, Z + 30); g.add(lb);
+}
+
+function buildFeeder() {
+  const g = new THREE.Group(); G.line.add(g); const Z = LAY.beltZ;
+  // Chân nhôm + tấm đế đen ngang mặt băng tải
+  mesh(box(420, 150, 6), M.black, g, -215, 0, Z - 3);
+  for (const x of [-410, -20]) for (const y of [-60, 60]) mesh(box(20, 20, Z - 6), M.alu, g, x, y, (Z - 6) / 2);
+  // Ray dẫn con trượt
+  mesh(box(160, 14, 6), M.steel, g, -185, 0, Z + 3);
+  // Đĩa tay quay (động cơ bước bên dưới)
+  G.crank = new THREE.Group(); G.crank.position.set(LAY.crankX, 0, Z + 2); g.add(G.crank);
+  mesh(vcyl(72, 4, 48), M.black, G.crank, 0, 0, 2);
+  mesh(vcyl(6, 10), M.steel, G.crank, LAY.crankR, 0, 7);
+  mesh(vcyl(8, 8), M.steel, G.crank, 0, 0, 6);
+  mesh(vcyl(26, 40), M.motor, g, LAY.crankX, 0, Z - 26);
+  G.rod = mesh(box(LAY.rodL, 12, 6), M.grey, g, 0, 0, Z + 12);
+  G.slider = new THREE.Group(); g.add(G.slider);
+  mesh(box(40, 34, 14), M.steel, G.slider, 0, 0, Z + 13);
+  mesh(box(LAY.pusherL, 56, 10), M.brass, G.slider, LAY.pusherL / 2, 0, Z + 6);
+  // Tháp chứa phôi màu vàng (trong 82 mm), cửa ra phía băng tải, khe sau cho thanh đẩy
+  const fx = LAY.feedX, inner = 82, t = 5, H = 270;
+  mesh(box(t, inner + 2 * t, H - 30), M.yellow, g, fx + inner / 2 + t / 2, 0, Z + 30 + (H - 30) / 2);
+  mesh(box(t, inner + 2 * t, H - 14), M.yellow, g, fx - inner / 2 - t / 2, 0, Z + 14 + (H - 14) / 2);
+  for (const s of [-1, 1]) mesh(box(inner + 2 * t, t, H), M.yellow, g, fx, s * (inner / 2 + t / 2), Z + H / 2);
+  const lb = label("Cấp phôi: tay quay – con trượt", "#0f172a", 15); lb.position.set(-200, 0, Z + 330); g.add(lb);
+}
+
+function buildStation() {
+  const g = new THREE.Group(); G.line.add(g); const Z = LAY.beltZ, X = LAY.station;
+  // Khung nhôm treo camera
+  mesh(box(20, 20, 420), M.alu, g, X, 120, 210);
+  mesh(box(20, 160, 20), M.alu, g, X, 50, 410);
+  mesh(box(46, 46, 44), M.black, g, X, -30, 380);
+  mesh(vcyl(14, 20), M.ic, g, X, -30, 350);
+  const lb = label("Camera (Raspberry Pi)", "#1e40af", 15); lb.position.set(X, -30, 445); g.add(lb);
+  // Xi lanh 2 (đứng) + 2 đầu kim cấp nguồn
+  mesh(box(12, 12, 160), M.alu, g, X, 24, 330);
+  mesh(box(26, 26, 55), M.white, g, X, 24, 222);
+  G.xl2 = new THREE.Group(); g.add(G.xl2);
+  mesh(vcyl(3, 40), M.steel, G.xl2, 0, 0, 20);
+  mesh(box(20, 10, 4), M.black, G.xl2, 0, 0, 0);
+  for (const dx of [-4, 4]) mesh(vcyl(0.9, 10), M.red, G.xl2, dx, 0, -5);
+  const lb2 = label("XL2 · cấp nguồn", "#0f172a", 13); lb2.position.set(X + 60, 24, 250); g.add(lb2);
+  // Xi lanh 1 + thanh chặn gỗ (quay quanh trục đứng ở mép băng)
+  const pv = { x: LAY.stopFace + 4, y: -(LAY.beltW / 2 + 14) };
+  mesh(vcyl(6, 50), M.steel, g, pv.x, pv.y, Z + 10);
+  G.stopper = new THREE.Group(); G.stopper.position.set(pv.x, pv.y, Z + 16); g.add(G.stopper);
+  mesh(box(170, 8, 10), M.wood, G.stopper, 85, 0, 0);
+  mesh(box(70, 22, 22), M.white, g, pv.x + 50, pv.y - 20, Z - 40);
+  G.xl1rod = mesh(xcyl(3, 60), M.steel, g, pv.x, pv.y - 20, Z - 40);
+  const lb3 = label("XL1 · thanh chặn", "#0f172a", 13); lb3.position.set(pv.x + 40, pv.y - 40, Z + 60); g.add(lb3);
+}
+
+function buildBins() {
+  G.binLabels = {};
+  const col = { DAT: 0x16a34a, LOI1: 0xd97706, LOI2: 0xdc2626 }, name = { DAT: "Đạt", LOI1: "Lỗi 1", LOI2: "Lỗi 2" };
+  for (const [k, b] of Object.entries(LAY.bins)) {
+    const g = new THREE.Group(); g.position.set(b.x, b.y, 0); G.line.add(g);
+    mesh(box(80, 80, LAY.binFloor - 4), M.alu, g, 0, 0, (LAY.binFloor - 4) / 2);
+    const mat = std(col[k], 0.5, 0.05, { transparent: true, opacity: 0.85 });
+    mesh(box(104, 104, 4), mat, g, 0, 0, LAY.binFloor - 2);
+    for (const [dx, dy, w, d] of [[0, 50, 104, 4], [0, -50, 104, 4], [50, 0, 4, 104], [-50, 0, 4, 104]])
+      mesh(box(w, d, LAY.binWall), mat, g, dx, dy, LAY.binFloor + LAY.binWall / 2 - 4);
+    const lb = label(`${name[k]}: 0000`, "#" + col[k].toString(16).padStart(6, "0"), 17);   // rộng sẵn cho số đếm lb.position.set(0, 0, LAY.binFloor + LAY.binWall + 30);
+    g.add(lb); G.binLabels[k] = lb;
+  }
+}
+
+function buildTower() {
+  const g = new THREE.Group(); g.position.set(-20, 120, 0); G.line.add(g);
+  mesh(vcyl(6, 250), M.alu, g, 0, 0, 125);
+  G.lamps = {};
+  [["RED", 0xdc2626, 330], ["AMBER", 0xf59e0b, 305], ["GREEN", 0x16a34a, 280]].forEach(([k, c, z]) => {
+    G.lamps[k] = mesh(vcyl(14, 24), new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0, roughness: 0.4,
+                                                                    transparent: true, opacity: 0.85 }), g, 0, 0, z);
+  });
+  mesh(vcyl(15, 8), M.black, g, 0, 0, 346);
+  const lb = label("Đèn tháp", "#0f172a", 13); lb.position.set(0, 0, 380); g.add(lb);
+}
+
+// ---- Khay + PCB (mạch thật: terminal xanh, IC 8 + 16 chân, LED 7 đoạn, biến trở, tụ, nút nhấn, điện trở) ----
+const SEG = { 0: "abcdef", 1: "bc", 2: "abdeg", 3: "abcdg", 4: "bcfg", 5: "acdfg", 6: "acdefg", 7: "abc", 8: "abcdefg", 9: "abcdfg" };
+const SEGR = { a: [14, 8, 36, 8], b: [50, 14, 8, 30], c: [50, 52, 8, 30], d: [14, 84, 36, 8], e: [6, 52, 8, 30], f: [6, 14, 8, 30], g: [14, 46, 36, 8] };
+function drawSeg(ctx, d) {
+  ctx.fillStyle = "#141414"; ctx.fillRect(0, 0, 64, 96);
+  const on = d === null || d === undefined ? "" : SEG[d];
+  for (const [k, r] of Object.entries(SEGR)) { ctx.fillStyle = on.includes(k) ? "#ff3b30" : "#3a2626"; ctx.fillRect(...r); }
+  ctx.fillStyle = "#3a2626"; ctx.fillRect(56, 86, 6, 6);
+}
+function buildTrayMesh(t) {
+  const g = new THREE.Group(); G.trays.add(g); t.mesh = g;
+  const { w, h, wall, floor } = LAY.tray;
+  mesh(box(w, w, floor), M.yellow, g, 0, 0, floor / 2);
+  for (const [dx, dy, a, b] of [[0, w / 2 - wall / 2, w, wall], [0, -w / 2 + wall / 2, w, wall], [w / 2 - wall / 2, 0, wall, w], [-w / 2 + wall / 2, 0, wall, w]])
+    mesh(box(a, b, h), M.yellow, g, dx, dy, h / 2);
+  const P = new THREE.Group(); P.position.z = floor + 1.6; g.add(P);
+  mesh(box(LAY.pcb, LAY.pcb, 1.6), M.pcb, P, 0, 0, -0.8);
+  const miss = t.defect.type === "L1" ? t.defect.missing : null;
+  const part = (k, fn) => { if (k !== miss) fn(); };
+  // terminal xanh 2 vít (điểm 2 đầu kim chạm vào)
+  mesh(box(16, 10, 10), M.green, P, 0, 24, 5); for (const dx of [-4, 4]) mesh(vcyl(2.6, 1.2), M.pin, P, dx, 24, 10.4);
+  part("IC8", () => mesh(box(10, 9, 4), M.ic, P, 18, 6, 2));
+  mesh(box(22, 9, 4), M.ic, P, -2, -6, 2);                              // IC 16 chân
+  const cv = document.createElement("canvas"); cv.width = 64; cv.height = 96; const ctx = cv.getContext("2d"); drawSeg(ctx, null);
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+  const segMat = [M.ic, M.ic, M.ic, M.ic, new THREE.MeshStandardMaterial({ map: tex, roughness: 0.4, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.6 }), M.ic];
+  mesh(box(13, 18, 6), segMat, P, -22, 12, 3);
+  t.led.ctx = ctx; t.led.tex = tex;
+  part("VR1", () => mesh(box(7, 7, 6), M.blue, P, -6, 24, 3));
+  part("C1", () => mesh(vcyl(3.2, 9), M.cap, P, -24, 26, 4.5));
+  part("SW1", () => mesh(box(6, 6, 4), M.ic, P, 20, -22, 2));
+  const res = (k, x, y) => part(k, () => { mesh(xcyl(1.5, 7), M.beige, P, x, y, 1.6); mesh(xcyl(0.3, 12), M.pin, P, x, y, 1.2); });
+  res("R1", -26, -16); res("R2", -26, -22); res("R3", -14, -26); res("R4", 22, 22); res("R5", 26, -10);
+  if (G.trayLabels !== false) { const lb = label(`#${t.id}`, "#334155", 11); lb.position.set(0, 0, h + 14); g.add(lb); }
+}
+
+// ---- Robot SCARA (giống mo_phong_scara.html) ----
+function buildRobot() {
+  const root = G.robotRoot;
+  for (const ch of [...root.children]) root.remove(ch);
+  const { h1, l1, l2, h2 } = R.p, zMax = R.lim.Z[1], colTop = Math.max(zMax + 80, 220);
+  mesh(box(230, 190, 24), std(0x334155, 0.65, 0.2), root, 0, 0, 12);
+  mesh(box(62, 62, colTop - 24), M.alu, root, 0, 0, 24 + (colTop - 24) / 2);
+  mesh(vcyl(30, 64), M.motor, root, 0, 0, colTop + 32);
+  const zg = new THREE.Group(); root.add(zg); G.z = zg;
+  mesh(box(100, 116, 62), M.accent, zg, 0, -8, 0);
+  if (h1 > 56) mesh(box(h1 - 44, 46, 34), M.alu, zg, 44 + (h1 - 44) / 2 - 6, 0, 0);
+  const j1 = new THREE.Group(); j1.position.set(h1, 0, 0); zg.add(j1); G.j1 = j1;
+  mesh(vcyl(34, 58), M.motor, j1, 0, 0, -6);
+  mesh(linkGeo(l1, 66, 26), M.link, j1, 0, 0, 18);
+  const j2 = new THREE.Group(); j2.position.set(l1, 0, 0); j1.add(j2); G.j2 = j2;
+  mesh(vcyl(25, 42), M.motor, j2, 0, 0, 52);
+  mesh(linkGeo(l2, 54, 22), M.link2, j2, 0, 0, -8);
+  const w = new THREE.Group(); w.position.set(l2, 0, 0); j2.add(w); G.w = w;
+  mesh(vcyl(18, 34), M.motor, w, 0, 0, 20);
+  const fH = 32, bodyH = 12, shaftTop = -19, shaftBot = -(h2 - fH - bodyH);
+  if (shaftTop - shaftBot > 2) mesh(vcyl(8, shaftTop - shaftBot), M.steel, w, 0, 0, (shaftTop + shaftBot) / 2);
+  mesh(box(120, 26, bodyH), M.tool, w, 0, 0, -(h2 - fH) + bodyH / 2);
+  G.fingers = [-1, 1].map(s => mesh(box(5, 30, fH), M.finger, w, s * 48, 0, -h2 + fH / 2));
+  const lb = label("Robot SCARA", "#1e40af", 16); lb.position.set(0, 0, colTop + 110); root.add(lb);
+}
+function linkGeo(len, wd, th) {
+  const r = wd / 2, s = new THREE.Shape();
+  s.moveTo(0, -r); s.lineTo(len, -r); s.absarc(len, 0, r, -Math.PI / 2, Math.PI / 2, false); s.lineTo(0, r);
+  s.absarc(0, 0, r, Math.PI / 2, Math.PI * 1.5, false);
+  const geo = new THREE.ExtrudeGeometry(s, { depth: th - 4, bevelEnabled: true, bevelThickness: 2, bevelSize: 2, bevelSegments: 2, curveSegments: 20 });
+  geo.translate(0, 0, -(th - 4) / 2); return geo;
+}
+
+// ---- Cập nhật hình mỗi khung ----
+function updateScene() {
+  G.beltTex.offset.x = -(BELT_POS / LAY.beltLen) * G.beltTex.repeat.x;
+  for (const [k, o] of Object.entries(G.beams)) {
+    const on = IO.X[k];
+    o.beam.material.opacity = on ? 0.55 : 0.0; o.led.material.emissive.setHex(on ? 0x22c55e : 0x000000);
+  }
+  // cấp phôi
+  G.crank.rotation.z = FEED.theta;
+  const px = LAY.crankX + LAY.crankR * Math.cos(FEED.theta), py = LAY.crankR * Math.sin(FEED.theta), sx = sliderX(FEED.theta);
+  G.rod.position.set((px + sx) / 2, py / 2, LAY.beltZ + 12); G.rod.rotation.z = Math.atan2(-py, sx - px);
+  G.slider.position.x = sx;
+  // xi lanh
+  G.stopper.rotation.z = CYL[0].pos * Math.PI / 2;
+  G.xl1rod.position.x = LAY.stopFace + 4 + 10 - CYL[0].pos * 22;
+  const tipUp = 200, tipDn = LAY.beltZ + LAY.tray.floor + 1.6 + 10.6 + 10;   // đầu kim (dài 10) chạm mặt vít terminal
+  G.xl2.position.set(LAY.station, 24, tipUp - CYL[1].pos * (tipUp - tipDn));
+  // đèn tháp
+  for (const k of ["RED", "AMBER", "GREEN"]) G.lamps[k].material.emissiveIntensity = IO.Y[k] ? 1.6 : 0.0;
+  // khay
+  for (const t of trays) {
+    if (!t.mesh) continue;
+    t.mesh.position.set(t.x, t.y, t.z); t.mesh.rotation.z = (t.yaw || 0) * DEG;
+    const L = t.led;
+    if (L.digit !== L.drawn && L.ctx) { L.drawn = L.digit; drawSeg(L.ctx, L.digit); L.tex.needsUpdate = true; }
+  }
+  // robot
+  if (G.z) {
+    G.z.position.z = R.q.Z; G.j1.rotation.z = R.q.J1 * DEG; G.j2.rotation.z = R.q.J2 * DEG; G.w.rotation.z = R.q.J3 * DEG;
+    const closed = R.held ? LAY.tray.w + 5 : 56, gap = 96 - (96 - closed) * R.grip;
+    G.fingers[0].position.x = -gap / 2; G.fingers[1].position.x = gap / 2;
+    M.finger.color.setHex(R.grip > 0.5 ? 0x16a34a : 0x94a3b8);
+  }
+  for (const k in BINS) {
+    const n = { DAT: STATS["ĐẠT"], LOI1: STATS["LỖI 1"], LOI2: STATS["LỖI 2"] }[k];
+    if (G.binLabels[k].userData.n !== n) { G.binLabels[k].userData.n = n; G.binLabels[k].userData.draw(`${{ DAT: "Đạt", LOI1: "Lỗi 1", LOI2: "Lỗi 2" }[k]}: ${n}`); }
+  }
+}
+
+// ---- Ảnh Pi chụp (camera trạm, có khung canh vị trí giống "PCB Camera Guide") ----
+function snapshot(tray, live) {
+  if (!prevRenderer) return;
+  updateScene();
+  prevRenderer.render(scene, prevCam);
+  const cv = $("camCanvas"), c = cv.getContext("2d");
+  c.drawImage(prevRenderer.domElement, 0, 0, cv.width, cv.height);
+  c.strokeStyle = "#84cc16"; c.lineWidth = 2; c.strokeRect(cv.width * 0.24, cv.height * 0.12, cv.width * 0.52, cv.height * 0.8);
+  c.fillStyle = "rgba(15,23,42,0.75)"; c.fillRect(0, cv.height - 20, cv.width, 20);
+  c.fillStyle = "#e2e8f0"; c.font = "12px Segoe UI";
+  c.fillText(live ? "Pi đang xem LED 7 đoạn…" : tray ? `Ảnh chụp PCB #${tray.id} — ${fmtT(SIM.t)}` : "Không thấy PCB", 8, cv.height - 6);
+}
+
+// ---- Camera xoay / dời / phóng ----
+const orbit = { target: null, r: 2200, az: -60 * DEG, el: 30 * DEG };
+const VIEWS = {
+  all: [[520, -30, 60], 2350, -78, 44], feed: [[-170, 0, 220], 950, -120, 22], station: [[LAY.station, 0, 190], 620, -58, 26],
+  robot: [[1080, -20, 170], 1150, 40, 40], top: [[520, -40, 0], 2500, -90, 89.5],
+};
+function applyOrbit() {
+  const ce = Math.cos(orbit.el), t = orbit.target;
+  camera.position.set(t.x + orbit.r * ce * Math.cos(orbit.az), t.y + orbit.r * ce * Math.sin(orbit.az), t.z + orbit.r * Math.sin(orbit.el));
+  camera.lookAt(t);
+}
+function setView(name) {
+  const [tg, r, az, el] = VIEWS[name];
+  orbit.target = new THREE.Vector3(...tg); orbit.r = r; orbit.az = az * DEG; orbit.el = el * DEG;
+  document.querySelectorAll("[data-cam]").forEach(b => b.classList.toggle("on", b.dataset.cam === name));
+  applyOrbit();
+}
+function setupOrbit(el) {
+  let drag = null;
+  el.addEventListener("contextmenu", e => e.preventDefault());
+  el.addEventListener("pointerdown", e => { drag = { x: e.clientX, y: e.clientY, pan: e.button !== 0 || e.shiftKey }; el.setPointerCapture(e.pointerId); });
+  el.addEventListener("pointermove", e => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
+    if (drag.pan) {
+      const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0), up = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+      const k = orbit.r * 0.0011; orbit.target.addScaledVector(right, -dx * k).addScaledVector(up, dy * k);
+    } else { orbit.az -= dx * 0.006; orbit.el = clamp(orbit.el + dy * 0.006, 0.02, 89.5 * DEG); }
+    document.querySelectorAll("[data-cam]").forEach(b => b.classList.remove("on"));
+    applyOrbit();
+  });
+  const end = () => { drag = null; };
+  el.addEventListener("pointerup", end); el.addEventListener("pointercancel", end);
+  el.addEventListener("wheel", e => { e.preventDefault(); orbit.r = clamp(orbit.r * Math.exp(e.deltaY * 0.0012), 150, 9000); applyOrbit(); }, { passive: false });
+  el.addEventListener("dblclick", () => setView("all"));
+}
+
+// =====================================================================================================================
+// VÒNG MÔ PHỎNG
+// =====================================================================================================================
+let BELT_POS = 0;
+function step(h) {
+  SIM.t += h;
+  readInputs();
+  const prevE = IO.M.ESTOP;
+  plcScan(h);
+  if (IO.M.ESTOP && !prevE) onEstop();
+  if (IO.Y.BELT) BELT_POS += TC.beltV * h;
+  physics(h);
+  robotTick(h);
+  PI.tick(h);
+  if (ST.sys === "ESTOP") { const e = ST.estopBtn ? "E2" : "E3"; if (ST.step !== e) setStep(e); }
+  procTick();
+}
+let lastFrame = performance.now(), uiTimer = 0;
+function frame(now) {
+  let dt = Math.min((now - lastFrame) / 1000, 0.1); lastFrame = now;
+  let sdt = dt * SIM.speed;
+  while (sdt > 1e-9) { const h = Math.min(0.02, sdt); step(h); sdt -= h; }
+  updateScene();
+  if (PI.req && !PI.req.done && PI.req.kind === "func") snapshot(trayAtStation(), true);
+  renderer.render(scene, camera);
+  uiTimer += dt; if (uiTimer > 0.1) { uiTimer = 0; updateUI(); }
+  requestAnimationFrame(frame);
+}
+
+// =====================================================================================================================
+// GIAO DIỆN
+// =====================================================================================================================
+const SYS_TEXT = { INIT: ["KHỞI TẠO", "var(--amber)"], READY: ["SẴN SÀNG", "var(--amber)"], RUNNING: ["AUTO · ĐANG CHẠY", "var(--accent)"],
+  STOPPING: ["ĐANG DỪNG (xong PCB này)", "var(--amber)"], ERROR: ["LỖI · chờ RESET", "var(--red)"], ESTOP: ["E-STOP", "var(--red)"],
+  RESETTING: ["ĐANG RESET", "var(--amber)"], MANUAL: ["MANUAL", "var(--amber)"], MANUAL_BUSY: ["MANUAL · đang làm", "var(--amber)"] };
+function setPill(id, text, kind) { const e = $(id); e.textContent = text; e.className = "pill " + (kind || ""); }
+function setCurrent(tray) {
+  current = tray;
+  $("pcbId").textContent = tray ? `#${tray.id}` : "—";
+  setPill("visPill", "…", "blue"); $("visNote").textContent = "đang chụp…";
+  setPill("funPill", "—"); $("funNote").textContent = "chưa kiểm tra";
+  setPill("robPill", "CHỜ"); $("robNote").textContent = "—"; $("concl").textContent = "—"; $("concl").style.color = "";
+}
+function clearCurrent() { setCurrent(null); setPill("visPill", "—"); $("visNote").textContent = "chưa chụp"; }
+function showVis(v) {
+  setPill("visPill", v.result === "OK" ? "ĐẠT" : v.result === "NG" ? "LỖI" : "KHÔNG THẤY", v.result === "OK" ? "green" : "amber");
+  $("visNote").textContent = v.detail + ` · Pi xử lý ${(TC.piVisT * 1000).toFixed(0)} ms`;
+}
+function showFun(f, note) {
+  if (!f) { setPill("funPill", "—"); $("funNote").textContent = note || ""; return; }
+  setPill("funPill", f.result === "OK" ? "ĐẠT" : "LỖI", f.result === "OK" ? "green" : "red");
+  $("funNote").textContent = `${f.detail} · thấy: ${f.seen.slice(-12).join(" ") || "—"}`;
+}
+function showConclusion(res) {
+  const c = { "ĐẠT": "var(--green)", "LỖI 1": "var(--amber)", "LỖI 2": "var(--red)" }[res];
+  $("concl").textContent = `PCB ${res}`; $("concl").style.color = c;
+  $("robNote").textContent = `sẽ chạy ${PROG_OF[res]}`;
+}
+const IO_NAMES = {
+  X: [["X0", "CB1", () => IO.X.CB1], ["X1", "CB2", () => IO.X.CB2], ["X2", "CB3", () => IO.X.CB3], ["X3", "E-Stop (NC)", () => IO.X.ESTOP_NC]],
+  Y: [["Y0", "Động cơ bước", () => IO.Y.STEP], ["Y1", "Băng tải", () => IO.Y.BELT], ["Y2", "Van XL1", () => IO.Y.V1],
+      ["Y3", "Van XL2", () => IO.Y.V2], ["Y4", "Đèn xanh", () => IO.Y.GREEN], ["Y5", "Đèn vàng", () => IO.Y.AMBER],
+      ["Y6", "Đèn đỏ", () => IO.Y.RED, "r"], ["Y7", "Còi", () => IO.Y.BUZZ, "r"]],
+  M: [["M100", "Băng tải chạy", () => IO.M.BELT], ["M101", "Cấp 1 PCB", () => IO.M.FEEDING], ["M102", "XL1 hạ", () => IO.M.XL1],
+      ["M103", "XL2 hạ", () => IO.M.XL2], ["M200", "E-Stop chốt", () => IO.M.ESTOP, "r"], ["M202", "Đang cấp PCB", () => IO.M.FEEDING],
+      ["M204", "XL1 đã hạ", () => IO.M.XL1_DN], ["M205", "XL1 đã thu", () => IO.M.XL1_UP], ["M206", "XL2 đã hạ", () => IO.M.XL2_DN],
+      ["M207", "XL2 đã thu", () => IO.M.XL2_UP]],
+};
+function buildIO() {
+  for (const k of ["X", "Y", "M"]) $("io" + k).innerHTML = IO_NAMES[k].map(([a, n, , r]) => `<span class="${r || ""}" data-io="${a}">${a} ${n}</span>`).join("");
+}
+function updateUI() {
+  const [txt, col] = SYS_TEXT[ST.sys] || [ST.sys, ""];
+  $("sysBadge").textContent = txt; $("sysBadge").style.color = col;
+  $("simClock").textContent = fmtT(SIM.t);
+  $("cycleBadge").textContent = ST.lastCycle ? `${ST.lastCycle.toFixed(1)} s` : "—";
+  $("dotRobot").style.color = R.estop || R.fault ? "var(--red)" : R.homed ? "var(--green)" : "var(--amber)";
+  const w = PROC.wait;
+  if (w) {
+    const el = SIM.t - w.t0;
+    $("waitText").textContent = `⏳ ${w.label} — ${el.toFixed(1)} s` + (w.timeout ? ` / timeout ${w.timeout} s` : "");
+    $("waitBar").style.width = w.timeout ? `${clamp(el / w.timeout * 100, 0, 100)}%` : "0";
+    $("waitBar").style.background = w.timeout && el / w.timeout > 0.75 ? "var(--red)" : "var(--accent)";
+  } else { $("waitText").textContent = ST.sys === "ERROR" ? "⛔ Đang lỗi — bấm RESET" : ST.sys === "ESTOP" ? "⛔ E-STOP" : "—"; $("waitBar").style.width = "0"; }
+  $("estop").classList.toggle("on", ST.estopBtn);
+  $("estopText").textContent = ST.estopBtn ? "● ĐANG NHẤN (bấm để nhả)" : IO.M.ESTOP ? "● đã nhả — chờ RESET" : "● Bình thường";
+  $("sTotal").textContent = STATS.total; $("sOk").textContent = STATS["ĐẠT"]; $("sL1").textContent = STATS["LỖI 1"]; $("sL2").textContent = STATS["LỖI 2"];
+  $("sStack").textContent = FEED.stack.length;
+  $("rate").textContent = STATS.total ? `đạt ${(100 * STATS["ĐẠT"] / STATS.total).toFixed(1)} %` : "—";
+  $("sRate").textContent = STATS.total > 1 && SIM.t > ST.firstSort ? (3600 * (STATS.total - 1) / (SIM.t - ST.firstSort)).toFixed(0) : "—";
+  for (const k of ["X", "Y", "M"]) for (const [a, , f] of IO_NAMES[k]) document.querySelector(`[data-io="${a}"]`).classList.toggle("on", !!f());
+  // trạng thái nút
+  const s = ST.sys, idle = !PROC.gen;
+  $("btnStart").disabled = !(ST.mode === "AUTO" && s === "READY");
+  $("btnStop").disabled = s !== "RUNNING";
+  $("btnReset").disabled = !(s === "ERROR" || (s === "ESTOP" && !ST.estopBtn));
+  $("mAuto").disabled = $("mManual").disabled = !(idle && (s === "READY" || s === "MANUAL"));
+  const man = ST.mode === "MANUAL" && s === "MANUAL";
+  for (const id of ["mFeed", "mFunc", "mCap", "mSort", "mHome"]) $(id).disabled = !man;
+  $("mBelt").disabled = !(ST.mode === "MANUAL" && (s === "MANUAL" || s === "MANUAL_BUSY"));
+  document.querySelectorAll("[data-cyl]").forEach(b => {
+    b.disabled = !man;
+    const c = b.dataset.cyl === "1" ? IO.M.XL1 : IO.M.XL2; b.classList.toggle("on", String(c) === b.dataset.dn);
+  });
+  $("mXl1s").textContent = IO.M.XL1_DN ? "· đã hạ" : IO.M.XL1_UP ? "· đã thu" : "· đang chạy…";
+  $("mXl2s").textContent = IO.M.XL2_DN ? "· đã hạ" : IO.M.XL2_UP ? "· đã thu" : "· đang chạy…";
+  const t = manualType();
+  setPill("mType", t || "CHƯA XÁC ĐỊNH", t ? { "ĐẠT": "green", "LỖI 1": "amber", "LỖI 2": "red" }[t] : "");
+  $("btnRefill").disabled = FEED.running;
+}
+
+// ---------------- Nút bấm ----------------
+function bindUI() {
+  $("btnStart").onclick = () => {
+    if (!FEED.stack.length) refill();
+    log("START (nút trên app / tủ điện) → PC ghi bit Start cho PLC.", "OK");
+    startProc("auto", procAuto());
+  };
+  $("btnStop").onclick = () => { ST.stopReq = true; ST.sys = "STOPPING"; log("STOP: hệ thống dừng sau khi hoàn tất PCB hiện tại.", "WARN"); };
+  $("btnReset").onclick = () => {
+    if (ST.estopBtn) return log("Không thể RESET: nút E-Stop chưa nhả.", "ERROR");
+    startProc("reset", procReset());
+  };
+  $("estop").onclick = () => {
+    ST.estopBtn = !ST.estopBtn;
+    log(ST.estopBtn ? "Nhấn nút E-STOP." : "Nhả nút E-STOP (hệ thống KHÔNG tự chạy lại — cần RESET).", ST.estopBtn ? "ERROR" : "INFO");
+  };
+  $("mAuto").onclick = () => setMode("AUTO"); $("mManual").onclick = () => setMode("MANUAL");
+  document.querySelectorAll("[data-cam]").forEach(b => b.onclick = () => setView(b.dataset.cam));
+  document.querySelectorAll("[data-speed]").forEach(b => b.onclick = () => {
+    SIM.speed = +b.dataset.speed; document.querySelectorAll("[data-speed]").forEach(x => x.classList.toggle("on", x === b));
+  });
+  $("btnClearLog").onclick = () => { $("log").innerHTML = ""; };
+  for (const k of ["p1", "p2"]) $(k).oninput = () => {
+    let a = +$("p1").value, b = +$("p2").value;
+    if (a + b > 100) { if (k === "p1") b = 100 - a; else a = 100 - b; $("p1").value = a; $("p2").value = b; }
+    $("p1v").textContent = a + "%"; $("p2v").textContent = b + "%";
+  };
+  $("btnRefill").onclick = refill;
+  $("btnClearBins").onclick = () => { for (const k in BINS) { BINS[k].forEach(t => removeTray(t, true)); BINS[k] = []; } log("Đã dọn 3 khay phân loại."); };
+  $("fCB2").onchange = e => { FAULT.cb2 = e.target.checked; log(e.target.checked ? "Gây lỗi: CB2 hỏng." : "CB2 hoạt động lại.", "WARN"); };
+  $("fPi").onchange = e => { FAULT.pi = e.target.checked; log(e.target.checked ? "Gây lỗi: Raspberry Pi không phản hồi." : "Raspberry Pi phản hồi lại.", "WARN"); };
+  $("btnFaultRobot").onclick = () => { R.faultArm = true; log("Gây lỗi: robot sẽ FAULT ở lần di chuyển kế tiếp khi đang chạy chương trình.", "WARN"); };
+  // MANUAL
+  const belt = $("mBelt");
+  const beltOn = on => { if (belt.disabled) return; IO.M.BELT = on ? 1 : 0; belt.textContent = on ? "⏵ Băng tải đang chạy…" : "⏵ Giữ để chạy băng tải"; };
+  belt.addEventListener("pointerdown", () => beltOn(true));
+  for (const ev of ["pointerup", "pointerleave", "pointercancel"]) belt.addEventListener(ev, () => { if (IO.M.BELT && ST.mode === "MANUAL") beltOn(false); });
+  $("mFeed").onclick = () => manual(function* () {
+    if (!FEED.stack.length) { log("Ống cấp hết phôi.", "WARN"); return; }
+    IO.M.FEED = 1; log("MANUAL: cấp 1 PCB.");
+    yield W("Cấp phôi xong", () => !IO.M.FEEDING && !FEED.running, TC.feedT + 3);
+  });
+  document.querySelectorAll("[data-cyl]").forEach(b => b.onclick = () => {
+    const n = b.dataset.cyl, dn = b.dataset.dn === "1";
+    if (n === "1") IO.M.XL1 = dn ? 1 : 0; else IO.M.XL2 = dn ? 1 : 0;
+    log(`MANUAL: ${dn ? "hạ" : "thu"} xi lanh ${n}.`);
+  });
+  $("mFunc").onclick = () => manual(function* () {
+    if (!IO.M.XL1_DN) log("Gợi ý: hạ xi lanh 1 (chặn PCB) trước — PLC có liên động.", "WARN");
+    IO.M.XL2 = 1; log("MANUAL: Test chức năng — hạ xi lanh 2 cấp nguồn cho PCB.");
+    yield W("Xi lanh 2 đã hạ", () => IO.M.XL2_DN, TO.cyl);
+    const f = yield* piCall("func");
+    ST.manual.fun = f.result; showFun(f);
+    log(f.result === "OK" ? "Pi: chức năng ĐẠT." : `Pi: chức năng LỖI — ${f.detail}.`, f.result === "OK" ? "OK" : "WARN");
+  });
+  $("mCap").onclick = () => manual(function* () {
+    setCurrent(trayAtStation()); log("MANUAL: Pi chụp ảnh kiểm tra ngoại quan.");
+    const v = yield* piCall("capture");
+    showVis(v); ST.manual.vis = v.result === "NOPCB" ? null : v.result;
+    log(v.result === "OK" ? "Pi: ngoại quan ĐẠT." : v.result === "NG" ? `Pi: ngoại quan LỖI (${v.detail}).` : "Pi: không thấy PCB ở trạm.",
+        v.result === "OK" ? "OK" : "WARN");
+  });
+  $("mClear").onclick = () => { ST.manual = { vis: null, fun: null }; log("Đã xóa kết quả kiểm tra (MANUAL)."); };
+  $("mSort").onclick = () => manual(function* () {
+    const t = manualType();
+    if (!t) { log("Chưa xác định loại PCB (chụp ảnh + test chức năng trước) — robot KHÔNG chạy.", "WARN"); return; }
+    const prog = PROG_OF[t];
+    if (!robotRun(prog)) { log(`Robot không chạy được ${prog} (chưa HOME / E-Stop / thiếu chương trình).`, "ERROR"); return; }
+    log(`MANUAL: robot chạy ${prog} (PCB ${t}).`);
+    yield W(`Robot chạy xong ${prog}`, () => R.state === "idle", TO.robot);
+    if (R.fault) { log("Robot FAULT — bấm Robot về Home để HOME lại.", "ERROR"); R.fault = false; R.homed = false; }
+    else ST.manual = { vis: null, fun: null };
+  });
+  $("mHome").onclick = () => manual(function* () {
+    if (!robotHome()) return; log("MANUAL: robot về home.");
+    yield W("Robot về home", () => R.state === "idle", TO.home);
+  });
+  $("mStopAll").onclick = () => {
+    abortProc(); PI.cancel(); IO.M.BELT = 0; FEED.running = false; IO.M.FEEDING = 0; robotStop();
+    if (ST.mode === "MANUAL") ST.sys = "MANUAL";
+    log("MANUAL: dừng băng tải, động cơ bước, robot.", "WARN");
+  };
+  $("btnDir").onclick = openDataDir;
+  $("fileInput").onchange = e => readJsonFiles(e.target.files);
+}
+function manualType() {
+  const { vis, fun } = ST.manual;
+  if (vis === "NG") return "LỖI 1";
+  if (vis === "OK" && fun) return fun === "OK" ? "ĐẠT" : "LỖI 2";
+  return null;
+}
+function manual(genFn) {
+  if (PROC.gen) return log("Đang làm thao tác trước — đợi xong.", "WARN");
+  ST.sys = "MANUAL_BUSY"; startProc("manual", genFn());
+}
+function setMode(m) {
+  if (PROC.gen) return;
+  ST.mode = m; ST.sys = m === "MANUAL" ? "MANUAL" : "READY";
+  $("mAuto").classList.toggle("on", m === "AUTO"); $("mManual").classList.toggle("on", m === "MANUAL");
+  $("autoPanel").hidden = m !== "AUTO"; $("manualPanel").hidden = m !== "MANUAL";
+  setStep(m === "AUTO" ? "S1" : null);
+  log(`Chuyển sang chế độ ${m}.`);
+}
+
+// ---------------- Dữ liệu từ thư mục UI\data ----------------
+async function openDataDir() {
+  if (!window.showDirectoryPicker) return log("Trình duyệt không hỗ trợ mở thư mục — dùng Chrome / Edge, hoặc 'Nạp file JSON…'.", "WARN");
+  try {
+    const h = await window.showDirectoryPicker({ id: "pcb-sim-data" }), d = {};
+    for (const [k, n] of [["config", "robot_config.json"], ["points", "points.json"], ["programs", "programs.json"]]) {
+      try { d[k] = JSON.parse(await (await (await h.getFileHandle(n)).getFile()).text()); } catch (e) { if (e.name !== "NotFoundError") throw e; }
+    }
+    loadData(d, `📂 Thư mục '${h.name}'`);
+  } catch (e) { if (e.name !== "AbortError") log("Không đọc được thư mục: " + e.message, "ERROR"); }
+}
+function readJsonFiles(files) {
+  const d = {};
+  Promise.all([...files].map(f => f.text().then(t => {
+    const o = JSON.parse(t), v = Object.values(o || {});
+    if (o.kinematics) d.config = o; else if (v.length && v.every(x => x && Array.isArray(x.steps))) d.programs = o; else d.points = o;
+  }))).then(() => loadData(d, `📄 ${[...files].map(f => f.name).join(", ")}`)).catch(e => log("File JSON lỗi: " + e.message, "ERROR"));
+}
+function loadData(d, labelText) {
+  if (PROC.gen || R.state !== "idle") return log("Đang chạy — dừng hệ thống rồi mới nạp dữ liệu robot.", "WARN");
+  setRobotData(d.config || R.cfg, d.points || null, d.programs || null, labelText);
+  log(`Đã nạp dữ liệu robot: ${labelText}. ${R.builtin ? "Dùng bộ điểm dựng sẵn." : "Dùng Chương trình 1/2/3 trong programs.json."}`, "OK");
+  if (R.layoutErr) log(R.layoutErr, "ERROR");
+  R.q = { ...R.home }; R.homed = true;
+}
+
+// =====================================================================================================================
+// TỰ KIỂM TRA (mở file với #selftest): chạy nhanh không cần vẽ, ghi kết quả vào tiêu đề trang
+// =====================================================================================================================
+function runSelftest() {
+  seed(12345); $("p1").value = 30; $("p2").value = 30;
+  for (const t of [...trays]) removeTray(t); FEED.stack = []; refill();
+  const out = { events: [] }; const t0 = SIM.t;
+  const run = (sec, until) => { const end = SIM.t + sec; while (SIM.t < end) { step(0.02); if (until && until()) return true; } return false; };
+  out.initOk = run(120, () => ST.sys === "READY");
+  $("btnStart").onclick();
+  out.sorted4 = run(900, () => STATS.total >= 4);
+  out.afterSorted4 = { ...STATS };
+  run(7);                                               // E-Stop giữa chu kỳ
+  ST.estopBtn = true; run(2); out.estopState = ST.sys; ST.estopBtn = false; run(1);
+  startProc("reset", procReset()); out.resetOk = run(120, () => ST.sys === "READY");
+  $("btnStart").onclick(); out.sorted7 = run(900, () => STATS.total >= 7);
+  $("btnStop").onclick(); out.stopOk = run(300, () => ST.sys === "READY");
+  // Lỗi: CB2 hỏng -> timeout -> nhánh B
+  FAULT.cb2 = true; $("btnStart").onclick(); out.cb2Error = run(120, () => ST.sys === "ERROR"); FAULT.cb2 = false;
+  startProc("reset", procReset()); out.reset2Ok = run(120, () => ST.sys === "READY");
+  // Nhánh Lỗi 1 (ngoại quan): chỉ nạp phôi lỗi linh kiện
+  for (const t of [...FEED.stack]) removeTray(t); FEED.stack = []; $("p1").value = 100; $("p2").value = 0; refill();
+  const l1Before = STATS["LỖI 1"];
+  $("btnStart").onclick(); out.l1Sorted = run(300, () => STATS["LỖI 1"] > l1Before);
+  out.l1Skipped = !$("funNote").textContent.includes("LED");                  // không cấp nguồn, không xem LED
+  // Robot FAULT giữa chương trình -> nhánh B -> RESET (robot HOME lại)
+  R.faultArm = true; out.robotFaultError = run(400, () => ST.sys === "ERROR");
+  startProc("reset", procReset()); out.reset3Ok = run(150, () => ST.sys === "READY" && R.homed);
+  out.stats = { ...STATS }; out.simSeconds = +(SIM.t - t0).toFixed(1);
+  out.binCheck = trays.filter(t => t.state === "bin").every(t => t.result && BIN_OF[t.result] && BINS[BIN_OF[t.result]].includes(t));
+  out.errors = [...$("log").querySelectorAll(".ERROR")].length;
+  out.ok = out.initOk && out.sorted4 && out.estopState === "ESTOP" && out.resetOk && out.sorted7 && out.stopOk && out.cb2Error
+           && out.reset2Ok && out.l1Sorted && out.l1Skipped && out.robotFaultError && out.reset3Ok && out.binCheck;
+  $("selftest").hidden = false; $("selftest").textContent = JSON.stringify(out, null, 1);
+  document.title = "SELFTEST " + (out.ok ? "OK" : "FAIL");
+}
+
+// =====================================================================================================================
+// KHỞI ĐỘNG
+// =====================================================================================================================
+(async function main() {
+  buildFlow(); buildIO(); bindUI();
+  THREE = await loadThree();
+  $("loading").remove();
+  applyConfig(EMBEDDED_CONFIG);
+  setupScene();
+  setRobotData(EMBEDDED_CONFIG, null, null, "Dữ liệu nhúng sẵn (robot_config.json lúc tạo file)");
+  R.q = { ...R.home }; R.q.J1 = R.home.J1 + 20; R.q.Z = R.home.Z - 40;        // robot lệch home một chút để thấy HOME
+  refill();
+  snapshot(null);
+  log("Mô phỏng hệ thống: bấm START (chế độ AUTO) để chạy chu trình theo lưu đồ. Có thể đổi tốc độ ×0.5 … ×10 ở góc phải khung 3D.");
+  // Tùy chọn trên URL: #selftest (tự kiểm tra) · #auto (tự bấm START) · #speed=5 (tốc độ ban đầu), vd ...html#auto&speed=5
+  const opt = location.hash.slice(1).split("&");
+  const sp = opt.find(o => o.startsWith("speed="));
+  if (sp) { const b = document.querySelector(`[data-speed="${sp.slice(6)}"]`); if (b) b.onclick(); }
+  startProc("init", procInit());
+  const ff = opt.find(o => o.startsWith("ff="));                  // #ff=120: tua nhanh 120 s mô phỏng ngay khi mở
+  const vw = opt.find(o => o.startsWith("view="));                // #view=station: góc nhìn ban đầu
+  if (vw && VIEWS[vw.slice(5)]) setView(vw.slice(5));
+  if (opt.includes("selftest")) runSelftest();
+  else if (opt.includes("auto")) {
+    if (ff) {
+      let n = 0; while (ST.sys !== "READY" && n++ < 6000) step(0.02);
+      $("btnStart").onclick();
+      const end = SIM.t + +ff.slice(3); while (SIM.t < end) step(0.02);
+    } else {
+      const wait = () => (ST.sys === "READY" ? $("btnStart").onclick() : setTimeout(wait, 200));
+      wait();
+    }
+  }
+  requestAnimationFrame(t => { lastFrame = t; frame(t); });
+})();
+</script>
+</body>
+</html>
