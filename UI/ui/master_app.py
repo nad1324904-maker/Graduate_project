@@ -469,7 +469,7 @@ class MasterApp(ctk.CTk):
     def _func_test(self):
         """Test chức năng (theo lưu đồ): PC ghi lệnh → PLC hạ xi lanh 2, 2 đầu kim cấp nguồn cho PCB qua domino →
         PLC báo xi lanh 2 đã hạ (hết timer hành trình) → PC gửi inspect cho Raspberry Pi (camera xem LED 7 đoạn
-        đếm 1 → 9 + kiểm tra linh kiện) → PASS / FAIL1 / FAIL2. Phần PLC vẫn là giả lập; phần Pi là THẬT."""
+        đếm 0 → 9 + kiểm tra linh kiện) → PASS / FAIL1 / FAIL2. Phần PLC vẫn là giả lập; phần Pi là THẬT."""
         if not self._pi_ready("Test chức năng"):
             return
         self.log("Test chức năng: PLC hạ xi lanh 2 để cấp nguồn cho PCB.")
@@ -613,7 +613,7 @@ class MasterApp(ctk.CTk):
     def _build_steps_card(self, parent):
         c = Card(parent, "Tiến trình chu kỳ", "🧭", right_text="theo lưu đồ")
         steps = ("Cấp PCB (động cơ bước)", "Băng tải chạy, chờ CB1", "Xi lanh 1 chặn PCB, chụp ảnh",
-                 "Xi lanh 2 cấp nguồn, đếm LED 1 → 9", "Thu 2 xi lanh, chạy tới CB3", "Robot gắp & phân loại", "Hoàn tất, cộng thống kê")
+                 "Xi lanh 2 cấp nguồn, đếm LED 0 → 9", "Thu 2 xi lanh, chạy tới CB3", "Robot gắp & phân loại", "Hoàn tất, cộng thống kê")
         current = 3
         for i, s in enumerate(steps):
             done, now = i < current, i == current

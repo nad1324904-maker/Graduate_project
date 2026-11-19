@@ -6,7 +6,7 @@ Raspberry Pi kiểm tra PCB theo lệnh của PC (app master trong `UI/`) và tr
 |---|---|
 | `PASS` | PCB đạt |
 | `FAIL1` | **Lỗi 1 — linh kiện / ngoại quan** (thiếu, lệch linh kiện… thấy qua ảnh chụp) |
-| `FAIL2` | **Lỗi 2 — chức năng**: khi PLC hạ xi lanh 2 cấp nguồn cho PCB, LED 7 đoạn trên PCB phải đếm 1 → 9 |
+| `FAIL2` | **Lỗi 2 — chức năng**: khi PLC hạ xi lanh 2 cấp nguồn cho PCB, LED 7 đoạn trên PCB phải đếm 0 → 9 |
 
 PC là master: Pi **không tự chạy**, chỉ làm khi nhận lệnh và luôn trả lời.
 
