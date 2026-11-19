@@ -15,3 +15,6 @@ __pycache__/
 .idea/
 Thumbs.db
 desktop.ini
+
+# ---- Ghi chu rieng cho Claude Code (khong dua len git) ----
+CLAUDE.md
