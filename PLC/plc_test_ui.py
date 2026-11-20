@@ -27,7 +27,7 @@ import serial.tools.list_ports
 # Bảng gán tín hiệu — ĐỀ XUẤT, sửa theo đấu dây / ladder thật
 # ============================================================
 INPUTS = {                                   # X đánh số BÁT PHÂN (X0..X7, X10..X17)
-    "X0": "CB1 · PCB ở đầu băng tải", "X1": "CB2 · PCB tới trạm kiểm tra", "X2": "CB3 · PCB tới vị trí gắp",
+    "X0": "CB1 · PCB ở đầu băng tải", "X1": "CB2 · PCB tì sát thanh chặn", "X2": "CB3 · PCB tới vị trí gắp",
     "X3": "E-Stop (NC: 1 = bình thường)", "X4": "Nút START (tủ)", "X5": "Nút STOP (tủ)", "X6": "Nút RESET (tủ)",
 }   # 2 xi lanh KHÔNG có cảm biến hành trình (luôn chạy hết hành trình) — "đã hạ / đã thu" là bit M204..M207 do timer
 OUTPUTS = {
@@ -38,7 +38,7 @@ OUTPUTS = {
 PC_CMDS = [
     ("M100", "Băng tải chạy", "giu"),
     ("M101", "Cấp 1 PCB", "xung"),
-    ("M102", "Xi lanh 1 hạ (chặn PCB)", "giu"),
+    ("M102", "Xi lanh 1 hạ (thanh chặn · giữ vị trí PCB)", "giu"),
     ("M103", "Xi lanh 2 hạ (cấp nguồn PCB · test chức năng)", "giu"),
     ("M110", "START", "xung"),
     ("M111", "STOP", "xung"),
@@ -615,7 +615,7 @@ class PlcTestApp(ctk.CTk):
                 btn.pack(side="right")
                 self.cmd_btns.append(btn)
         ctk.CTkLabel(b, text="Ladder phải đọc các bit M này (bit 'xung' bắt cạnh lên bằng PLS/LDP) rồi tự điều khiển Y, "
-                            "kèm liên động: E-Stop chặn mọi lệnh, CB2 dừng băng tải + hạ xi lanh 1. Xi lanh không có "
+                            "kèm liên động: E-Stop chặn mọi lệnh, CB2 → trễ 0.5 s rồi dừng băng tải (thanh chặn đã hạ sẵn). Xi lanh không có "
                             "cảm biến: PLC báo 'đã hạ / đã thu' bằng timer (M204–M207). Xem README.md.",
                      font=(F, 10), text_color=DISABLED, wraplength=380, justify="left", anchor="w").pack(fill="x", pady=(8, 0))
         box = ctk.CTkFrame(b, fg_color=INPUT, corner_radius=10)

@@ -93,7 +93,8 @@ Ví dụ:
      (bấm giờ thật một lần hạ / thu để đặt timer, mục 5);
    - cấp 1 PCB.
 6. **Liên động:**
-   - Đang cho băng tải chạy, che CB2 → PLC phải tự dừng băng tải và hạ xi lanh 1.
+   - Hạ xi lanh 1 (M102 = ON) rồi cho băng tải chạy với một khay: khay tì sát thanh chặn, CB2 tác động → khoảng 0.5 s
+     sau PLC phải tự dừng băng tải (M100 tự về OFF). Khay phải nằm sát thanh chặn, không bị dừng sớm.
    - Nhấn E-Stop → mọi Y tắt, M200 = 1, lệnh M từ PC không còn tác dụng cho tới khi Reset.
 
 ---
@@ -107,7 +108,7 @@ Bảng này cũng nằm ở đầu `plc_test_ui.py` (`INPUTS`, `OUTPUTS`, `PC_CM
 | X | Tín hiệu | X | Tín hiệu |
 |---|---|---|---|
 | X0 | CB1 · PCB ở đầu băng tải | X4 | Nút START trên tủ |
-| X1 | CB2 · PCB tới trạm kiểm tra | X5 | Nút STOP trên tủ |
+| X1 | CB2 · PCB tì sát thanh chặn (trạm kiểm tra) | X5 | Nút STOP trên tủ |
 | X2 | CB3 · PCB tới vị trí gắp | X6 | Nút RESET trên tủ |
 | X3 | E-Stop (tiếp điểm NC: 1 = bình thường) | | |
 
@@ -132,7 +133,7 @@ Bảng này cũng nằm ở đầu `plc_test_ui.py` (`INPUTS`, `OUTPUTS`, `PC_CM
 |---|---|---|
 | M100 | Băng tải chạy | giữ: ON = chạy, OFF = dừng |
 | M101 | Cấp 1 PCB | xung ~0.3 s: ladder bắt **cạnh lên** (LDP / PLS) |
-| M102 | Xi lanh 1 hạ (chặn PCB) | giữ: ON = hạ, OFF = thu |
+| M102 | Xi lanh 1 hạ (thanh chặn: chặn + giữ đúng vị trí PCB) | giữ: ON = hạ, OFF = thu. PC hạ **trước** khi cấp PCB, thu sau khi kiểm tra xong |
 | M103 | Xi lanh 2 hạ (cấp nguồn PCB, dùng khi **test chức năng**) | giữ: ON = hạ, OFF = thu (ngắt nguồn) |
 | M110 / M111 / M112 | START / STOP / RESET từ phần mềm | xung, tác dụng giống nút trên tủ |
 
@@ -155,7 +156,9 @@ Bảng này cũng nằm ở đầu `plc_test_ui.py` (`INPUTS`, `OUTPUTS`, `PC_CM
 **Yêu cầu với ladder:**
 - **Không** để PC điều khiển thẳng Y. Ladder đọc M100–M112 rồi mới quyết định Y, để liên động luôn nằm ở PLC:
   - E-Stop chặn mọi lệnh;
-  - CB2 dừng băng tải và hạ xi lanh 1;
+  - **CB2 → trễ 0.5 s rồi dừng băng tải** (reset M100). Thanh chặn đã được PC hạ sẵn từ đầu chu kỳ; trong 0.5 s băng tải
+    trượt dưới đáy khay, ép khay tì sát thanh chặn để định vị đúng chỗ cho camera và 2 đầu kim. Dùng timer 100 ms: K5.
+    Bước này **không** hạ xi lanh 1 nữa;
   - không hạ xi lanh 2 khi xi lanh 1 chưa hạ xong (M204).
 - E-Stop có tự giữ (M200). Chỉ RESET (nút tủ hoặc M112) khi E-Stop đã nhả mới được xóa.
 - Lỗi cần PC biết thì ladder ghi vào M201. PC đọc trạng thái mỗi chu kỳ.
