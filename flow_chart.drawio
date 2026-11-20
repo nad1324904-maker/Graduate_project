@@ -13,13 +13,13 @@
         <mxCell id="a2" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Chờ lệnh Start" vertex="1">
           <mxGeometry height="60" width="140" x="310" y="200" as="geometry" />
         </mxCell>
-        <mxCell id="a3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Cấp PCB lên băng tải" vertex="1">
+        <mxCell id="a3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Hạ xi lanh 1 (thanh chặn),&lt;br&gt;cấp PCB lên băng tải" vertex="1">
           <mxGeometry height="60" width="140" x="310" y="290" as="geometry" />
         </mxCell>
         <mxCell id="a4" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Băng tải chạy" vertex="1">
           <mxGeometry height="60" width="140" x="310" y="410" as="geometry" />
         </mxCell>
-        <mxCell id="a5" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Xi lanh 1 hạ chặn PCB,&lt;br&gt;băng tải dừng" vertex="1">
+        <mxCell id="a5" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Băng tải dừng, PCB được&lt;br&gt;thanh chặn giữ đúng vị trí" vertex="1">
           <mxGeometry height="60" width="140" x="310" y="550" as="geometry" />
         </mxCell>
         <mxCell id="a6" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Raspberry chụp ảnh, xử lý ảnh kiểm tra ngoại quan" vertex="1">
@@ -82,7 +82,7 @@
         <mxCell id="n4" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;fontColor=#666666;" value="PC ghi lệnh → PLC cho động cơ băng tải chạy" vertex="1">
           <mxGeometry height="60" width="200" x="100" y="410" as="geometry" />
         </mxCell>
-        <mxCell id="n5" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;fontColor=#666666;" value="PLC dừng băng tải ngay khi CB2 tác động (liên động tại PLC), đồng thời hạ xi lanh 1" vertex="1">
+        <mxCell id="n5" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;fontColor=#666666;" value="PLC trễ 0,5 s sau khi CB2 tác động (băng tải ép PCB tì sát thanh chặn) rồi dừng băng tải (liên động tại PLC)" vertex="1">
           <mxGeometry height="60" width="200" x="100" y="550" as="geometry" />
         </mxCell>
         <mxCell id="n6" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;fontColor=#666666;" value="PC gửi lệnh chụp ảnh cho Raspberry" vertex="1">
@@ -112,13 +112,13 @@
         <mxCell id="nd6" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontColor=#666666;" value="PC xét kết quả đã lưu" vertex="1">
           <mxGeometry height="34" width="170" x="500" y="1775" as="geometry" />
         </mxCell>
-        <mxCell id="e1" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=2;" value="Cảm biến 1 phát hiện PCB" vertex="1">
-          <mxGeometry height="30" width="200" x="388" y="355" as="geometry" />
+        <mxCell id="e1" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=2;" value="Xi lanh 1 đã hạ (hết timer hành trình) và cảm biến 1 phát hiện PCB → PC đọc trạng thái PLC" vertex="1">
+          <mxGeometry height="56" width="200" x="388" y="352" as="geometry" />
         </mxCell>
-        <mxCell id="e2" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=2;" value="Cảm biến 2 phát hiện PCB tới vị trí kiểm tra" vertex="1">
+        <mxCell id="e2" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=2;" value="PCB tì sát thanh chặn, cảm biến 2 tác động" vertex="1">
           <mxGeometry height="40" width="200" x="388" y="480" as="geometry" />
         </mxCell>
-        <mxCell id="e3" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=2;" value="Xi lanh 1 đã hạ (hết timer hành trình) → PC đọc trạng thái PLC" vertex="1">
+        <mxCell id="e3" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=2;" value="Băng tải đã dừng → PC đọc trạng thái PLC" vertex="1">
           <mxGeometry height="56" width="200" x="388" y="614" as="geometry" />
         </mxCell>
         <mxCell id="e4" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontStyle=2;" value="Xi lanh 2 đã hạ (hết timer hành trình) → PC đọc trạng thái PLC" vertex="1">
@@ -278,8 +278,8 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="gqKelUJwsRsyR5UPPVh0-2" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontColor=#666666;" value="PC ghi lệnh cấp PCB → PLC cho động cơ bước quay 1 vòng" vertex="1">
-          <mxGeometry height="40" width="200" x="458" y="282" as="geometry" />
+        <mxCell id="gqKelUJwsRsyR5UPPVh0-2" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontColor=#666666;" value="PC ghi lệnh → PLC hạ xi lanh 1 (thanh chặn) và cho động cơ bước quay 1 vòng cấp PCB" vertex="1">
+          <mxGeometry height="64" width="180" x="458" y="276" as="geometry" />
         </mxCell>
         <mxCell id="n_l1b" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;fontColor=#666666;" value="PLC thu xi lanh 1" vertex="1">
           <mxGeometry height="60" width="110" x="876" y="930" as="geometry" />
