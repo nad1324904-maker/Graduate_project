@@ -369,10 +369,18 @@ trình cho nhóm, **không** phải phần mềm điều khiển thật.
   - nút **gây lỗi**: CB2 hỏng, Pi không phản hồi, robot FAULT;
   - các góc nhìn Tổng thể / Cấp phôi / Trạm kiểm tra / Robot / Trên xuống.
 - **Robot:** nếu `UI/data/programs.json` có "Chương trình 1 / 2 / 3" (và đủ Point) thì dùng dữ liệu đó (bấm 📂 Mở thư mục
-  UI\data). Không có thì dùng bộ điểm dựng sẵn `GAP_tren` / `GAP_duoi`, `DAT_*`, `LOI1_*`, `LOI2_*`. Robot chạy đúng tốc
-  độ cài đặt (trục Z 7 mm/s nên một lần gắp – thả khoảng 1 phút; dùng ×5 cho nhanh).
+  UI\data). Không có thì dùng bộ điểm dựng sẵn, tên dễ hiểu: "Trên chỗ gắp (CB3)", "Gắp khay ở CB3", "Trên khay Đạt",
+  "Thả vào khay Đạt"… Robot chạy đúng tốc độ cài đặt (trục Z 7 mm/s nên một lần gắp – xếp mất khoảng 1,5 phút; dùng ×5
+  cho nhanh). Nút **📋 Xem step chương trình** hiện từng step bằng lời, giá trị khớp và step robot đang chạy.
+- **Xếp chồng vào khay chứa** (thử nghiệm, chưa có trên robot thật):
+  - khay chứa có 4 cột dẫn ở góc, mặt đỡ cao 45 mm; tối đa **7 tầng** (giới hạn trục Z), chỉnh được từng khay;
+  - **Z thả = điểm thả tầng 1 + độ cao 1 tầng (25 mm) × số khay đang có**, chỉ teach điểm thả tầng 1;
+  - Step MOVE có `"stack": "DAT" | "LOI1" | "LOI2"` mới được cộng Z (tên Point đặt gì cũng được);
+  - bộ đếm tăng sau khi khay đã nằm trong khay chứa; báo "sắp đầy" khi còn 1 chỗ; **đầy thì dây chuyền tạm dừng** (đèn
+    vàng nhấp nháy, không phải lỗi), thay khay rỗng rồi bấm **Đã thay khay**; số đếm sửa tay được và được nhớ khi đóng trang.
 - **Tùy chọn trên đường dẫn:** `mo_phong_he_thong.html#auto&speed=5` (tự START, tốc độ ×5) · `#view=station`
-  (góc nhìn ban đầu) · `#selftest` (tự kiểm tra toàn bộ kịch bản: chạy, E-Stop, Reset, STOP, CB2 hỏng, Lỗi 1, robot FAULT).
+  (góc nhìn ban đầu) · `#prog` (mở sẵn bảng step) · `#selftest` (tự kiểm tra toàn bộ kịch bản: chạy, E-Stop, Reset, STOP,
+  CB2 hỏng, Lỗi 1, robot FAULT, xếp chồng, khay đầy → thay khay).
 
 ---
 

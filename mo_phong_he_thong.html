@@ -122,6 +122,22 @@
   details summary { cursor: pointer; font-weight: 600; font-size: 13px; }
   #errors { display: none; position: fixed; left: 50%; top: 80px; transform: translateX(-50%); background: var(--red-soft);
             color: var(--red-text); padding: 10px 14px; border-radius: 10px; white-space: pre-wrap; z-index: 9; max-width: 70%; }
+  table.bins { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.bins th { color: var(--dim); font-weight: 600; font-size: 11px; text-align: left; padding: 2px 3px; }
+  table.bins td { padding: 3px; }
+  input.num { width: 52px; padding: 4px; border: 1px solid var(--border); border-radius: 7px; font: 12px "Segoe UI"; }
+  #progModal { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.35); display: flex; align-items: center;
+               justify-content: center; z-index: 8; }
+  #progModal[hidden] { display: none; }
+  #progModal .box { width: min(760px, 94vw); max-height: 86vh; overflow: auto; }
+  #progSteps { margin: 0; padding-left: 0; list-style: none; counter-reset: st; }
+  #progSteps li { counter-increment: st; display: flex; gap: 10px; padding: 7px 8px; border-radius: 8px; align-items: baseline; }
+  #progSteps li::before { content: counter(st); color: var(--dim); font-weight: 600; width: 22px; text-align: right; flex: none; }
+  #progSteps li.now { background: var(--accent-soft); }
+  #progSteps li.now::before { content: "▶"; color: var(--accent); }
+  #progSteps .kind { flex: none; font: 600 10.5px "Segoe UI"; border-radius: 6px; padding: 2px 7px; color: #fff; width: 82px; text-align: center; white-space: nowrap; }
+  #progSteps .txt { flex: 1; }
+  #progSteps .joint { color: var(--dis); font: 11px Consolas, monospace; white-space: nowrap; }
   #loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--dim); }
 </style>
 </head>
@@ -193,6 +209,7 @@
         <div class="row"><span class="grow">Loại PCB</span><span class="pill" id="mType">CHƯA XÁC ĐỊNH</span>
           <button class="btn small" id="mClear">✕</button></div>
         <div class="pair"><button class="btn primary" id="mSort">🤖 Robot phân loại</button><button class="btn" id="mHome">⌂ Robot về Home</button></div>
+        <button class="btn" id="mProg" style="width:100%">📋 Xem step chương trình</button>
       </div>
     </div>
     <div class="card">
@@ -215,6 +232,16 @@
       </div>
     </div>
     <div class="card">
+      <h3>📥 Khay chứa (xếp chồng) <span class="r" id="binMaxNote"></span></h3>
+      <table class="bins"><thead><tr><th>Khay</th><th>Đang có</th><th>Tối đa</th><th></th><th></th></tr></thead>
+        <tbody id="binRows"></tbody></table>
+      <div class="row"><span style="width:110px">Độ cao 1 tầng</span>
+        <input id="layerH" type="number" min="15" max="40" step="0.1" value="25" class="num">
+        <span class="note">mm (đo thật: chiều cao 5 khay ÷ 5)</span></div>
+      <div class="note">Robot thả = điểm thả tầng 1 + độ cao 1 tầng × số khay đang có. Khay đầy thì dây chuyền tạm dừng, thay khay
+        rỗng rồi bấm "Đã thay khay". "Đang có" sửa tay được nếu lỡ lấy bớt khay mà không bấm nút.</div>
+    </div>
+    <div class="card">
       <h3>🧪 Mô phỏng</h3>
       <div class="row"><span style="width:110px">Tỉ lệ Lỗi 1</span><input id="p1" type="range" min="0" max="100" value="15"><b id="p1v" style="width:36px">15%</b></div>
       <div class="row"><span style="width:110px">Tỉ lệ Lỗi 2</span><input id="p2" type="range" min="0" max="100" value="10"><b id="p2v" style="width:36px">10%</b></div>
@@ -223,7 +250,6 @@
         <input id="feedN" type="number" min="1" max="10" value="10" style="width:56px;padding:5px;border:1px solid var(--border);border-radius:7px">
         <span class="note">/ 10</span><button class="btn" id="btnRefill" style="margin-left:auto">📦 Nạp</button></div>
       <div class="note">Nạp thêm cho đủ số phôi đã nhập (tháp chứa tối đa 10 khay).</div>
-      <div class="pair"><button class="btn" id="btnClearBins">🗑 Dọn 3 khay</button><span></span></div>
       <div class="sec">Gây lỗi (xem hệ thống xử lý)</div>
       <label class="row"><input type="checkbox" id="fCB2"> Cảm biến CB2 hỏng (không tác động)</label>
       <label class="row"><input type="checkbox" id="fPi"> Raspberry Pi không phản hồi</label>
@@ -238,15 +264,26 @@
       </details>
     </div>
     <div class="card">
-      <h3>📂 Dữ liệu robot</h3>
+      <h3>🤖 Chương trình robot</h3>
+      <button class="btn primary" id="btnProg" style="width:100%">📋 Xem step chương trình</button>
       <div class="pair"><button class="btn" id="btnDir">📂 Mở thư mục UI\data</button><label class="btn" style="text-align:center">📄 Nạp file JSON…<input id="fileInput" type="file" accept=".json" multiple hidden></label></div>
       <div class="note" id="dataInfo"></div>
       <div class="note" style="margin-top:6px">Robot dùng Vmax / Amax và động học trong <b>robot_config.json</b>, quỹ đạo đồng bộ khớp như robot thật.
-        Nếu <b>programs.json</b> có "Chương trình 1/2/3" (và points.json có đủ Point) thì dùng dữ liệu đó, không thì dùng bộ điểm dựng sẵn
-        (GAP_tren, GAP_duoi, DAT_*, LOI1_*, LOI2_*).</div>
+        Nếu <b>programs.json</b> có "Chương trình 1/2/3" (và points.json có đủ Point) thì dùng dữ liệu đó, không thì dùng bộ điểm dựng sẵn.
+        Step MOVE có <code>"stack": "DAT" | "LOI1" | "LOI2"</code> thì được cộng Z để xếp chồng (tên Point đặt gì cũng được).</div>
     </div>
   </aside>
 </main>
+<div id="progModal" hidden>
+  <div class="box card">
+    <h3>📋 Step chương trình robot <span class="r"><button class="btn small" id="progClose">✕ Đóng</button></span></h3>
+    <div class="seg" id="progTabs"></div>
+    <div class="note" id="progDesc" style="margin:8px 0"></div>
+    <ol id="progSteps"></ol>
+    <div class="note">▶ = Step robot đang chạy. Step "Thả vào khay …" có <b>xếp chồng</b>: robot tự cộng thêm Z theo số khay đang
+      có trong khay chứa, nên chỉ cần teach điểm thả <b>tầng 1</b> (khi khay chứa còn rỗng).</div>
+  </div>
+</div>
 <div id="errors"></div>
 <pre id="selftest" hidden></pre>
 
@@ -275,7 +312,9 @@ const LAY = {
   feedX: -60, crankX: -330, crankR: 55, rodL: 150, pusherL: 135,
   robot: { x: 1250, y: -240, phi: 120 },           // đế robot (gốc tọa độ robot) + góc xoay trục X robot
   bins: { DAT: { x: 1064, y: 31 }, LOI1: { x: 972, y: -153 }, LOI2: { x: 1074, y: 151 } },
-  binFloor: 95, binWall: 70, zUp: 240, zDn: 155,   // TCP: độ cao di chuyển / độ cao gắp-thả
+  binFloor: 45,                                    // mặt đỡ khay chứa (xếp chồng: tầng 1 nằm ở đây)
+  zUp: 240, zDn: 155,                              // TCP: độ cao di chuyển / độ cao gắp ở CB3
+  zPlace: 45 + 3 + 5,                              // TCP thả tầng 1: đáy khay cách mặt đỡ 3 mm (đầu ngón cao hơn đáy khay 5 mm)
   pick: { x: 912, y: 0 },
 };
 // Thông số thời gian (giả định hợp lý; đổi ở đây)
@@ -370,7 +409,24 @@ const ST = { mode: "AUTO", sys: "INIT", step: null, stopReq: false, estopBtn: fa
 const STATS = { total: 0, "ĐẠT": 0, "LỖI 1": 0, "LỖI 2": 0 };
 const FAULT = { cb2: false, pi: false, robot: false };
 let trays = [], trayId = 0;
-const BINS = { DAT: [], LOI1: [], LOI2: [] };
+const BINS = { DAT: [], LOI1: [], LOI2: [] };       // khay vàng đang nằm trong từng khay chứa (vẽ trên màn hình)
+const BIN_NAME = { DAT: "Đạt", LOI1: "Lỗi 1", LOI2: "Lỗi 2" };
+// Xếp chồng: Z thả = điểm thả tầng 1 + layerH × số khay đang có (n). max = số tầng tối đa người dùng đặt cho từng khay.
+const STACK = { n: { DAT: 0, LOI1: 0, LOI2: 0 }, max: { DAT: 7, LOI1: 7, LOI2: 7 }, layerH: 25 };
+// Số tầng tối đa vật lý: khay đang mang (đáy = TCP − 5) phải bay cao hơn đỉnh chồng ≥ 10 mm ở độ cao di chuyển zUp
+const maxLayers = () => Math.max(1, Math.floor((LAY.zUp - 5 - 10 - LAY.binFloor) / STACK.layerH));
+function saveStack() { try { localStorage.setItem("pcb-sim-stack", JSON.stringify(STACK)); } catch (_) { /* không lưu được thì thôi */ } }
+function loadStack() {
+  try {
+    const o = JSON.parse(localStorage.getItem("pcb-sim-stack") || "null");
+    if (!o) return;
+    if (o.layerH >= 15 && o.layerH <= 40) STACK.layerH = +o.layerH;
+    for (const k in STACK.n) {
+      STACK.max[k] = clamp(Math.round(+(o.max || {})[k] || 7), 1, maxLayers());
+      STACK.n[k] = clamp(Math.round(+(o.n || {})[k] || 0), 0, STACK.max[k]);
+    }
+  } catch (_) { /* dữ liệu hỏng: dùng mặc định */ }
+}
 let current = null;                               // PCB đang xử lý (thẻ "PCB hiện tại")
 
 // ---------------- Robot (STM32 + chương trình chạy trên PC) ----------------
@@ -402,7 +458,8 @@ const FLOW_MAIN = [
   ["S6", "Raspberry Pi kiểm tra chức năng: LED 7 đoạn đếm 0 → 9"],
   ["S7", "Thu xi lanh 1, 2 (ngắt nguồn PCB) → chờ 'đã thu'"],
   ["S8", "Băng tải chạy → chờ CB3 (PLC tự dừng băng tải)"],
-  ["S9", "Robot gắp, phân loại: CT1 Đạt · CT3 Lỗi 1 · CT2 Lỗi 2"],
+  ["F", "Khay chứa đầy → tạm dừng, chờ thay khay rỗng và bấm 'Đã thay khay' (không phải lỗi)", "br"],
+  ["S9", "Robot gắp, xếp chồng vào khay: CT1 Đạt · CT3 Lỗi 1 · CT2 Lỗi 2 (Z + 25 mm × số khay đang có)"],
   ["S10", "Có lệnh STOP? Có → về Chờ START · Không → PCB kế tiếp"],
   ["B", "Lỗi timeout / thiết bị: PC dừng băng tải, động cơ bước, robot; chờ RESET", "err"],
 ];
@@ -430,7 +487,7 @@ function setStep(id) {
   document.querySelectorAll("#flow li").forEach(li => {
     const k = li.dataset.id, i = ORDER.indexOf(k);
     li.classList.toggle("now", k === id);
-    li.classList.toggle("done", main >= 2 && i >= 2 && i < main && k !== "B" && !(k === "L1" && id !== "L1" && !ST.l1Path)
+    li.classList.toggle("done", main >= 2 && i >= 2 && i < main && k !== "B" && k !== "F" && !(k === "L1" && id !== "L1" && !ST.l1Path)
                                 && !(ST.l1Path && ["S5", "S6", "S7"].includes(k)));
   });
   const all = [...FLOW_MAIN, ...FLOW_ESTOP].find(f => f[0] === id);
@@ -528,6 +585,13 @@ function* procAuto() {
     setStep("S8"); IO.M.ARM_CB3 = 1; IO.M.BELT = 1; log("PC → PLC: băng tải chạy tới vị trí gắp.");
     yield W("CB3: PCB tới vị trí gắp", () => IO.X.CB3 && !IO.Y.BELT, TO.cb3);
     log("PLC: CB3 tác động → dừng băng tải.", "PLC");
+    const bin = BIN_OF[result];
+    if (STACK.n[bin] >= STACK.max[bin]) {                       // khay chứa đầy: tạm dừng chờ thay khay (KHÔNG phải lỗi)
+      ST.binWait = bin; setStep("F");
+      log(`Khay ${BIN_NAME[bin]} đầy (${STACK.n[bin]}/${STACK.max[bin]}) — tạm dừng. Thay khay rỗng rồi bấm "Đã thay khay".`, "WARN");
+      yield W(`Thay khay ${BIN_NAME[bin]} (đang đầy) rồi bấm "Đã thay khay"`, () => STACK.n[bin] < STACK.max[bin]);
+      ST.binWait = null; log(`Khay ${BIN_NAME[bin]} đã thay — robot tiếp tục.`, "OK");
+    }
     setStep("S9");
     const prog = PROG_OF[result];
     if (!robotRun(prog)) throw new Error(`Không chạy được ${prog}: ${R.layoutErr || "thiếu chương trình"}`);
@@ -552,7 +616,7 @@ function* piCall(kind) {
 }
 
 function enterError(msg) {
-  abortProc(); PI.cancel();
+  abortProc(); PI.cancel(); ST.binWait = null;
   IO.M.BELT = 0; IO.M.ARM_CB2 = 0; IO.M.ARM_CB3 = 0; FEED.running = false; IO.M.FEEDING = 0;
   robotStop();
   ST.sys = "ERROR"; setStep("B");
@@ -560,7 +624,7 @@ function enterError(msg) {
 }
 
 function onEstop() {
-  abortProc(); PI.cancel();
+  abortProc(); PI.cancel(); ST.binWait = null;
   R.estop = true; R.homed = false; R.motion = null; R.prog = null; R.state = "idle";
   ST.sys = "ESTOP"; setStep("E1");
   log("E-STOP! PLC dừng băng tải, động cơ bước, khóa van khí (xi lanh giữ nguyên), ngắt nguồn robot. "
@@ -642,8 +706,9 @@ function plcScan(h) {
   const s = ST.sys;
   Y.RED = (s === "ERROR" || s === "ESTOP") ? (blink ? 1 : 0) : 0;
   Y.BUZZ = (s === "ERROR" || s === "ESTOP") ? 1 : 0;
-  Y.GREEN = s === "RUNNING" ? 1 : (s === "STOPPING" ? (blink ? 1 : 0) : 0);
-  Y.AMBER = (s === "READY" || s === "INIT" || s === "RESETTING") ? 1 : (s === "MANUAL" || s === "MANUAL_BUSY") ? (blink ? 1 : 0) : 0;
+  Y.GREEN = ST.binWait ? 0 : s === "RUNNING" ? 1 : (s === "STOPPING" ? (blink ? 1 : 0) : 0);
+  Y.AMBER = ST.binWait ? (blink ? 1 : 0)                                       // khay chứa đầy: vàng nhấp nháy, chờ thay khay
+    : (s === "READY" || s === "INIT" || s === "RESETTING") ? 1 : (s === "MANUAL" || s === "MANUAL_BUSY") ? (blink ? 1 : 0) : 0;
 }
 
 // =====================================================================================================================
@@ -710,16 +775,18 @@ function physics(h) {
 function supportAt(t) {
   for (const [k, b] of Object.entries(LAY.bins)) {
     if (Math.abs(t.x - b.x) < 48 && Math.abs(t.y - b.y) < 48)
-      return { z: LAY.binFloor + Math.min(BINS[k].length, 3) * LAY.tray.h, bin: k };
+      return { z: LAY.binFloor + BINS[k].length * STACK.layerH, bin: k };       // rơi lên đỉnh chồng thật
   }
   if (t.x > 0 && t.x < LAY.beltLen && Math.abs(t.y) < LAY.beltW / 2) return { z: LAY.beltZ, belt: true };
   return { z: 0 };
 }
 function landTray(t, sup) {
   if (sup.bin) {
-    t.state = "bin"; const arr = BINS[sup.bin]; arr.push(t);
-    if (arr.length > 3) removeTray(arr.shift(), true);          // chỉ vẽ 3 khay trên cùng, số đếm vẫn giữ
-    arr.forEach((x, i) => { x.z = LAY.binFloor + i * LAY.tray.h; });
+    t.state = "bin"; BINS[sup.bin].push(t);
+    const k = sup.bin, nm = BIN_NAME[k];
+    STACK.n[k] = Math.min(STACK.n[k] + 1, maxLayers()); saveStack();          // đếm SAU khi khay đã nằm trong khay chứa
+    if (STACK.n[k] >= STACK.max[k]) log(`Khay ${nm} đã ĐẦY (${STACK.n[k]}/${STACK.max[k]}) — cần thay khay mới trước PCB ${nm} kế tiếp.`, "WARN");
+    else if (STACK.n[k] === STACK.max[k] - 1) log(`Khay ${nm} sắp đầy (${STACK.n[k]}/${STACK.max[k]}) — chuẩn bị khay rỗng để thay.`, "WARN");
     STATS.total++; const res = { DAT: "ĐẠT", LOI1: "LỖI 1", LOI2: "LỖI 2" }[sup.bin]; STATS[res]++;
     if (ST.firstSort === null) ST.firstSort = SIM.t;
   } else if (sup.belt) { t.state = "belt"; t.y = 0; }
@@ -781,31 +848,42 @@ function tcpWorld(q = R.q) {
   const f = fk(q, R.p), c = Math.cos(LAY.robot.phi * DEG), s = Math.sin(LAY.robot.phi * DEG);
   return { x: LAY.robot.x + f.x * c - f.y * s, y: LAY.robot.y + f.x * s + f.y * c, z: f.z, th: f.th + LAY.robot.phi };
 }
-function solvePair(xw, yw, ref) {                  // điểm trên + dưới cùng một hướng kẹp (khay vuông: 0/90/180/270°)
+function solvePair(xw, yw, ref, zDown) {           // điểm trên + dưới cùng một hướng kẹp (khay vuông: 0/90/180/270°)
   const r = worldToRobot(xw, yw);
   for (const thw of [0, 90, 180, 270]) {
     try {
       const up = ik(r.x, r.y, LAY.zUp, thw - LAY.robot.phi, R.p, R.lim, ref);
-      const dn = ik(r.x, r.y, LAY.zDn, thw - LAY.robot.phi, R.p, R.lim, up);
+      const dn = ik(r.x, r.y, zDown, thw - LAY.robot.phi, R.p, R.lim, up);
       return { up, dn };
     } catch (_) { /* thử hướng khác */ }
   }
   throw new Error(`không với tới (${xw.toFixed(0)}, ${yw.toFixed(0)})`);
 }
+// Tên Point dễ hiểu (tên gì cũng được: việc xếp chồng do trường "stack" của Step MOVE quyết định, không phụ thuộc tên)
+const PT = { home: "Chờ (vị trí Home)", pickUp: "Trên chỗ gắp (CB3)", pick: "Gắp khay ở CB3",
+             binUp: k => `Trên khay ${BIN_NAME[k]}`, bin: k => `Thả vào khay ${BIN_NAME[k]}` };
 function buildBuiltinProgram() {
-  const pts = { CHO: { ...R.home } };
-  const gap = solvePair(LAY.pick.x, LAY.pick.y, R.home);
-  pts.GAP_tren = gap.up; pts.GAP_duoi = gap.dn;
-  for (const [k, name] of [["DAT", "DAT"], ["LOI1", "LOI1"], ["LOI2", "LOI2"]]) {
-    const b = solvePair(LAY.bins[k].x, LAY.bins[k].y, gap.up);
-    pts[`${name}_tren`] = b.up; pts[`${name}_duoi`] = b.dn;
+  const pts = { [PT.home]: { ...R.home } };
+  const gap = solvePair(LAY.pick.x, LAY.pick.y, R.home, LAY.zDn);
+  pts[PT.pickUp] = gap.up; pts[PT.pick] = gap.dn;
+  for (const k of ["DAT", "LOI1", "LOI2"]) {
+    const b = solvePair(LAY.bins[k].x, LAY.bins[k].y, gap.up, LAY.zPlace);   // điểm thả = TẦNG 1 (khay chứa rỗng)
+    pts[PT.binUp(k)] = b.up; pts[PT.bin(k)] = b.dn;
   }
-  const prog = bin => ({ description: `Gắp ở CB3, thả vào khay ${bin}`, steps: [
-    { type: "MOVE", point: "GAP_tren" }, { type: "MOVE", point: "GAP_duoi" }, { type: "GRIP", action: "ON" },
-    { type: "DELAY", seconds: 0.5 }, { type: "MOVE", point: "GAP_tren" }, { type: "MOVE", point: `${bin}_tren` },
-    { type: "MOVE", point: `${bin}_duoi` }, { type: "GRIP", action: "OFF" }, { type: "DELAY", seconds: 0.5 },
-    { type: "MOVE", point: `${bin}_tren` }] });
+  const prog = k => ({ description: `Gắp khay ở CB3, xếp chồng vào khay ${BIN_NAME[k]}`, steps: [
+    { type: "MOVE", point: PT.pickUp }, { type: "MOVE", point: PT.pick }, { type: "GRIP", action: "ON" },
+    { type: "DELAY", seconds: 0.5 }, { type: "MOVE", point: PT.pickUp }, { type: "MOVE", point: PT.binUp(k) },
+    { type: "MOVE", point: PT.bin(k), stack: k },                                // stack: cộng Z theo số khay đang có
+    { type: "GRIP", action: "OFF" }, { type: "DELAY", seconds: 0.5 }, { type: "MOVE", point: PT.binUp(k) }] });
   return { points: pts, programs: { "Chương trình 1": prog("DAT"), "Chương trình 2": prog("LOI2"), "Chương trình 3": prog("LOI1") } };
+}
+// Điểm thật robot sẽ tới ở Step s: Point + (nếu Step có "stack") layerH × số khay đang có trong khay đó
+function stepTarget(s) {
+  const q = R.points[s.point];
+  if (!q) return null;
+  const out = { ...q, dz: 0, layer: null };
+  if (s.stack && s.stack in STACK.n) { out.dz = STACK.layerH * STACK.n[s.stack]; out.Z += out.dz; out.layer = STACK.n[s.stack] + 1; }
+  return out;
 }
 function setRobotData(cfg, points, programs, sourceLabel) {
   applyConfig(cfg);
@@ -847,9 +925,15 @@ function nextStep() {
     if (P.idx >= P.steps.length) { R.prog = null; R.state = "idle"; return; }
     const s = P.steps[P.idx];
     if (s.type === "MOVE") {
-      const q = R.points[s.point];
+      const q = stepTarget(s);
       if (!q) { R.prog = null; R.state = "idle"; R.fault = true; log(`Robot: Point '${s.point}' không tồn tại.`, "ERROR"); return; }
-      robotMoveTo(q); return;
+      if (q.Z > R.lim.Z[1] + 1e-6) {
+        R.prog = null; R.state = "idle"; R.fault = true;
+        log(`Robot: xếp chồng tầng ${q.layer} cần trục Z = ${q.Z.toFixed(1)} mm, vượt giới hạn ${R.lim.Z[1]} mm.`, "ERROR"); return;
+      }
+      if (s.stack) log(`Robot: thả vào khay ${BIN_NAME[s.stack]} — tầng ${q.layer} (Z + ${q.dz} mm so với tầng 1).`);
+      const { dz, layer, ...joints } = q;
+      robotMoveTo(joints); return;
     }
     if (s.type === "DELAY") { P.delay = +s.seconds || 0; return; }
     if (s.type === "GRIP") { gripCommand(s.action === "ON"); continue; }
@@ -1087,14 +1171,17 @@ function buildStation() {
 function buildBins() {
   G.binLabels = {};
   const col = { DAT: 0x16a34a, LOI1: 0xd97706, LOI2: 0xdc2626 }, name = { DAT: "Đạt", LOI1: "Lỗi 1", LOI2: "Lỗi 2" };
+  // Khay chứa xếp chồng: bệ thấp (mặt đỡ ở binFloor) + 4 cột dẫn ở 4 góc (khay vàng luôn thẳng hàng theo trục X/Y,
+  // 2 ngón kẹp ôm giữa 2 thành khay nên không vướng cột ở góc)
+  const postH = maxLayers() * LAY.tray.h + 10, c = LAY.tray.w / 2 + 4;
   for (const [k, b] of Object.entries(LAY.bins)) {
     const g = new THREE.Group(); g.position.set(b.x, b.y, 0); G.line.add(g);
-    mesh(box(80, 80, LAY.binFloor - 4), M.alu, g, 0, 0, (LAY.binFloor - 4) / 2);
-    const mat = std(col[k], 0.5, 0.05, { transparent: true, opacity: 0.85 });
-    mesh(box(104, 104, 4), mat, g, 0, 0, LAY.binFloor - 2);
-    for (const [dx, dy, w, d] of [[0, 50, 104, 4], [0, -50, 104, 4], [50, 0, 4, 104], [-50, 0, 4, 104]])
-      mesh(box(w, d, LAY.binWall), mat, g, dx, dy, LAY.binFloor + LAY.binWall / 2 - 4);
-    const lb = label(`${name[k]}: 0000`, "#" + col[k].toString(16).padStart(6, "0"), 17);   // rộng sẵn cho số đếm lb.position.set(0, 0, LAY.binFloor + LAY.binWall + 30);
+    const mat = std(col[k], 0.5, 0.05);
+    mesh(box(100, 100, LAY.binFloor - 6), M.alu, g, 0, 0, (LAY.binFloor - 6) / 2);
+    mesh(box(100, 100, 6), mat, g, 0, 0, LAY.binFloor - 3);
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) mesh(box(6, 6, postH), mat, g, sx * c, sy * c, LAY.binFloor + postH / 2);
+    const lb = label(`${name[k]}: 00 / 00 tầng`, "#" + col[k].toString(16).padStart(6, "0"), 17);   // rộng sẵn cho số đếm
+    lb.position.set(0, 0, LAY.binFloor + postH + 30);
     g.add(lb); G.binLabels[k] = lb;
   }
 }
@@ -1215,8 +1302,11 @@ function updateScene() {
     M.finger.color.setHex(R.grip > 0.5 ? 0x16a34a : 0x94a3b8);
   }
   for (const k in BINS) {
-    const n = { DAT: STATS["ĐẠT"], LOI1: STATS["LỖI 1"], LOI2: STATS["LỖI 2"] }[k];
-    if (G.binLabels[k].userData.n !== n) { G.binLabels[k].userData.n = n; G.binLabels[k].userData.draw(`${{ DAT: "Đạt", LOI1: "Lỗi 1", LOI2: "Lỗi 2" }[k]}: ${n}`); }
+    const n = `${STACK.n[k]}/${STACK.max[k]}`, full = STACK.n[k] >= STACK.max[k];
+    if (G.binLabels[k].userData.n !== n) {
+      G.binLabels[k].userData.n = n;
+      G.binLabels[k].userData.draw(`${BIN_NAME[k]}: ${n} tầng${full ? " · ĐẦY" : ""}`, full ? "#dc2626" : undefined);
+    }
   }
 }
 
@@ -1342,7 +1432,8 @@ function buildIO() {
   for (const k of ["X", "Y", "M"]) $("io" + k).innerHTML = IO_NAMES[k].map(([a, n, , r]) => `<span class="${r || ""}" data-io="${a}">${a} ${n}</span>`).join("");
 }
 function updateUI() {
-  const [txt, col] = SYS_TEXT[ST.sys] || [ST.sys, ""];
+  const [txt, col] = ST.binWait ? [`CHỜ THAY KHAY ${BIN_NAME[ST.binWait].toUpperCase()}`, "var(--amber)"]
+    : SYS_TEXT[ST.sys] || [ST.sys, ""];
   $("sysBadge").textContent = txt; $("sysBadge").style.color = col;
   $("simClock").textContent = fmtT(SIM.t);
   $("cycleBadge").textContent = ST.lastCycle ? `${ST.lastCycle.toFixed(1)} s` : "—";
@@ -1379,6 +1470,7 @@ function updateUI() {
   const t = manualType();
   setPill("mType", t || "CHƯA XÁC ĐỊNH", t ? { "ĐẠT": "green", "LỖI 1": "amber", "LỖI 2": "red" }[t] : "");
   $("btnRefill").disabled = FEED.running || FEED.pending;
+  refreshBinUI(); markProgStep();
 }
 
 // ---------------- Nút bấm ----------------
@@ -1410,7 +1502,27 @@ function bindUI() {
   };
   $("btnRefill").onclick = refill;
   $("feedN").onkeydown = e => { if (e.key === "Enter") refill(); };
-  $("btnClearBins").onclick = () => { for (const k in BINS) { BINS[k].forEach(t => removeTray(t, true)); BINS[k] = []; } log("Đã dọn 3 khay phân loại."); };
+  // Khay chứa (xếp chồng)
+  for (const k of Object.keys(STACK.n)) {
+    $(`bn_${k}`).onchange = e => {
+      STACK.n[k] = clamp(Math.round(+e.target.value || 0), 0, STACK.max[k]); saveStack();
+      log(`Sửa tay: khay ${BIN_NAME[k]} đang có ${STACK.n[k]} khay.`, "WARN");
+    };
+    $(`bm_${k}`).onchange = e => {
+      STACK.max[k] = clamp(Math.round(+e.target.value || 1), 1, maxLayers()); STACK.n[k] = Math.min(STACK.n[k], STACK.max[k]);
+      saveStack(); log(`Khay ${BIN_NAME[k]}: tối đa ${STACK.max[k]} tầng.`);
+    };
+    $(`br_${k}`).onclick = () => replaceBin(k);
+  }
+  $("layerH").onchange = e => {
+    if (R.state !== "idle") { e.target.value = STACK.layerH; return log("Robot đang chạy — đổi độ cao 1 tầng sau.", "WARN"); }
+    STACK.layerH = clamp(+e.target.value || 25, 15, 40);
+    for (const k in STACK.max) { STACK.max[k] = Math.min(STACK.max[k], maxLayers()); STACK.n[k] = Math.min(STACK.n[k], STACK.max[k]); }
+    saveStack(); log(`Độ cao 1 tầng = ${STACK.layerH} mm → tối đa ${maxLayers()} tầng.`);
+  };
+  $("btnProg").onclick = () => openProgModal(); $("mProg").onclick = () => openProgModal();
+  $("progClose").onclick = () => { $("progModal").hidden = true; };
+  $("progModal").onclick = e => { if (e.target.id === "progModal") $("progModal").hidden = true; };
   $("fCB2").onchange = e => { FAULT.cb2 = e.target.checked; log(e.target.checked ? "Gây lỗi: CB2 hỏng." : "CB2 hoạt động lại.", "WARN"); };
   $("fPi").onchange = e => { FAULT.pi = e.target.checked; log(e.target.checked ? "Gây lỗi: Raspberry Pi không phản hồi." : "Raspberry Pi phản hồi lại.", "WARN"); };
   $("btnFaultRobot").onclick = () => { R.faultArm = true; log("Gây lỗi: robot sẽ FAULT ở lần di chuyển kế tiếp khi đang chạy chương trình.", "WARN"); };
@@ -1448,7 +1560,8 @@ function bindUI() {
   $("mSort").onclick = () => manual(function* () {
     const t = manualType();
     if (!t) { log("Chưa xác định loại PCB (chụp ảnh + test chức năng trước) — robot KHÔNG chạy.", "WARN"); return; }
-    const prog = PROG_OF[t];
+    const prog = PROG_OF[t], bin = BIN_OF[t];
+    if (STACK.n[bin] >= STACK.max[bin]) { log(`Khay ${BIN_NAME[bin]} đầy (${STACK.n[bin]}/${STACK.max[bin]}) — thay khay rồi bấm "Đã thay khay".`, "WARN"); return; }
     if (!robotRun(prog)) { log(`Robot không chạy được ${prog} (chưa HOME / E-Stop / thiếu chương trình).`, "ERROR"); return; }
     log(`MANUAL: robot chạy ${prog} (PCB ${t}).`);
     yield W(`Robot chạy xong ${prog}`, () => R.state === "idle", TO.robot);
@@ -1467,6 +1580,88 @@ function bindUI() {
   $("btnDir").onclick = openDataDir;
   $("fileInput").onchange = e => readJsonFiles(e.target.files);
 }
+// ---------------- Khay chứa: bảng điều khiển + thay khay ----------------
+function buildBinUI() {
+  const col = { DAT: "var(--green)", LOI1: "var(--amber)", LOI2: "var(--red)" };
+  $("binRows").innerHTML = Object.keys(STACK.n).map(k => `<tr>
+    <td><b style="color:${col[k]}">${BIN_NAME[k]}</b></td>
+    <td><input id="bn_${k}" class="num" type="number" min="0"></td>
+    <td><input id="bm_${k}" class="num" type="number" min="1"></td>
+    <td><span class="pill" id="bs_${k}">—</span></td>
+    <td><button class="btn small" id="br_${k}">Đã thay khay</button></td></tr>`).join("");
+}
+function refreshBinUI() {
+  $("binMaxNote").textContent = `tối đa ${maxLayers()} tầng (giới hạn trục Z)`;
+  for (const k of Object.keys(STACK.n)) {
+    const n = STACK.n[k], m = STACK.max[k], bn = $(`bn_${k}`), bm = $(`bm_${k}`);
+    if (document.activeElement !== bn) { bn.value = n; bn.max = m; }
+    if (document.activeElement !== bm) { bm.value = m; bm.max = maxLayers(); }
+    const st = n >= m ? ["ĐẦY", "red"] : n === m - 1 ? ["SẮP ĐẦY", "amber"] : [`còn ${m - n} chỗ`, ""];
+    setPill(`bs_${k}`, st[0], st[1]);
+  }
+  if (document.activeElement !== $("layerH")) $("layerH").value = STACK.layerH;
+}
+function replaceBin(k) {
+  if (R.held && R.prog && R.prog.steps.some(s => s.stack === k) && R.state === "running")
+    return log(`Robot đang mang PCB tới khay ${BIN_NAME[k]} — đợi robot thả xong rồi thay khay.`, "WARN");
+  BINS[k].forEach(t => removeTray(t, true)); BINS[k] = [];
+  STACK.n[k] = 0; saveStack();
+  log(`Đã thay khay ${BIN_NAME[k]} bằng khay rỗng — bộ đếm về 0.`, "OK");
+}
+function restoreBinVisuals() {                    // mở lại trang: vẽ lại số khay đã lưu trong từng khay chứa
+  for (const k of Object.keys(STACK.n)) {
+    for (let i = 0; i < STACK.n[k]; i++) {
+      const t = { id: ++trayId, x: LAY.bins[k].x, y: LAY.bins[k].y, z: LAY.binFloor + i * STACK.layerH, yaw: 0, state: "bin",
+                  defect: { type: k === "LOI1" ? "L1" : k === "LOI2" ? "L2" : "OK", missing: k === "LOI1" ? "R3" : null, stallAt: 4 },
+                  result: { DAT: "ĐẠT", LOI1: "LỖI 1", LOI2: "LỖI 2" }[k], led: { t: 0, digit: null } };
+      trays.push(t); buildTrayMesh(t); BINS[k].push(t);
+    }
+  }
+}
+
+// ---------------- Xem step chương trình ----------------
+const PROG_MEAN = { "Chương trình 1": "PCB ĐẠT → khay Đạt", "Chương trình 2": "PCB LỖI 2 (chức năng) → khay Lỗi 2",
+                    "Chương trình 3": "PCB LỖI 1 (ngoại quan) → khay Lỗi 1" };
+let progSel = "Chương trình 1";
+function openProgModal() {
+  if (R.prog) progSel = R.prog.name;
+  $("progModal").hidden = false; renderProg();
+}
+function renderProg() {
+  const names = Object.keys(R.programs).sort();
+  if (!names.includes(progSel)) progSel = names[0];
+  $("progTabs").innerHTML = names.map(n => `<button data-prog="${n}" class="${n === progSel ? "on" : ""}">${n}</button>`).join("");
+  $("progTabs").querySelectorAll("button").forEach(b => b.onclick = () => { progSel = b.dataset.prog; renderProg(); });
+  const prog = R.programs[progSel];
+  if (!prog) { $("progSteps").innerHTML = "<li>Chưa có chương trình.</li>"; return; }
+  $("progDesc").textContent = `${PROG_MEAN[progSel] || ""}${prog.description ? " · " + prog.description : ""} · ${prog.steps.length} step`
+    + (R.builtin ? " · bộ điểm dựng sẵn" : " · từ programs.json");
+  const KIND = { MOVE: ["DI CHUYỂN", "var(--accent)"], GRIP: ["KẸP", "var(--green)"], DELAY: ["CHỜ", "var(--amber)"] };
+  $("progSteps").innerHTML = prog.steps.map((s, i) => {
+    let txt = "", joint = "";
+    if (s.type === "MOVE") {
+      const q = stepTarget(s);
+      txt = `Đi tới «${s.point}»`;
+      const full = s.stack && STACK.n[s.stack] >= STACK.max[s.stack];
+      if (s.stack && full) txt += ` — <b>xếp chồng</b>: <span style="color:var(--red)">khay ĐẦY (${STACK.n[s.stack]}/${STACK.max[s.stack]}), chờ thay khay rỗng</span>`;
+      else if (s.stack) txt += ` — <b>xếp chồng</b>: tầng ${STACK.n[s.stack] + 1}/${STACK.max[s.stack]} (Z + ${STACK.layerH * STACK.n[s.stack]} mm so với tầng 1)`;
+      if (!q) joint = "⚠ Point không tồn tại";
+      else if (!full) joint = `J1 ${q.J1.toFixed(1)}° · J2 ${q.J2.toFixed(1)}° · J3 ${q.J3.toFixed(1)}° · Z ${q.Z.toFixed(1)} mm`;
+    } else if (s.type === "GRIP") txt = s.action === "ON" ? "Kẹp ĐÓNG — gắp khay" : "Kẹp MỞ — thả khay";
+    else if (s.type === "DELAY") txt = `Chờ ${s.seconds} s cho kẹp kịp đóng / mở`;
+    const [k, c] = KIND[s.type] || [s.type, "var(--dim)"];
+    return `<li data-i="${i}"><span class="kind" style="background:${c}">${k}</span><span class="txt">${txt}</span><span class="joint">${joint}</span></li>`;
+  }).join("");
+  markProgStep();
+}
+function markProgStep() {
+  if ($("progModal").hidden) return;
+  const cur = R.prog && R.prog.name === progSel ? R.prog.idx : -1;
+  $("progSteps").querySelectorAll("li").forEach(li => li.classList.toggle("now", +li.dataset.i === cur));
+  const key = `${progSel}|${STACK.n.DAT},${STACK.n.LOI1},${STACK.n.LOI2},${STACK.layerH}`;
+  if (renderProg.key !== key) { renderProg.key = key; renderProg(); }          // số tầng đổi: vẽ lại Z của step xếp chồng
+}
+
 function manualType() {
   const { vis, fun } = ST.manual;
   if (vis === "NG") return "LỖI 1";
@@ -1518,6 +1713,7 @@ function loadData(d, labelText) {
 function runSelftest() {
   seed(12345); $("p1").value = 30; $("p2").value = 30;
   for (const t of [...trays]) removeTray(t); FEED.stack = []; refill();
+  for (const k in BINS) { BINS[k] = []; STACK.n[k] = 0; STACK.max[k] = 7; } STACK.layerH = 25;   // không dùng số đã lưu
   const out = { events: [] }; const t0 = SIM.t;
   const run = (sec, until) => { const end = SIM.t + sec; while (SIM.t < end) { step(0.02); if (until && until()) return true; } return false; };
   out.initOk = run(120, () => ST.sys === "READY");
@@ -1540,11 +1736,25 @@ function runSelftest() {
   // Robot FAULT giữa chương trình -> nhánh B -> RESET (robot HOME lại)
   R.faultArm = true; out.robotFaultError = run(400, () => ST.sys === "ERROR");
   startProc("reset", procReset()); out.reset3Ok = run(150, () => ST.sys === "READY" && R.homed);
+  // Xếp chồng: khay trong mỗi khay chứa nằm đúng tầng, bộ đếm khớp số khay
+  out.stackCount = Object.keys(BINS).map(k => `${k}:${BINS[k].length}/${STACK.n[k]}`).join(" ");
+  out.stackZ = Object.keys(BINS).every(k => BINS[k].length === STACK.n[k]
+    && BINS[k].every((t, i) => Math.abs(t.z - (LAY.binFloor + i * STACK.layerH)) < 0.6));
+  // Khay Đạt đầy -> tạm dừng chờ thay khay (không lỗi) -> "Đã thay khay" -> robot thả vào tầng 1 của khay mới
+  for (const t of [...FEED.stack]) removeTray(t); FEED.stack = []; $("p1").value = 0; $("p2").value = 0; refill();
+  STACK.max.DAT = Math.max(1, STACK.n.DAT); if (!STACK.n.DAT) STACK.n.DAT = 1;
+  const okBefore = STATS["ĐẠT"];
+  $("btnStart").onclick(); out.binWaitSeen = run(300, () => ST.binWait === "DAT") && ST.sys === "RUNNING";
+  out.waitNoLand = STATS["ĐẠT"] === okBefore;
+  replaceBin("DAT"); out.afterReplace = run(300, () => STATS["ĐẠT"] > okBefore);
+  out.layer1Z = BINS.DAT.length === 1 && Math.abs(BINS.DAT[0].z - LAY.binFloor) < 0.6;
+  $("btnStop").onclick(); out.stop2Ok = run(400, () => ST.sys === "READY");
   out.stats = { ...STATS }; out.simSeconds = +(SIM.t - t0).toFixed(1);
   out.binCheck = trays.filter(t => t.state === "bin").every(t => t.result && BIN_OF[t.result] && BINS[BIN_OF[t.result]].includes(t));
   out.errors = [...$("log").querySelectorAll(".ERROR")].length;
   out.ok = out.initOk && out.sorted4 && out.estopState === "ESTOP" && out.resetOk && out.sorted7 && out.stopOk && out.cb2Error
-           && out.reset2Ok && out.l1Sorted && out.l1Skipped && out.robotFaultError && out.reset3Ok && out.binCheck;
+           && out.reset2Ok && out.l1Sorted && out.l1Skipped && out.robotFaultError && out.reset3Ok && out.binCheck
+           && out.stackZ && out.binWaitSeen && out.waitNoLand && out.afterReplace && out.layer1Z && out.stop2Ok;
   $("selftest").hidden = false; $("selftest").textContent = JSON.stringify(out, null, 1);
   document.title = "SELFTEST " + (out.ok ? "OK" : "FAIL");
 }
@@ -1553,11 +1763,13 @@ function runSelftest() {
 // KHỞI ĐỘNG
 // =====================================================================================================================
 (async function main() {
-  buildFlow(); buildIO(); bindUI();
+  loadStack();
+  buildFlow(); buildIO(); buildBinUI(); bindUI();
   THREE = await loadThree();
   $("loading").remove();
   applyConfig(EMBEDDED_CONFIG);
   setupScene();
+  restoreBinVisuals();
   setRobotData(EMBEDDED_CONFIG, null, null, "Dữ liệu nhúng sẵn (robot_config.json lúc tạo file)");
   R.q = { ...R.home }; R.q.J1 = R.home.J1 + 20; R.q.Z = R.home.Z - 40;        // robot lệch home một chút để thấy HOME
   refill();
@@ -1573,6 +1785,7 @@ function runSelftest() {
   const ff = opt.find(o => o.startsWith("ff="));                  // #ff=120: tua nhanh 120 s mô phỏng ngay khi mở
   const vw = opt.find(o => o.startsWith("view="));                // #view=station: góc nhìn ban đầu
   if (vw && VIEWS[vw.slice(5)]) setView(vw.slice(5));
+  if (opt.includes("prog")) setTimeout(openProgModal, 0);       // #prog: mở sẵn hộp xem step chương trình
   if (opt.includes("selftest")) runSelftest();
   else if (opt.includes("auto")) {
     if (ff) {
