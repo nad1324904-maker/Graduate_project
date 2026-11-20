@@ -8,7 +8,7 @@ from comm.offline_backend import OfflineBackend
 from comm.errors import UartError
 from core import kinematics
 from core import robot_config
-from core.program_executor import ProgramExecutor, ExecState
+from core.program_executor import ExecState
 from ui.theme import (
     COL_ACCENT, COL_ACCENT_HOVER, COL_AMBER, COL_BTN_DARK, COL_BTN_DARK_HOVER, COL_GREEN, COL_INPUT,
     COL_ON_ACCENT, COL_RED, COL_TEXT, COL_TEXT_DIM, COL_TEXT_DISABLED
@@ -195,9 +195,4 @@ class ConnectionMixin:
             self.backend.set_command_error_callback(self._on_backend_command_error)
         if hasattr(self.backend, "set_info_callback"):              # thông tin thường (vd: trục chưa có cảm biến home)
             self.backend.set_info_callback(lambda message: self._log(message, "INFO"))
-        self.executor = ProgramExecutor(self.backend, self.point_store, self.program_store)
-        self.executor.set_callbacks(
-            on_step_started=self._on_step_started,
-            on_step_done=self._on_step_done,
-            on_state_change=self._on_exec_state_change,
-        )
+        self._make_executor()

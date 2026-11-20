@@ -74,13 +74,13 @@ PCB INSPECTION/
 ├── UI/                             App master trên PC (Python)
 │   ├── main.py                     Điểm khởi động (python main.py)
 │   ├── comm/                       Giao tiếp robot: uart_protocol.py, uart_backend.py, offline_backend.py · Raspberry Pi: pi_link.py
-│   ├── core/                       Logic robot: kinematics, robot_config, point_store, program_store, program_executor
+│   ├── core/                       Logic robot: kinematics, robot_config, point_store, program_store, program_executor, stack_store
 │   ├── ui/
 │   │   ├── master_app.py           App master: tab Vận hành / Robot / Lịch sử / Cài đặt
 │   │   ├── robot_panel.py          Toàn bộ giao diện robot (nhúng trong tab Robot)
 │   │   ├── robot_tab/, visual_tab/, settings_tab/   Các phần của giao diện robot
 │   │   └── theme.py, widgets.py, perf.py
-│   ├── data/                       robot_config.json, points.json, programs.json
+│   ├── data/                       robot_config.json, points.json, programs.json, stack_state.json (số khay đã xếp)
 │   └── tools/uart_tool.py          Gửi lệnh tay tới STM32 không cần GUI (dùng khi thử phần cứng)
 ├── PLC/                            (chưa có)
 └── Raspberry Pi/                   Tool thử pi_tcp_test_ui.py + README (giao thức TCP/IP)
@@ -164,7 +164,7 @@ và **nút ⛔ E-STOP** luôn hiện trên thanh đầu tab; log của robot ghi
 | **Vận hành → Move to XYZθ** | Nhập tọa độ đầu công tác, GUI tính động học ngược ra góc khớp rồi di chuyển. Nút "⤓ Hiện tại" điền sẵn vị trí đang đứng; ô nào không sửa thì dùng giá trị chính xác (không bị sai số làm tròn), và nếu đích trùng vị trí hiện tại thì không gửi lệnh |
 | **Vận hành → Chạy chương trình** | Nút gạt **Chế độ JOG / CHƯƠNG TRÌNH**, chọn Program, thanh tiến độ, **START / PAUSE–RESUME / RESET** (RESET xóa FAULT bằng `CLEAR`). Bên dưới là danh sách Step, **Step đang chạy được tô sáng** |
 | **Lập trình → Points** | Danh sách Point, Teach Point (lưu vị trí thực hiện tại), Save Position, đổi tên, xóa (bị chặn nếu Program đang dùng điểm đó) |
-| **Lập trình → Program Editor** | Tạo chương trình gồm các Step: **MOVE** (tới một Point), **GRIP ON/OFF**, **DELAY** (0.1–60 s); sửa, xóa, chèn Step |
+| **Lập trình → Program Editor** | Tạo chương trình gồm các Step: **MOVE** (tới một Point), **GRIP ON/OFF**, **DELAY** (0.1–60 s); sửa, xóa, chèn Step. Ô **Xếp chồng** dưới ô Point đánh dấu Step MOVE thả khay vào khay chứa Đạt / Lỗi 1 / Lỗi 2 (mục 6.3, bước 4b) |
 | **Giám sát** | Hình robot 2D nhìn từ trên xuống (tư thế thực, đích, Points, đường đi dự kiến của chương trình) và đồ thị bám quỹ đạo của một trục (mục 5.1) |
 | **Settings** | 6 panel cấu hình (mục 7). Kết nối UART nằm ở tab **Cài đặt** của app master (thẻ Kết nối thiết bị) |
 
@@ -288,6 +288,19 @@ python main.py --scale 0.85    # thu nhỏ giao diện (máy yếu / màn hình 
    ```
    MOVE P1_tren → MOVE P1_duoi → GRIP ON → DELAY → MOVE P1_tren → MOVE P2_tren → MOVE P2_duoi → GRIP OFF → DELAY → MOVE P2_tren
    ```
+4b. **Xếp chồng khay vào khay chứa** (tùy chọn):
+   - Chỉ teach điểm thả ở **tầng 1** (khay chứa đang trống).
+   - Trong Program Editor, chọn Step MOVE xuống điểm thả, chọn ô **Xếp chồng: Đạt / Lỗi 1 / Lỗi 2** rồi bấm **✎ Edit Step**
+     (hoặc chọn trước khi bấm **+ MOVE**). Step hiện thêm chữ `· xếp chồng Khay …`; trong file lưu là `"stack": "DAT"`.
+   - Lúc chạy: **Z thả = Z của Point + chiều cao 1 tầng × số khay đã có**. Ví dụ khay Đạt đã có 1 khay, cao 1 tầng 25 mm
+     → khay thứ 2 thả cao hơn 25 mm. Số đếm tăng 1 sau Step **GRIP OFF** kế tiếp (lúc khay đã được thả).
+   - **Chiều cao 1 tầng** và **số tầng tối đa** của từng khay chứa: tab **Cài đặt** của app master → thẻ Thời gian chờ →
+     mục *Khay chứa (xếp chồng)*, nhấn Enter là lưu.
+   - **Số khay hiện có**: tab **Vận hành** → thẻ Thống kê → mục *Khay chứa*. Còn 1 chỗ thì hiện màu vàng (sắp đầy); đầy thì
+     START bị chặn (báo rõ khay nào đầy). Thay khay chứa rỗng rồi bấm **Đã thay khay** (đếm về 0); nút **Sửa** để nhập tay số khay.
+   - Nếu Z tầng đó vượt giới hạn Z max thì cũng không cho START; giảm số tầng tối đa hoặc chiều cao 1 tầng.
+   - Nút **🤖 Robot phân loại** (MANUAL) chạy thật **Chương trình 1 / 3 / 2** cho PCB Đạt / Lỗi 1 / Lỗi 2 khi robot đã kết
+     nối và HOME (chưa kết nối thì vẫn là giả lập).
 5. **Chạy** (tab **Vận hành**, khung Chạy chương trình): gạt **Chế độ** sang **CHƯƠNG TRÌNH**, chọn Program và bấm
    **START**. Có thể PAUSE/RESUME bất kỳ lúc nào; nút **■ STOP** trên thanh tiêu đề dừng ngay ở mọi tab.
 6. **Khi có FAULT:**
@@ -372,7 +385,7 @@ trình cho nhóm, **không** phải phần mềm điều khiển thật.
   UI\data). Không có thì dùng bộ điểm dựng sẵn, tên dễ hiểu: "Trên chỗ gắp (CB3)", "Gắp khay ở CB3", "Trên khay Đạt",
   "Thả vào khay Đạt"… Robot chạy đúng tốc độ cài đặt (trục Z 7 mm/s nên một lần gắp – xếp mất khoảng 1,5 phút; dùng ×5
   cho nhanh). Nút **📋 Xem step chương trình** hiện từng step bằng lời, giá trị khớp và step robot đang chạy.
-- **Xếp chồng vào khay chứa** (thử nghiệm, chưa có trên robot thật):
+- **Xếp chồng vào khay chứa** (app master cũng đã có, xem mục 6.3 bước 4b):
   - khay chứa có 4 cột dẫn ở góc, mặt đỡ cao 45 mm; tối đa **7 tầng** (giới hạn trục Z), chỉnh được từng khay;
   - **Z thả = điểm thả tầng 1 + độ cao 1 tầng (25 mm) × số khay đang có**, chỉ teach điểm thả tầng 1;
   - Step MOVE có `"stack": "DAT" | "LOI1" | "LOI2"` mới được cộng Z (tên Point đặt gì cũng được);

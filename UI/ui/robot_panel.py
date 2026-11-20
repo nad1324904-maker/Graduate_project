@@ -15,6 +15,7 @@ from core import robot_config
 from core.point_store import PointStore
 from core.program_store import ProgramStore
 from core.program_executor import ProgramExecutor
+from core.stack_store import BIN_LABELS, StackStore
 from ui.theme import (
     COL_ACCENT, COL_ACCENT_HOVER, COL_BG, COL_BTN_DARK, COL_BTN_DARK_HOVER, COL_GREEN, COL_HEADER, COL_INPUT,
     COL_ON_ACCENT, COL_PANEL, COL_PANEL_BORDER, COL_RED, COL_RED_HOVER, COL_TEXT, COL_TEXT_DIM, LOG_TAG_COLOR
@@ -37,9 +38,10 @@ class ScaraRobotPanel(ConnectionMixin, SettingsMixin, VisualMixin, JogMixin, Mon
         ScaraRobotPanel(tab, embedded=True, log_sink=master_log)
     embedded=True : header gọn (bỏ tên app + đồng hồ vì master đã có).
     log_sink      : hàm (message, level) nhận log; có log_sink thì KHÔNG dựng thanh LOG riêng.
+    stack_store   : bộ đếm xếp chồng 3 khay chứa (core/stack_store.py) dùng chung với master; None = tự tạo.
     Master điều khiển robot qua panel.backend (HOME, E-Stop...) và panel.executor (chạy chương trình)."""
 
-    def __init__(self, master, embedded=False, log_sink=None):
+    def __init__(self, master, embedded=False, log_sink=None, stack_store=None):
         install_configure_cache()    # chỉ configure() khi giá trị đổi (xem ui/perf.py)
         super().__init__(master, fg_color=COL_BG, corner_radius=0)
         self.embedded = embedded
@@ -52,12 +54,8 @@ class ScaraRobotPanel(ConnectionMixin, SettingsMixin, VisualMixin, JogMixin, Mon
 
         self.point_store = PointStore()
         self.program_store = ProgramStore()
-        self.executor = ProgramExecutor(self.backend, self.point_store, self.program_store)
-        self.executor.set_callbacks(
-            on_step_started=self._on_step_started,
-            on_step_done=self._on_step_done,
-            on_state_change=self._on_exec_state_change,
-        )
+        self.stack_store = stack_store or StackStore()   # bộ đếm xếp chồng 3 khay chứa
+        self._make_executor()
 
         self.mode = "JOG"
         self.selected_point = None
@@ -73,6 +71,22 @@ class ScaraRobotPanel(ConnectionMixin, SettingsMixin, VisualMixin, JogMixin, Mon
         self._tick_count = 0
         self._ui_sig = None          # chữ ký trạng thái lần cuối đã cập nhật nút bấm
         self._tick()
+
+    def _make_executor(self):
+        """(Tạo lại) ProgramExecutor cho backend hiện tại — gọi lúc khởi động và mỗi lần đổi backend."""
+        self.executor = ProgramExecutor(self.backend, self.point_store, self.program_store, self.stack_store)
+        self.executor.set_callbacks(
+            on_step_started=self._on_step_started,
+            on_step_done=self._on_step_done,
+            on_state_change=self._on_exec_state_change,
+            on_stack_placed=self._on_stack_placed,
+        )
+
+    def _on_stack_placed(self, bin_key, count):
+        d = self.stack_store.get(bin_key)
+        self._log(f"Xếp chồng: {BIN_LABELS[bin_key]} = {count}/{d['max']} tầng", "INFO")
+        if count >= d["max"]:
+            self._log(f"{BIN_LABELS[bin_key]} ĐÃ ĐẦY — thay khay chứa rỗng rồi bấm 'Đã thay khay'.", "WARN")
 
     def _load_kinematics_from_config(self):
         """Nạp h1/l1/l2/h2 từ robot_config.json ngay lúc khởi động (không đợi bấm Apply)."""

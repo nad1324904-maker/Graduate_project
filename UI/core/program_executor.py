@@ -22,6 +22,7 @@ from enum import Enum
 
 from comm.backend_base import RobotStatus
 from core.program_store import describe_step
+from core.stack_store import BIN_LABELS
 
 
 class ExecState(str, Enum):
@@ -38,10 +39,13 @@ class ExecutorError(Exception):
 
 
 class ProgramExecutor:
-    def __init__(self, backend, point_store, program_store):
+    def __init__(self, backend, point_store, program_store, stack_store=None):
         self.backend = backend
         self.point_store = point_store
         self.program_store = program_store
+        self.stack_store = stack_store   # None = bỏ qua đánh dấu xếp chồng (Z giữ nguyên Point)
+        self._pending_stack = None       # khay chứa đang xếp dở: tăng đếm ở GRIP OFF kế tiếp
+        self._on_stack_placed = None     # callback(bin, count) sau khi thả xong 1 khay
 
         self.program_name = None
         self.steps = []
@@ -59,10 +63,38 @@ class ProgramExecutor:
         self.backend.set_status_change_callback(self._on_backend_status_change)
 
     # ---------------- Callback đăng ký từ GUI ----------------
-    def set_callbacks(self, on_step_started=None, on_step_done=None, on_state_change=None):
+    def set_callbacks(self, on_step_started=None, on_step_done=None, on_state_change=None,
+                      on_stack_placed=None):
         self._on_step_started = on_step_started
         self._on_step_done = on_step_done
         self._on_state_change = on_state_change
+        self._on_stack_placed = on_stack_placed
+
+    # ---------------- Xếp chồng ----------------
+    def _z_max(self):
+        limits = getattr(self.backend, "joint_limits", None)
+        try:
+            return float(limits["Z"][1])
+        except (TypeError, KeyError, IndexError, ValueError):
+            return None
+
+    def _stack_target(self, step):
+        """(point đã cộng Z, lỗi) cho Step MOVE. Không xếp chồng -> point gốc."""
+        point = self.point_store.get(step["point"])
+        b = step.get("stack")
+        if not b or self.stack_store is None:
+            return point, None
+        d = self.stack_store.get(b)
+        label = BIN_LABELS.get(b, b)
+        if d["count"] >= d["max"]:
+            return None, (f"{label} đã đầy ({d['count']}/{d['max']} tầng) — thay khay chứa rỗng "
+                          f"rồi bấm 'Đã thay khay'.")
+        point["Z"] = float(point["Z"]) + d["layer_mm"] * d["count"]
+        zmax = self._z_max()
+        if zmax is not None and point["Z"] > zmax + 1e-6:
+            return None, (f"{label} tầng {d['count'] + 1}: Z = {point['Z']:.1f} mm vượt giới hạn "
+                          f"Z max {zmax:g} mm — giảm số tầng tối đa hoặc chiều cao 1 tầng.")
+        return point, None
 
     # ---------------- Điều khiển vòng đời (mục 17-20) ----------------
     def start(self, program_name):
@@ -76,9 +108,17 @@ class ProgramExecutor:
         if not prog["steps"]:
             raise ExecutorError("Không thể START: chương trình chưa có Step nào.")
 
+        # Xếp chồng: khay chứa đầy / vượt Z max thì báo NGAY, không chạy dở chừng
+        for step in prog["steps"]:
+            if step["type"] == "MOVE" and step.get("stack"):
+                _, err = self._stack_target(step)
+                if err:
+                    raise ExecutorError(f"Không thể START: {err}")
+
         self.program_name = program_name
         self.steps = prog["steps"]
         self.current_index = -1
+        self._pending_stack = None
         self._set_state(ExecState.RUNNING)
         self._send_next_step()
 
@@ -134,6 +174,7 @@ class ProgramExecutor:
         self.steps = []
         self.current_index = -1
         self._waiting_step_done = False
+        self._pending_stack = None
         self.error_message = ""
         self._set_state(ExecState.IDLE)
 
@@ -152,7 +193,12 @@ class ProgramExecutor:
             self._on_step_started(self.current_index, step)
 
         if step["type"] == "MOVE":
-            point = self.point_store.get(step["point"])
+            point, err = self._stack_target(step)
+            if err:
+                self.fail(err)
+                return
+            if step.get("stack") and self.stack_store is not None:
+                self._pending_stack = step["stack"]
             self.backend.send_absolute_target(point)
         elif step["type"] == "GRIP":
             self.backend.grip(step["action"])
@@ -182,6 +228,12 @@ class ProgramExecutor:
             return
         self._waiting_step_done = False
         step = self.steps[self.current_index]
+        if (step["type"] == "GRIP" and step["action"] == "OFF"
+                and self._pending_stack and self.stack_store is not None):
+            b, self._pending_stack = self._pending_stack, None
+            self.stack_store.increment(b)          # khay vừa được thả vào khay chứa
+            if self._on_stack_placed:
+                self._on_stack_placed(b, self.stack_store.get(b)["count"])
         if self._on_step_done:
             self._on_step_done(self.current_index, step)
         if self.state == ExecState.RUNNING:

@@ -6,6 +6,8 @@ Tab:  Vận hành (AUTO / MANUAL, sơ đồ dây chuyền, PCB hiện tại, th�
 Hiện trạng:
   - Robot: THẬT (kết nối STM32 ở tab Cài đặt → Kết nối thiết bị → Robot SCARA).
   - Raspberry Pi: THẬT (TCP, comm/pi_link.py; kết nối ở tab Cài đặt; MANUAL: Chụp ảnh / Kiểm tra PCB / Test chức năng).
+  - Khay chứa (xếp chồng): THẬT — số khay / chiều cao tầng / tối đa (core/stack_store.py), robot cộng Z theo đó.
+  - MANUAL "Robot phân loại": THẬT khi robot đã kết nối + HOME (chạy Chương trình 1/3/2), chưa kết nối thì giả lập.
   - PLC, chế độ AUTO, thống kê, lịch sử: dữ liệu mẫu, các nút chỉ ghi Log (hoặc giả lập phản hồi).
 
 Một app duy nhất mở cổng COM của STM32 → phần tự động của master gọi thẳng self.robot.backend / self.robot.executor.
@@ -20,9 +22,13 @@ from datetime import datetime
 import customtkinter as ctk
 from PIL import Image, ImageTk
 
+from comm.errors import UartError
 from comm.pi_link import DEFAULT_HOST as PI_HOST, DEFAULT_PORT as PI_PORT, RESULTS as PI_RESULTS, PiClient
 from comm.uart_backend import list_available_ports
 from core.paths import ROOT_DIR
+from core.program_executor import ExecState, ExecutorError
+from core.program_store import ProgramError
+from core.stack_store import BINS, BIN_LABELS, StackError, StackStore
 from ui.robot_panel import ScaraRobotPanel   # import cả ui/theme.py: màu mặc định widget dùng chung với tab Robot
 
 # ============================================================
@@ -44,6 +50,8 @@ PILL = {  # (nền, chữ) cho nhãn trạng thái dạng viên thuốc
 }
 LOG_COLOR = {"INFO": ACCENT, "OK": GREEN, "WARN": AMBER, "ERROR": RED, "TX": DIM, "RX": "#7c3aed"}
 PI_RESULT = {"PASS": ("ĐẠT", "green"), "FAIL1": ("LỖI 1", "amber"), "FAIL2": ("LỖI 2", "red")}   # kết quả Pi -> loại PCB
+SORT_PROGRAM = {"ĐẠT": "Chương trình 1", "LỖI 2": "Chương trình 2", "LỖI 1": "Chương trình 3"}  # loại PCB -> chương trình robot
+BIN_KIND = {"DAT": "green", "LOI1": "amber", "LOI2": "red"}                                    # khay chứa -> màu
 
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
@@ -114,6 +122,10 @@ class MasterApp(ctk.CTk):
         # Raspberry Pi: kết nối THẬT (TCP, giao thức JSON có độ dài — comm/pi_link.py)
         self.pi = PiClient(log=lambda lvl, msg: self.log(f"Pi: {msg}", lvl))
         self.pi.set_state_callback(self._on_pi_state)
+        # Xếp chồng: số khay trong từng khay chứa + chiều cao 1 tầng + số tầng tối đa (data/stack_state.json),
+        # dùng chung với robot (ProgramExecutor cộng Z cho Step MOVE có đánh dấu xếp chồng)
+        self.stack = StackStore()
+        self._sort_job = None                     # (chương trình, loại PCB) robot đang chạy từ nút "Robot phân loại"
 
         self._build_header()
         self.content = ctk.CTkFrame(self, fg_color="transparent")
@@ -127,6 +139,8 @@ class MasterApp(ctk.CTk):
             "history": self._build_history_view(),
             "settings": self._build_settings_view(),
         }
+        self.stack.add_listener(self._refresh_bins)
+        self._refresh_bins()
         self._show_tab("operate")
         self._tick_clock()
         self._poll_devices()
@@ -204,6 +218,7 @@ class MasterApp(ctk.CTk):
         self.pi.poll()
         self.dev_dots["Pi"].configure(text_color=GREEN if self.pi.connected else DISABLED)
         self.dev_dots["Robot"].configure(text_color=GREEN if self.robot._connected() else DISABLED)
+        self._poll_sort_job()
         self.after(50, self._poll_devices)
 
     # ============================================================
@@ -493,8 +508,7 @@ class MasterApp(ctk.CTk):
             self._set_pcb_row("robot", "CHỜ", "gray", "sẽ chạy chương trình theo kết quả")
         else:
             self.conclusion.configure(text=f"PCB {t}", text_color={"green": GREEN, "amber": AMBER, "red": RED}[kind])
-            prog = {"ĐẠT": "Chương trình 1", "LỖI 2": "Chương trình 2", "LỖI 1": "Chương trình 3"}[t]
-            self._set_pcb_row("robot", "SẴN SÀNG", "blue", f"sẽ chạy {prog}")
+            self._set_pcb_row("robot", "SẴN SÀNG", "blue", f"sẽ chạy {SORT_PROGRAM[t]}")
 
     def _clear_manual_result(self):
         self._m_result = None
@@ -507,14 +521,54 @@ class MasterApp(ctk.CTk):
         if t is None:
             self.log("Chưa xác định được loại PCB (chưa Kiểm tra PCB / Test chức năng) — robot KHÔNG chạy.", "WARN")
             return
-        prog = {"ĐẠT": "Chương trình 1", "LỖI 2": "Chương trình 2", "LỖI 1": "Chương trình 3"}[t]
-        self.log(f"Gửi robot chạy {prog} (PCB {t})...")
+        prog = SORT_PROGRAM[t]
+        r = self.robot
+        if not r._connected():                    # chưa kết nối STM32: giữ phản hồi giả lập như trước
+            self.log(f"Gửi robot chạy {prog} (PCB {t})... (demo — robot chưa kết nối)")
 
-        def done():
-            self.log(f"Robot: {prog} xong (demo).", "OK")
+            def done():
+                self.log(f"Robot: {prog} xong (demo).", "OK")
+                self._m_result = None
+                self._refresh_type()
+            self.after(1500, done)
+            return
+        # ---- THẬT: chạy chương trình bằng ProgramExecutor của tab Robot ----
+        if r.executor.state in (ExecState.RUNNING, ExecState.PAUSED) or self._sort_job:
+            self.log("Robot đang chạy chương trình — đợi xong rồi bấm lại.", "WARN")
+            return
+        if r.backend.is_homing() or r.backend.is_estop() or not r._home_ready():
+            self.log("Robot chưa sẵn sàng: đang HOME / E-STOP / chưa HOME — xử lý ở tab Robot rồi bấm lại.", "WARN")
+            return
+        if not r.program_store.exists(prog):
+            self.log(f"Chưa có '{prog}' — tạo ở tab Robot → Lập trình (gán cho PCB {t}).", "ERROR")
+            return
+        try:
+            r.executor.start(prog)
+        except (ExecutorError, ProgramError, UartError) as e:
+            self.log(f"Robot: {e}", "ERROR")
+            self._set_pcb_row("robot", "KHÔNG CHẠY", "red", str(e)[:70])
+            return
+        self._sort_job = (prog, t)
+        self._set_pcb_row("robot", "ĐANG CHẠY", "blue", prog)
+        self.log(f"Robot: START {prog} (PCB {t}).", "OK")
+
+    def _poll_sort_job(self):
+        """Theo dõi chương trình robot do nút 'Robot phân loại' khởi động (gọi trong _poll_devices)."""
+        if not self._sort_job:
+            return
+        state = self.robot.executor.state
+        if state in (ExecState.RUNNING, ExecState.PAUSED):
+            return
+        prog, t = self._sort_job
+        self._sort_job = None
+        if state == ExecState.COMPLETED:
+            self.log(f"Robot: {prog} xong — PCB {t} đã vào khay.", "OK")
             self._m_result = None
             self._refresh_type()
-        self.after(1500, done)
+        else:
+            why = self.robot.executor.error_message or state.value
+            self.log(f"Robot: {prog} không hoàn thành ({why}).", "ERROR")
+            self._set_pcb_row("robot", "DỪNG", "red", why[:70])
 
     def _build_current_pcb_card(self, parent):
         c = Card(parent, "PCB hiện tại", "🔍")
@@ -608,7 +662,106 @@ class MasterApp(ctk.CTk):
             ctk.CTkLabel(r, text=str(n), font=(FB, 13), text_color=TEXT).pack(side="right")
         ctk.CTkLabel(b, text="Chu kỳ trung bình 12.8 s · ~281 PCB/giờ", font=(F, 10), text_color=DISABLED
                      ).pack(anchor="w", pady=(6, 0))
+
+        # ---- khay chứa (xếp chồng): THẬT — số khay đã xếp trong từng khay chứa, robot cộng Z theo số này ----
+        ctk.CTkFrame(b, fg_color=BORDER, height=1).pack(fill="x", pady=(6, 2))
+        hr = ctk.CTkFrame(b, fg_color="transparent")
+        hr.pack(fill="x")
+        ctk.CTkLabel(hr, text="Khay chứa (xếp chồng)", font=(FB, 11), text_color=DIM, height=20).pack(side="left")
+        self.bin_note = ctk.CTkLabel(hr, text="", font=(FB, 10), text_color=AMBER_TEXT, height=20)
+        self.bin_note.pack(side="right")
+        self.bin_rows = {}
+        for key in BINS:
+            r = ctk.CTkFrame(b, fg_color="transparent")
+            r.pack(fill="x", pady=1)
+            ctk.CTkLabel(r, text="■", font=(F, 12), text_color={"DAT": GREEN, "LOI1": AMBER, "LOI2": RED}[key]
+                         ).pack(side="left")
+            ctk.CTkLabel(r, text=BIN_LABELS[key], font=(F, 12), text_color=TEXT).pack(side="left", padx=(6, 0))
+            ctk.CTkButton(r, text="Đã thay khay", width=84, height=24, corner_radius=8, font=(FB, 10),
+                          fg_color=BTN_SOFT, hover_color=BTN_SOFT_HOVER, text_color=TEXT,
+                          command=lambda k=key: self._replace_bin(k)).pack(side="right")
+            ctk.CTkButton(r, text="Sửa", width=34, height=24, corner_radius=8, font=(FB, 10),
+                          fg_color=BTN_SOFT, hover_color=BTN_SOFT_HOVER, text_color=TEXT,
+                          command=lambda k=key: self._edit_bin_count(k)).pack(side="right", padx=(0, 4))
+            p = pill(r, "0/7", "gray", width=66, font_size=10)
+            p.pack(side="right", padx=(0, 4))
+            self.bin_rows[key] = p
         return c
+
+    # ---------------- khay chứa (xếp chồng) ----------------
+    def _refresh_bins(self):
+        """Vẽ lại số khay ở tab Vận hành + ô cài đặt ở tab Cài đặt (gọi mỗi khi StackStore đổi)."""
+        full = near = 0
+        for key in BINS:
+            d = self.stack.get(key)
+            n, mx = d["count"], d["max"]
+            if n >= mx:
+                kind, text = "red", f"ĐẦY {n}/{mx}"
+                full += 1
+            elif n == mx - 1:
+                kind, text = "amber", f"{n}/{mx} tầng"
+                near += 1
+            else:
+                kind, text = BIN_KIND[key] if n else "gray", f"{n}/{mx} tầng"
+            bg, fg = PILL[kind]
+            self.bin_rows[key].configure(text=text, fg_color=bg, text_color=fg)
+        self.bin_note.configure(text="⚠ có khay đầy — thay khay" if full else ("⚠ sắp đầy" if near else ""),
+                                text_color=RED_TEXT if full else AMBER_TEXT)
+        try:
+            focused = self.focus_get()
+        except (KeyError, tk.TclError):
+            focused = None
+        for key, (e_layer, e_max) in getattr(self, "bin_entries", {}).items():
+            d = self.stack.get(key)
+            for e, val in ((e_layer, f"{d['layer_mm']:g}"), (e_max, str(d["max"]))):
+                if focused is not e._entry:             # đang gõ thì không ghi đè
+                    e.delete(0, "end")
+                    e.insert(0, val)
+
+    def _replace_bin(self, key):
+        n = self.stack.get(key)["count"]
+        self.stack.replace(key)
+        self.log(f"{BIN_LABELS[key]}: đã thay khay chứa rỗng (trước đó có {n} khay) → robot xếp lại từ tầng 1.", "OK")
+
+    def _edit_bin_count(self, key):
+        d = self.stack.get(key)
+        dialog = ctk.CTkInputDialog(title="Sửa số khay",
+                                    text=f"{BIN_LABELS[key]}: số khay đang có trong khay chứa (0 – {d['max']}):")
+        val = dialog.get_input()
+        if val is None or not val.strip():
+            return
+        try:
+            self.stack.set_count(key, int(val.strip()))
+        except ValueError:
+            self.log("Số khay phải là số nguyên.", "WARN")
+            return
+        except StackError as e:
+            self.log(str(e), "WARN")
+            return
+        self.log(f"{BIN_LABELS[key]}: đặt số khay = {int(val.strip())}.", "OK")
+
+    def _apply_bin_setting(self, key, what, entry):
+        """Lưu ngay chiều cao 1 tầng / số tầng tối đa khi nhấn Enter hoặc rời ô nhập."""
+        raw = entry.get().strip().replace(",", ".")
+        d = self.stack.get(key)
+        old = d["layer_mm"] if what == "layer" else d["max"]
+        try:
+            if what == "layer":
+                if float(raw) == old:
+                    return
+                self.stack.set_layer(key, float(raw))
+            else:
+                if int(raw) == old:
+                    return
+                self.stack.set_max(key, int(raw))
+        except (ValueError, StackError) as e:
+            self.log(f"{BIN_LABELS[key]}: {e if isinstance(e, StackError) else 'giá trị không hợp lệ'}", "WARN")
+            entry.delete(0, "end")
+            entry.insert(0, f"{old:g}" if what == "layer" else str(old))
+            return
+        d = self.stack.get(key)
+        self.log(f"{BIN_LABELS[key]}: chiều cao 1 tầng {d['layer_mm']:g} mm, tối đa {d['max']} tầng "
+                 f"(tầng trên cùng: Z tầng 1 + {d['layer_mm'] * (d['max'] - 1):g} mm).", "OK")
 
     def _build_steps_card(self, parent):
         c = Card(parent, "Tiến trình chu kỳ", "🧭", right_text="theo lưu đồ")
@@ -620,9 +773,9 @@ class MasterApp(ctk.CTk):
             r = ctk.CTkFrame(c.body, fg_color=ACCENT_SOFT if now else "transparent", corner_radius=8)
             r.pack(fill="x", pady=0)
             mark, col = ("✓", GREEN) if done else (("▶", ACCENT) if now else (str(i + 1), DISABLED))
-            ctk.CTkLabel(r, text=mark, font=(FB, 12), text_color=col, width=22, height=24).pack(side="left", padx=(6, 4), pady=1)
+            ctk.CTkLabel(r, text=mark, font=(FB, 12), text_color=col, width=22, height=21).pack(side="left", padx=(6, 4), pady=0)
             ctk.CTkLabel(r, text=s, font=(FB if now else F, 12),
-                         text_color=ACCENT_TEXT if now else (TEXT if done else DIM), anchor="w").pack(side="left")
+                         text_color=ACCENT_TEXT if now else (TEXT if done else DIM), anchor="w", height=21).pack(side="left")
             if now:
                 ctk.CTkLabel(r, text="4.1 s", font=(F, 10), text_color=ACCENT_TEXT).pack(side="right", padx=8)
         return c
@@ -746,7 +899,8 @@ class MasterApp(ctk.CTk):
         """Tab Robot = NGUYÊN GUI điều khiển robot (Vận hành / Lập trình / Giám sát / Settings), nhúng vào đây.
         Log của robot ghi chung vào Log của master (có tiền tố "Robot:")."""
         v = ctk.CTkFrame(self.content, fg_color="transparent")
-        self.robot = ScaraRobotPanel(v, embedded=True, log_sink=lambda msg, lvl: self.log(f"Robot: {msg}", lvl))
+        self.robot = ScaraRobotPanel(v, embedded=True, log_sink=lambda msg, lvl: self.log(f"Robot: {msg}", lvl),
+                                     stack_store=self.stack)
         self.robot.pack(fill="both", expand=True)
         return v
 
@@ -884,6 +1038,33 @@ class MasterApp(ctk.CTk):
             field(to.body, label, val, "s")
         ctk.CTkLabel(to.body, text="Quá thời gian → hệ thống báo lỗi, dừng, chờ Reset (nhánh B của lưu đồ).",
                      font=(F, 10), text_color=DISABLED, wraplength=320, justify="left").pack(anchor="w", pady=(8, 0))
+
+        # ---- khay chứa (xếp chồng): THẬT — lưu ngay vào data/stack_state.json khi Enter / rời ô ----
+        section(to.body, "Khay chứa (xếp chồng)")
+        head = ctk.CTkFrame(to.body, fg_color="transparent")
+        head.pack(fill="x")
+        head.grid_columnconfigure(0, weight=1)
+        for col, text in ((1, "Cao 1 tầng (mm)"), (2, "Tối đa (tầng)")):
+            ctk.CTkLabel(head, text=text, font=(F, 10), text_color=DIM, width=96).grid(row=0, column=col, padx=(4, 0))
+        self.bin_entries = {}
+        for key in BINS:
+            r = ctk.CTkFrame(to.body, fg_color="transparent")
+            r.pack(fill="x", pady=2)
+            r.grid_columnconfigure(0, weight=1)
+            pill(r, BIN_LABELS[key], BIN_KIND[key], width=110, font_size=10).grid(row=0, column=0, sticky="w")
+            entries = []
+            for col, what in ((1, "layer"), (2, "max")):
+                e = ctk.CTkEntry(r, width=96, height=28, corner_radius=8, fg_color=INPUT, border_color=BORDER,
+                                 text_color=TEXT, font=(F, 12), justify="center")
+                e.grid(row=0, column=col, padx=(4, 0))
+                for ev in ("<Return>", "<FocusOut>"):
+                    e.bind(ev, lambda _e, k=key, w=what, en=e: self._apply_bin_setting(k, w, en))
+                entries.append(e)
+            self.bin_entries[key] = tuple(entries)
+        ctk.CTkLabel(to.body, text="Teach Point đặt khay ở TẦNG 1 (khay chứa trống). Trong Program Editor, Step MOVE "
+                                   "chọn 'Xếp chồng: …' → robot tự cộng Z = cao 1 tầng × số khay đã có. Nhấn Enter "
+                                   "để lưu. Số khay / 'Đã thay khay' ở tab Vận hành.",
+                     font=(F, 10), text_color=DISABLED, wraplength=320, justify="left").pack(anchor="w", pady=(6, 0))
 
         ctk.CTkButton(to.body, text="💾  Lưu cài đặt", height=38, corner_radius=10, font=(FB, 13), fg_color=ACCENT,
                       hover_color=ACCENT_HOVER, command=lambda: self.log("Lưu cài đặt (demo)", "OK")

@@ -1,6 +1,7 @@
 """widgets.py — Widget dùng chung (Card, JogRow, các dòng bảng, nút lớn...)."""
 
 import customtkinter as ctk
+from core.program_store import stack_text
 
 from ui.theme import (
     COL_ACCENT, COL_ACCENT_HOVER, COL_AMBER, COL_BTN_DARK, COL_BTN_DARK_HOVER, COL_GREEN,
@@ -145,7 +146,7 @@ class StepTableRow(ctk.CTkFrame):
                              corner_radius=6, width=52, height=20)
         pill.pack(side="left", padx=4)
         pill.bind("<Button-1>", lambda e: on_click())
-        detail = {"MOVE": f"→ {step.get('point')}", "GRIP": step.get("action"),
+        detail = {"MOVE": f"→ {step.get('point')}{stack_text(step)}", "GRIP": step.get("action"),
                   "DELAY": f"{step.get('seconds', 0):g} s"}[step["type"]]
         detail_lbl = ctk.CTkLabel(self, text=detail, font=("Segoe UI", 11), anchor="w",
                                    text_color=COL_TEXT)

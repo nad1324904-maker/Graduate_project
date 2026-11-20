@@ -26,8 +26,25 @@ class ProgramError(Exception):
     """Lỗi nghiệp vụ Program — GUI bắt và hiển thị, không phải lỗi hệ thống."""
 
 
-def move_step(point_name):
-    return {"type": "MOVE", "point": point_name}
+STACK_LABELS = {"DAT": "Khay Đạt", "LOI1": "Khay Lỗi 1", "LOI2": "Khay Lỗi 2"}
+
+
+def move_step(point_name, stack=None):
+    """MOVE tới Point. `stack` = "DAT"/"LOI1"/"LOI2" -> Step XẾP CHỒNG: lúc chạy
+    Z được cộng thêm chiều cao 1 tầng × số khay đã có trong khay chứa đó
+    (xem core/stack_store.py). Point chỉ cần Teach ở tầng 1."""
+    step = {"type": "MOVE", "point": point_name}
+    if stack:
+        if stack not in STACK_LABELS:
+            raise ProgramError(f"Khay xếp chồng '{stack}' không hợp lệ.")
+        step["stack"] = stack
+    return step
+
+
+def stack_text(step):
+    """' · xếp chồng Khay Đạt' nếu Step có đánh dấu, ngược lại ''."""
+    s = step.get("stack")
+    return f" · xếp chồng {STACK_LABELS.get(s, s)}" if s else ""
 
 
 def grip_step(action):
@@ -49,7 +66,7 @@ def delay_step(seconds):
 
 def describe_step(step):
     if step["type"] == "MOVE":
-        return f"MOVE → {step['point']}"
+        return f"MOVE → {step['point']}{stack_text(step)}"
     if step["type"] == "DELAY":
         return f"DELAY {step['seconds']:g} s"
     return f"GRIP {step['action']}"
@@ -167,6 +184,15 @@ class ProgramStore:
             if step["type"] == "MOVE" and not point_store.exists(step["point"]):
                 missing.append(step["point"])
         return (len(missing) == 0), missing
+
+    def stack_bins(self, program_name):
+        """Các khay chứa mà Program này xếp chồng vào (theo thứ tự xuất hiện)."""
+        bins = []
+        for step in self._require(program_name)["steps"]:
+            b = step.get("stack") if step["type"] == "MOVE" else None
+            if b and b not in bins:
+                bins.append(b)
+        return bins
 
     def point_is_referenced(self, point_name):
         """Point này có đang được Program nào tham chiếu không — dùng để

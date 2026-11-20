@@ -1384,7 +1384,7 @@ function editStepCore() {                                 // giống _on_edit_st
   const p = curProg(), i = S.selStep;
   if (!p || i === null || !p.steps[i]) return "Chưa chọn Step nào để sửa — bấm vào 1 dòng trong danh sách trước.";
   const st = p.steps[i];
-  if (st.type === "MOVE") { const [ns, err] = makeStep("MOVE"); if (err) return err; p.steps[i] = ns; }
+  if (st.type === "MOVE") { const [ns, err] = makeStep("MOVE"); if (err) return err; p.steps[i] = st.stack ? { ...ns, stack: st.stack } : ns; }  // giữ đánh dấu xếp chồng (soạn ở app master)
   else if (st.type === "DELAY") { const [ns, err] = makeStep("DELAY"); if (err) return err; p.steps[i] = ns; }
   else p.steps[i] = { type: "GRIP", action: st.action === "ON" ? "OFF" : "ON" };
   return null;
@@ -1444,7 +1444,9 @@ function buildProgramSelect() {
   renderSteps(); buildProgramPath(); refreshRunUI();
 }
 function describe(st) {
-  return st.type === "MOVE" ? `→ ${st.point}` : st.type === "DELAY" ? `${g(st.seconds)} s` : st.action;
+  const STK = { DAT: "Khay Đạt", LOI1: "Khay Lỗi 1", LOI2: "Khay Lỗi 2" };
+  return st.type === "MOVE" ? `→ ${st.point}` + (st.stack ? ` · xếp chồng ${STK[st.stack] || st.stack}` : "")
+       : st.type === "DELAY" ? `${g(st.seconds)} s` : st.action;
 }
 function renderSteps() {
   const box = $("stepList"), name = curProgName(), prog = S.programs[name];

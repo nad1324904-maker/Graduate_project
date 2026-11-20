@@ -18,3 +18,6 @@ desktop.ini
 
 # ---- Ghi chu rieng cho Claude Code (khong dua len git) ----
 CLAUDE.md
+
+# ---- So dem xep chong luc chay (moi may mot khac) ----
+UI/data/stack_state.json

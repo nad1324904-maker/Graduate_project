@@ -10,6 +10,11 @@ from ui.theme import (
 )
 from ui.widgets import Card, StepTableRow
 
+# Ô chọn xếp chồng cho Step MOVE: nhãn hiển thị <-> giá trị "stack" lưu trong Step
+STACK_CHOICES = {"Không xếp chồng": None, "Xếp chồng: Đạt": "DAT",
+                 "Xếp chồng: Lỗi 1": "LOI1", "Xếp chồng: Lỗi 2": "LOI2"}
+STACK_CHOICE_OF = {v: k for k, v in STACK_CHOICES.items()}
+
 
 class ProgramMixin:
     # ============================================================
@@ -70,6 +75,13 @@ class ProgramMixin:
             action_col, values=["(chưa có Point)"], fg_color=COL_INPUT, button_color=COL_BTN_DARK,
             button_hover_color=COL_BTN_DARK_HOVER, height=26, width=110, font=("Segoe UI", 10))
         self.move_point_option.pack(pady=(0, 4))
+        # Xếp chồng: lúc chạy Z += chiều cao 1 tầng × số khay đã có (cài ở tab Cài đặt của master)
+        self.stack_option = ctk.CTkOptionMenu(
+            action_col, values=list(STACK_CHOICES), fg_color=COL_INPUT, button_color=COL_BTN_DARK,
+            button_hover_color=COL_BTN_DARK_HOVER, height=26, width=110, font=("Segoe UI", 10),
+            dropdown_font=("Segoe UI", 11))
+        self.stack_option.set("Không xếp chồng")
+        self.stack_option.pack(pady=(0, 4))
         ctk.CTkButton(action_col, text="+ MOVE", height=28, corner_radius=8, width=110,
                       fg_color=COL_ACCENT, hover_color=COL_ACCENT_HOVER, font=("Segoe UI Semibold", 11),
                       command=self._on_add_move_step).pack(pady=2)
@@ -185,6 +197,13 @@ class ProgramMixin:
 
     def _select_step(self, index):
         self.selected_step_index = index
+        # Chọn Step MOVE -> 2 ô Point / Xếp chồng hiện đúng giá trị của Step (Edit chỉ đổi phần bạn chỉnh)
+        steps = self.program_store.get(self.selected_program)["steps"] if self.selected_program else []
+        step = steps[index] if 0 <= index < len(steps) else None
+        if step and step["type"] == "MOVE":
+            if self.point_store.exists(step["point"]):
+                self.move_point_option.set(step["point"])
+            self.stack_option.set(STACK_CHOICE_OF.get(step.get("stack"), "Không xếp chồng"))
         self._refresh_step_list()
 
     def _require_editable_program(self):
@@ -231,7 +250,8 @@ class ProgramMixin:
         if not self.point_store.exists(point_name):
             self._log("Chưa có Point nào để thêm MOVE — hãy Teach Point trước.", "WARN")
             return
-        self._insert_step(move_step(point_name), f"MOVE → {point_name}")
+        step = move_step(point_name, STACK_CHOICES.get(self.stack_option.get()))
+        self._insert_step(step, describe_step(step))
 
     def _on_add_grip_step(self, action):
         if not self._require_editable_program():
@@ -251,8 +271,9 @@ class ProgramMixin:
             if not self.point_store.exists(new_point):
                 self._log("Point trong dropdown không tồn tại.", "WARN")
                 return
-            self.program_store.edit_step(self.selected_program, self.selected_step_index, move_step(new_point))
-            self._log(f"Sửa Step {self.selected_step_index + 1}: MOVE → {new_point}.", "OK")
+            new_step = move_step(new_point, STACK_CHOICES.get(self.stack_option.get()))
+            self.program_store.edit_step(self.selected_program, self.selected_step_index, new_step)
+            self._log(f"Sửa Step {self.selected_step_index + 1}: {describe_step(new_step)}.", "OK")
         elif step["type"] == "DELAY":
             new_step = self._build_delay_step()
             if not new_step:
