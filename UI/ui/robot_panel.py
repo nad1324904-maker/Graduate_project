@@ -84,7 +84,7 @@ class ScaraRobotPanel(ConnectionMixin, SettingsMixin, VisualMixin, JogMixin, Mon
 
     def _on_stack_placed(self, bin_key, count):
         d = self.stack_store.get(bin_key)
-        self._log(f"Xếp chồng: {BIN_LABELS[bin_key]} = {count}/{d['max']} tầng", "INFO")
+        self._log(f"Stacking: {BIN_LABELS[bin_key]} = {count}/{d['max']} tầng", "INFO")
         if count >= d["max"]:
             self._log(f"{BIN_LABELS[bin_key]} ĐÃ ĐẦY — thay khay chứa rỗng rồi bấm 'Đã thay khay'.", "WARN")
 

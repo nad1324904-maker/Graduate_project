@@ -1445,7 +1445,7 @@ function buildProgramSelect() {
 }
 function describe(st) {
   const STK = { DAT: "Khay Đạt", LOI1: "Khay Lỗi 1", LOI2: "Khay Lỗi 2" };
-  return st.type === "MOVE" ? `→ ${st.point}` + (st.stack ? ` · xếp chồng ${STK[st.stack] || st.stack}` : "")
+  return st.type === "MOVE" ? `→ ${st.point}` + (st.stack ? ` · Stack → ${STK[st.stack] || st.stack}` : "")
        : st.type === "DELAY" ? `${g(st.seconds)} s` : st.action;
 }
 function renderSteps() {

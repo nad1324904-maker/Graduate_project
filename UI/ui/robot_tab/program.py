@@ -10,9 +10,9 @@ from ui.theme import (
 )
 from ui.widgets import Card, StepTableRow
 
-# Ô chọn xếp chồng cho Step MOVE: nhãn hiển thị <-> giá trị "stack" lưu trong Step
-STACK_CHOICES = {"Không xếp chồng": None, "Xếp chồng: Đạt": "DAT",
-                 "Xếp chồng: Lỗi 1": "LOI1", "Xếp chồng: Lỗi 2": "LOI2"}
+# Ô chọn Stacking (xếp chồng) cho Step MOVE: nhãn hiển thị <-> giá trị "stack" lưu trong Step
+STACK_CHOICES = {"No stacking": None, "Stack: Khay Đạt": "DAT",
+                 "Stack: Khay Lỗi 1": "LOI1", "Stack: Khay Lỗi 2": "LOI2"}
 STACK_CHOICE_OF = {v: k for k, v in STACK_CHOICES.items()}
 
 
@@ -80,7 +80,7 @@ class ProgramMixin:
             action_col, values=list(STACK_CHOICES), fg_color=COL_INPUT, button_color=COL_BTN_DARK,
             button_hover_color=COL_BTN_DARK_HOVER, height=26, width=110, font=("Segoe UI", 10),
             dropdown_font=("Segoe UI", 11))
-        self.stack_option.set("Không xếp chồng")
+        self.stack_option.set("No stacking")
         self.stack_option.pack(pady=(0, 4))
         ctk.CTkButton(action_col, text="+ MOVE", height=28, corner_radius=8, width=110,
                       fg_color=COL_ACCENT, hover_color=COL_ACCENT_HOVER, font=("Segoe UI Semibold", 11),
@@ -203,7 +203,7 @@ class ProgramMixin:
         if step and step["type"] == "MOVE":
             if self.point_store.exists(step["point"]):
                 self.move_point_option.set(step["point"])
-            self.stack_option.set(STACK_CHOICE_OF.get(step.get("stack"), "Không xếp chồng"))
+            self.stack_option.set(STACK_CHOICE_OF.get(step.get("stack"), "No stacking"))
         self._refresh_step_list()
 
     def _require_editable_program(self):

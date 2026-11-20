@@ -6,7 +6,7 @@ Tab:  Vận hành (AUTO / MANUAL, sơ đồ dây chuyền, PCB hiện tại, th�
 Hiện trạng:
   - Robot: THẬT (kết nối STM32 ở tab Cài đặt → Kết nối thiết bị → Robot SCARA).
   - Raspberry Pi: THẬT (TCP, comm/pi_link.py; kết nối ở tab Cài đặt; MANUAL: Chụp ảnh / Kiểm tra PCB / Test chức năng).
-  - Khay chứa (xếp chồng): THẬT — số khay / chiều cao tầng / tối đa (core/stack_store.py), robot cộng Z theo đó.
+  - Khay chứa (Stacking = xếp chồng): THẬT — số khay / chiều cao tầng / tối đa (core/stack_store.py), robot cộng Z theo đó.
   - MANUAL "Robot phân loại": THẬT khi robot đã kết nối + HOME (chạy Chương trình 1/3/2), chưa kết nối thì giả lập.
   - PLC, chế độ AUTO, thống kê, lịch sử: dữ liệu mẫu, các nút chỉ ghi Log (hoặc giả lập phản hồi).
 
@@ -667,7 +667,7 @@ class MasterApp(ctk.CTk):
         ctk.CTkFrame(b, fg_color=BORDER, height=1).pack(fill="x", pady=(6, 2))
         hr = ctk.CTkFrame(b, fg_color="transparent")
         hr.pack(fill="x")
-        ctk.CTkLabel(hr, text="Khay chứa (xếp chồng)", font=(FB, 11), text_color=DIM, height=20).pack(side="left")
+        ctk.CTkLabel(hr, text="Khay chứa (Stacking)", font=(FB, 11), text_color=DIM, height=20).pack(side="left")
         self.bin_note = ctk.CTkLabel(hr, text="", font=(FB, 10), text_color=AMBER_TEXT, height=20)
         self.bin_note.pack(side="right")
         self.bin_rows = {}
@@ -1040,7 +1040,7 @@ class MasterApp(ctk.CTk):
                      font=(F, 10), text_color=DISABLED, wraplength=320, justify="left").pack(anchor="w", pady=(8, 0))
 
         # ---- khay chứa (xếp chồng): THẬT — lưu ngay vào data/stack_state.json khi Enter / rời ô ----
-        section(to.body, "Khay chứa (xếp chồng)")
+        section(to.body, "Khay chứa (Stacking)")
         head = ctk.CTkFrame(to.body, fg_color="transparent")
         head.pack(fill="x")
         head.grid_columnconfigure(0, weight=1)
@@ -1062,7 +1062,7 @@ class MasterApp(ctk.CTk):
                 entries.append(e)
             self.bin_entries[key] = tuple(entries)
         ctk.CTkLabel(to.body, text="Teach Point đặt khay ở TẦNG 1 (khay chứa trống). Trong Program Editor, Step MOVE "
-                                   "chọn 'Xếp chồng: …' → robot tự cộng Z = cao 1 tầng × số khay đã có. Nhấn Enter "
+                                   "chọn 'Stack: Khay …' → robot tự cộng Z = cao 1 tầng × số khay đã có. Nhấn Enter "
                                    "để lưu. Số khay / 'Đã thay khay' ở tab Vận hành.",
                      font=(F, 10), text_color=DISABLED, wraplength=320, justify="left").pack(anchor="w", pady=(6, 0))
 

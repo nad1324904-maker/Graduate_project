@@ -36,15 +36,15 @@ def move_step(point_name, stack=None):
     step = {"type": "MOVE", "point": point_name}
     if stack:
         if stack not in STACK_LABELS:
-            raise ProgramError(f"Khay xếp chồng '{stack}' không hợp lệ.")
+            raise ProgramError(f"Khay Stacking '{stack}' không hợp lệ.")
         step["stack"] = stack
     return step
 
 
 def stack_text(step):
-    """' · xếp chồng Khay Đạt' nếu Step có đánh dấu, ngược lại ''."""
+    """' · Stack → Khay Đạt' nếu Step có đánh dấu Stacking (xếp chồng), ngược lại ''."""
     s = step.get("stack")
-    return f" · xếp chồng {STACK_LABELS.get(s, s)}" if s else ""
+    return f" · Stack → {STACK_LABELS.get(s, s)}" if s else ""
 
 
 def grip_step(action):

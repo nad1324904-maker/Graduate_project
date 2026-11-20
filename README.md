@@ -164,7 +164,7 @@ và **nút ⛔ E-STOP** luôn hiện trên thanh đầu tab; log của robot ghi
 | **Vận hành → Move to XYZθ** | Nhập tọa độ đầu công tác, GUI tính động học ngược ra góc khớp rồi di chuyển. Nút "⤓ Hiện tại" điền sẵn vị trí đang đứng; ô nào không sửa thì dùng giá trị chính xác (không bị sai số làm tròn), và nếu đích trùng vị trí hiện tại thì không gửi lệnh |
 | **Vận hành → Chạy chương trình** | Nút gạt **Chế độ JOG / CHƯƠNG TRÌNH**, chọn Program, thanh tiến độ, **START / PAUSE–RESUME / RESET** (RESET xóa FAULT bằng `CLEAR`). Bên dưới là danh sách Step, **Step đang chạy được tô sáng** |
 | **Lập trình → Points** | Danh sách Point, Teach Point (lưu vị trí thực hiện tại), Save Position, đổi tên, xóa (bị chặn nếu Program đang dùng điểm đó) |
-| **Lập trình → Program Editor** | Tạo chương trình gồm các Step: **MOVE** (tới một Point), **GRIP ON/OFF**, **DELAY** (0.1–60 s); sửa, xóa, chèn Step. Ô **Xếp chồng** dưới ô Point đánh dấu Step MOVE thả khay vào khay chứa Đạt / Lỗi 1 / Lỗi 2 (mục 6.3, bước 4b) |
+| **Lập trình → Program Editor** | Tạo chương trình gồm các Step: **MOVE** (tới một Point), **GRIP ON/OFF**, **DELAY** (0.1–60 s); sửa, xóa, chèn Step. Ô **Stacking** (xếp chồng) dưới ô Point đánh dấu Step MOVE thả khay vào khay chứa Đạt / Lỗi 1 / Lỗi 2 (mục 6.3, bước 4b) |
 | **Giám sát** | Hình robot 2D nhìn từ trên xuống (tư thế thực, đích, Points, đường đi dự kiến của chương trình) và đồ thị bám quỹ đạo của một trục (mục 5.1) |
 | **Settings** | 6 panel cấu hình (mục 7). Kết nối UART nằm ở tab **Cài đặt** của app master (thẻ Kết nối thiết bị) |
 
@@ -288,14 +288,14 @@ python main.py --scale 0.85    # thu nhỏ giao diện (máy yếu / màn hình 
    ```
    MOVE P1_tren → MOVE P1_duoi → GRIP ON → DELAY → MOVE P1_tren → MOVE P2_tren → MOVE P2_duoi → GRIP OFF → DELAY → MOVE P2_tren
    ```
-4b. **Xếp chồng khay vào khay chứa** (tùy chọn):
+4b. **Stacking — xếp chồng khay vào khay chứa** (tùy chọn):
    - Chỉ teach điểm thả ở **tầng 1** (khay chứa đang trống).
-   - Trong Program Editor, chọn Step MOVE xuống điểm thả, chọn ô **Xếp chồng: Đạt / Lỗi 1 / Lỗi 2** rồi bấm **✎ Edit Step**
-     (hoặc chọn trước khi bấm **+ MOVE**). Step hiện thêm chữ `· xếp chồng Khay …`; trong file lưu là `"stack": "DAT"`.
+   - Trong Program Editor, chọn Step MOVE xuống điểm thả, chọn ô **Stack: Khay Đạt / Khay Lỗi 1 / Khay Lỗi 2** rồi bấm **✎ Edit Step**
+     (hoặc chọn trước khi bấm **+ MOVE**). Step hiện thêm chữ `· Stack → Khay …`; trong file lưu là `"stack": "DAT"`.
    - Lúc chạy: **Z thả = Z của Point + chiều cao 1 tầng × số khay đã có**. Ví dụ khay Đạt đã có 1 khay, cao 1 tầng 25 mm
      → khay thứ 2 thả cao hơn 25 mm. Số đếm tăng 1 sau Step **GRIP OFF** kế tiếp (lúc khay đã được thả).
    - **Chiều cao 1 tầng** và **số tầng tối đa** của từng khay chứa: tab **Cài đặt** của app master → thẻ Thời gian chờ →
-     mục *Khay chứa (xếp chồng)*, nhấn Enter là lưu.
+     mục *Khay chứa (Stacking)*, nhấn Enter là lưu.
    - **Số khay hiện có**: tab **Vận hành** → thẻ Thống kê → mục *Khay chứa*. Còn 1 chỗ thì hiện màu vàng (sắp đầy); đầy thì
      START bị chặn (báo rõ khay nào đầy). Thay khay chứa rỗng rồi bấm **Đã thay khay** (đếm về 0); nút **Sửa** để nhập tay số khay.
    - Nếu Z tầng đó vượt giới hạn Z max thì cũng không cho START; giảm số tầng tối đa hoặc chiều cao 1 tầng.
