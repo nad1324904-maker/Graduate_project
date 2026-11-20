@@ -132,7 +132,7 @@ def _install_widget_defaults():
 
     def button_init(self, *args, **kw):
         fg = kw.get("fg_color")
-        kw.setdefault("text_color", COL_TEXT if fg in _SOFT_BG else COL_ON_ACCENT)
+        kw.setdefault("text_color", COL_TEXT if isinstance(fg, str) and fg in _SOFT_BG else COL_ON_ACCENT)
         kw.setdefault("text_color_disabled", COL_TEXT_DISABLED)
         btn_init(self, *args, **kw)
         self._fg_enabled = self.cget("fg_color")
