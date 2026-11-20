@@ -612,7 +612,7 @@ class MasterApp(ctk.CTk):
 
     def _build_steps_card(self, parent):
         c = Card(parent, "Tiến trình chu kỳ", "🧭", right_text="theo lưu đồ")
-        steps = ("Cấp PCB (động cơ bước)", "Băng tải chạy, chờ CB1", "Xi lanh 1 chặn PCB, chụp ảnh",
+        steps = ("Hạ thanh chặn, cấp PCB", "Băng tải chạy, PCB tì thanh chặn", "Chụp ảnh, kiểm tra ngoại quan",
                  "Xi lanh 2 cấp nguồn, đếm LED 0 → 9", "Thu 2 xi lanh, chạy tới CB3", "Robot gắp & phân loại", "Hoàn tất, cộng thống kê")
         current = 3
         for i, s in enumerate(steps):
