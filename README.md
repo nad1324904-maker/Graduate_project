@@ -359,12 +359,13 @@ trình cho nhóm, **không** phải phần mềm điều khiển thật.
 - **Lưu đồ** bên trái tô sáng bước đang chạy, kèm thanh thời gian chờ và timeout. Có cả nhánh **Lỗi 1**, nhánh **B**
   (timeout / lỗi thiết bị) và lưu đồ **E-Stop / Reset**.
 - **Khung Tín hiệu PLC** (X / Y / M) cho thấy PC ra lệnh qua bit M, PLC tự liên động:
-  - CB2 → PLC dừng băng tải và hạ xi lanh 1;
+  - thanh chặn (xi lanh 1) hạ **trước** khi khay tới, khay tì sát thanh chặn để giữ đúng vị trí; CB2 → PLC trễ 0,5 s rồi
+    dừng băng tải;
   - CB3 → PLC dừng băng tải;
   - xi lanh không có cảm biến, "đã hạ / đã thu" là bit timer M204–M207.
 - **Để trình bày:**
   - tốc độ ⏸ / ×0.5 … ×10;
-  - tỉ lệ Lỗi 1 / Lỗi 2;
+  - tỉ lệ Lỗi 1 / Lỗi 2; ô nhập **số phôi trong ống** (tối đa 10) + nút Nạp;
   - nút **gây lỗi**: CB2 hỏng, Pi không phản hồi, robot FAULT;
   - các góc nhìn Tổng thể / Cấp phôi / Trạm kiểm tra / Robot / Trên xuống.
 - **Robot:** nếu `UI/data/programs.json` có "Chương trình 1 / 2 / 3" (và đủ Point) thì dùng dữ liệu đó (bấm 📂 Mở thư mục

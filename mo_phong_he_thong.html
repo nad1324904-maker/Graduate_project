@@ -219,7 +219,11 @@
       <div class="row"><span style="width:110px">Tỉ lệ Lỗi 1</span><input id="p1" type="range" min="0" max="100" value="15"><b id="p1v" style="width:36px">15%</b></div>
       <div class="row"><span style="width:110px">Tỉ lệ Lỗi 2</span><input id="p2" type="range" min="0" max="100" value="10"><b id="p2v" style="width:36px">10%</b></div>
       <div class="note">Áp dụng cho phôi nạp mới. Lỗi 1: thiếu linh kiện; Lỗi 2: LED dừng giữa chừng hoặc không sáng.</div>
-      <div class="pair"><button class="btn" id="btnRefill">📦 Nạp đầy ống cấp (8)</button><button class="btn" id="btnClearBins">🗑 Dọn 3 khay</button></div>
+      <div class="row"><span style="width:110px">Phôi trong ống</span>
+        <input id="feedN" type="number" min="1" max="10" value="10" style="width:56px;padding:5px;border:1px solid var(--border);border-radius:7px">
+        <span class="note">/ 10</span><button class="btn" id="btnRefill" style="margin-left:auto">📦 Nạp</button></div>
+      <div class="note">Nạp thêm cho đủ số phôi đã nhập (tháp chứa tối đa 10 khay).</div>
+      <div class="pair"><button class="btn" id="btnClearBins">🗑 Dọn 3 khay</button><span></span></div>
       <div class="sec">Gây lỗi (xem hệ thống xử lý)</div>
       <label class="row"><input type="checkbox" id="fCB2"> Cảm biến CB2 hỏng (không tác động)</label>
       <label class="row"><input type="checkbox" id="fPi"> Raspberry Pi không phản hồi</label>
@@ -264,9 +268,9 @@ const EMBEDDED_CONFIG = {
 // =====================================================================================================================
 const LAY = {
   beltLen: 1000, beltW: 150, beltZ: 150,
-  cb: { CB1: 70, CB2: 420, CB3: 950 },            // vị trí cảm biến (mm theo X)
+  cb: { CB1: 70, CB2: 424, CB3: 950 },            // vị trí cảm biến (mm theo X); CB2 sát thanh chặn
   stopFace: 428,                                   // mặt thanh chặn khi hạ (đầu khay không vượt quá đây)
-  station: 382,                                    // tâm khay khi dừng ở trạm kiểm tra (đầu khay ở CB2)
+  station: 390,                                    // tâm khay khi tì sát thanh chặn = vị trí kiểm tra (camera, 2 đầu kim)
   tray: { w: 76, h: 25, wall: 3, floor: 2 }, pcb: 70,
   feedX: -60, crankX: -330, crankR: 55, rodL: 150, pusherL: 135,
   robot: { x: 1250, y: -240, phi: 120 },           // đế robot (gốc tọa độ robot) + góc xoay trục X robot
@@ -275,7 +279,9 @@ const LAY = {
   pick: { x: 912, y: 0 },
 };
 // Thông số thời gian (giả định hợp lý; đổi ở đây)
-const TC = { beltV: 60, strokeT: 0.6, cylTimer: 1.0, feedT: 2.0, piVisT: 1.0, ledStep: 0.5, piStall: 2.0, gripT: 0.3 };
+const TC = { beltV: 60, strokeT: 0.6, cylTimer: 1.0, feedT: 2.0, piVisT: 1.0, ledStep: 0.5, piStall: 2.0, gripT: 0.3,
+             cb2Delay: 0.5 };                     // PLC trễ 0,5 s sau CB2 mới dừng băng tải (khay tì sát thanh chặn)
+const MAX_STACK = 10;                              // tháp cao ~270 mm, khay 25 mm -> tối đa 10 phôi
 // Thời gian chờ của PC (giống tab Cài đặt → Thời gian chờ của app master; robot dài hơn vì trục Z chỉ 7 mm/s)
 const TO = { cb1: 10, cb2: 10, cyl: 3, cam: 10, func: 20, cb3: 15, robot: 150, home: 90 };
 const PROG_OF = { "ĐẠT": "Chương trình 1", "LỖI 2": "Chương trình 2", "LỖI 1": "Chương trình 3" };
@@ -388,17 +394,16 @@ function log(msg, lvl = "INFO") {
 const FLOW_MAIN = [
   ["S0", "Khởi tạo: PC kiểm tra kết nối PLC, Pi, STM32; thu 2 xi lanh; robot về home"],
   ["S1", "Chờ lệnh START"],
-  ["S2", "Cấp PCB: động cơ bước quay 1 vòng (tay quay – con trượt) → chờ CB1"],
-  ["S3", "Băng tải chạy → chờ CB2 (PLC tự dừng băng tải)"],
-  ["S4", "Xi lanh 1 hạ thanh chặn → chờ 'đã hạ' (timer)"],
-  ["S5", "Raspberry Pi chụp ảnh, kiểm tra ngoại quan"],
+  ["S2", "Hạ xi lanh 1 (thanh chặn) + cấp PCB: động cơ bước quay 1 vòng → chờ 'đã hạ' và CB1"],
+  ["S3", "Băng tải chạy → PCB tì sát thanh chặn; CB2 → PLC trễ 0,5 s rồi dừng băng tải"],
+  ["S4", "Raspberry Pi chụp ảnh, kiểm tra ngoại quan"],
   ["L1", "Ngoại quan LỖI → lưu Lỗi 1, thu xi lanh 1", "br"],
-  ["S6", "Xi lanh 2 hạ: 2 đầu kim cấp nguồn cho PCB"],
-  ["S7", "Raspberry Pi kiểm tra chức năng: LED 7 đoạn đếm 0 → 9"],
-  ["S8", "Thu xi lanh 1, 2 (ngắt nguồn PCB) → chờ 'đã thu'"],
-  ["S9", "Băng tải chạy → chờ CB3 (PLC tự dừng băng tải)"],
-  ["S10", "Robot gắp, phân loại: CT1 Đạt · CT3 Lỗi 1 · CT2 Lỗi 2"],
-  ["S11", "Có lệnh STOP? Có → về Chờ START · Không → PCB kế tiếp"],
+  ["S5", "Xi lanh 2 hạ: 2 đầu kim cấp nguồn cho PCB"],
+  ["S6", "Raspberry Pi kiểm tra chức năng: LED 7 đoạn đếm 0 → 9"],
+  ["S7", "Thu xi lanh 1, 2 (ngắt nguồn PCB) → chờ 'đã thu'"],
+  ["S8", "Băng tải chạy → chờ CB3 (PLC tự dừng băng tải)"],
+  ["S9", "Robot gắp, phân loại: CT1 Đạt · CT3 Lỗi 1 · CT2 Lỗi 2"],
+  ["S10", "Có lệnh STOP? Có → về Chờ START · Không → PCB kế tiếp"],
   ["B", "Lỗi timeout / thiết bị: PC dừng băng tải, động cơ bước, robot; chờ RESET", "err"],
 ];
 const FLOW_ESTOP = [
@@ -426,7 +431,7 @@ function setStep(id) {
     const k = li.dataset.id, i = ORDER.indexOf(k);
     li.classList.toggle("now", k === id);
     li.classList.toggle("done", main >= 2 && i >= 2 && i < main && k !== "B" && !(k === "L1" && id !== "L1" && !ST.l1Path)
-                                && !(ST.l1Path && ["S6", "S7", "S8"].includes(k)));
+                                && !(ST.l1Path && ["S5", "S6", "S7"].includes(k)));
   });
   const all = [...FLOW_MAIN, ...FLOW_ESTOP].find(f => f[0] === id);
   $("stepBanner").innerHTML = all ? `<b>${id}</b> · ${all[1]}` : "—";
@@ -483,20 +488,18 @@ function* procInit() {
 function* procAuto() {
   ST.sys = "RUNNING";
   while (true) {
-    if (!FEED.stack.length) { log("Hết phôi trong ống cấp — dừng hệ thống. Bấm 'Nạp đầy ống cấp' rồi START.", "WARN"); break; }
+    if (!FEED.stack.length) { log("Hết phôi trong ống cấp — dừng hệ thống. Nhập số phôi, bấm 'Nạp' rồi START.", "WARN"); break; }
     ST.cycleStart = SIM.t; ST.l1Path = false;
-    setStep("S2"); log("PC → PLC: cấp 1 PCB (M101) — động cơ bước quay 1 vòng.");
-    IO.M.FEED = 1;
-    yield W("CB1 phát hiện PCB (cấp phôi xong)", () => IO.X.CB1 && !IO.M.FEEDING, TO.cb1);
-    log("CB1: có PCB trên băng tải.", "OK");
+    setStep("S2"); log("PC → PLC: hạ xi lanh 1 (thanh chặn, M102) + cấp 1 PCB (M101, động cơ bước quay 1 vòng).");
+    IO.M.XL1 = 1; IO.M.FEED = 1;
+    yield W("Xi lanh 1 đã hạ (timer) và CB1 phát hiện PCB", () => IO.M.XL1_DN && IO.X.CB1 && !IO.M.FEEDING, TO.cb1);
+    log("Thanh chặn đã hạ; CB1: có PCB trên băng tải.", "OK");
     setStep("S3"); IO.M.ARM_CB2 = 1; IO.M.BELT = 1; log("PC → PLC: băng tải chạy (M100).");
-    yield W("CB2: PCB tới trạm kiểm tra", () => IO.X.CB2 && !IO.Y.BELT, TO.cb2);
-    log("PLC: CB2 tác động → dừng băng tải, hạ xi lanh 1 (liên động tại PLC).", "PLC");
-    setStep("S4");
-    yield W("Xi lanh 1 đã hạ (timer hành trình)", () => IO.M.XL1_DN, TO.cyl);
+    yield W("CB2: PCB tì sát thanh chặn, PLC dừng băng tải", () => IO.X.CB2 && !IO.Y.BELT, TO.cb2);
+    log(`PLC: CB2 tác động → trễ ${TC.cb2Delay} s (băng tải ép khay tì sát thanh chặn) rồi dừng băng tải.`, "PLC");
     const tray = trayAtStation();
     setCurrent(tray);
-    setStep("S5"); log("PC → Pi: {\"cmd\":\"capture\"} — chụp ảnh, kiểm tra ngoại quan.");
+    setStep("S4"); log("PC → Pi: {\"cmd\":\"capture\"} — chụp ảnh, kiểm tra ngoại quan.");
     const vis = yield* piCall("capture");
     if (vis.result === "NOPCB") throw new Error("Raspberry Pi không thấy PCB ở trạm kiểm tra");
     showVis(vis);
@@ -509,23 +512,23 @@ function* procAuto() {
       showFun(null, "bỏ qua (đã lỗi ngoại quan, không cấp nguồn)");
     } else {
       log("Pi: ngoại quan ĐẠT.", "OK");
-      setStep("S6"); IO.M.XL2 = 1; log("PC → PLC: hạ xi lanh 2 cấp nguồn cho PCB (M103).");
+      setStep("S5"); IO.M.XL2 = 1; log("PC → PLC: hạ xi lanh 2 cấp nguồn cho PCB (M103).");
       yield W("Xi lanh 2 đã hạ (timer hành trình)", () => IO.M.XL2_DN, TO.cyl);
-      setStep("S7"); log("PC → Pi: kiểm tra chức năng — xem LED 7 đoạn đếm 0 → 9.");
+      setStep("S6"); log("PC → Pi: kiểm tra chức năng — xem LED 7 đoạn đếm 0 → 9.");
       const fn = yield* piCall("func");
       showFun(fn);
       result = fn.result === "OK" ? "ĐẠT" : "LỖI 2";
       log(fn.result === "OK" ? "Pi: chức năng ĐẠT — LED đếm đủ 0 → 9." : `Pi: chức năng LỖI — ${fn.detail} → PC lưu Lỗi 2.`,
           fn.result === "OK" ? "OK" : "WARN");
-      setStep("S8"); IO.M.XL1 = 0; IO.M.XL2 = 0; log("PC → PLC: thu xi lanh 1, 2 (ngắt nguồn PCB).");
+      setStep("S7"); IO.M.XL1 = 0; IO.M.XL2 = 0; log("PC → PLC: thu xi lanh 1, 2 (ngắt nguồn PCB).");
       yield W("Xi lanh 1, 2 đã thu", () => IO.M.XL1_UP && IO.M.XL2_UP, TO.cyl);
     }
     if (tray) tray.result = result;
     showConclusion(result);
-    setStep("S9"); IO.M.ARM_CB3 = 1; IO.M.BELT = 1; log("PC → PLC: băng tải chạy tới vị trí gắp.");
+    setStep("S8"); IO.M.ARM_CB3 = 1; IO.M.BELT = 1; log("PC → PLC: băng tải chạy tới vị trí gắp.");
     yield W("CB3: PCB tới vị trí gắp", () => IO.X.CB3 && !IO.Y.BELT, TO.cb3);
     log("PLC: CB3 tác động → dừng băng tải.", "PLC");
-    setStep("S10");
+    setStep("S9");
     const prog = PROG_OF[result];
     if (!robotRun(prog)) throw new Error(`Không chạy được ${prog}: ${R.layoutErr || "thiếu chương trình"}`);
     log(`PC → STM32: chạy ${prog} (PCB ${result}).`);
@@ -535,7 +538,7 @@ function* procAuto() {
     $("robPill").className = "pill green"; $("robPill").textContent = "XONG";
     ST.lastCycle = SIM.t - ST.cycleStart;
     log(`Hoàn tất PCB #${tray ? tray.id : "?"} → khay ${result}. Chu kỳ ${ST.lastCycle.toFixed(1)} s.`, "OK");
-    setStep("S11");
+    setStep("S10");
     if (ST.stopReq) { log("Có lệnh STOP: hệ thống dừng sau khi xong PCB hiện tại.", "WARN"); break; }
   }
   ST.stopReq = false;
@@ -605,6 +608,7 @@ function readInputs() {
   IO.X.ESTOP_NC = ST.estopBtn ? 0 : 1;
 }
 let interlockLogged = false;
+const PLC_T = { cb2: 0 };                          // timer trễ dừng băng tải sau CB2
 function plcScan(h) {
   const { X, Y, M } = IO;
   if (!X.ESTOP_NC && !M.ESTOP) { M.ESTOP = 1; for (const c of CYL) { c.timer = 0; M[c.dn] = 0; M[c.up] = 0; } }
@@ -612,7 +616,9 @@ function plcScan(h) {
     Y.BELT = 0; Y.STEP = 0; M.BELT = 0; M.FEED = 0; M.ARM_CB2 = 0; M.ARM_CB3 = 0;
     FEED.running = false; M.FEEDING = 0;
   } else {
-    if (M.ARM_CB2 && X.CB2) { M.BELT = 0; M.XL1 = 1; M.ARM_CB2 = 0; }
+    // CB2 (thanh chặn đã hạ sẵn): trễ TC.cb2Delay giây cho băng tải ép khay tì sát thanh chặn rồi mới dừng băng tải
+    if (M.ARM_CB2 && X.CB2) { PLC_T.cb2 += h; if (PLC_T.cb2 >= TC.cb2Delay) { M.BELT = 0; M.ARM_CB2 = 0; } }
+    else PLC_T.cb2 = 0;
     if (M.ARM_CB3 && X.CB3) { M.BELT = 0; M.ARM_CB3 = 0; }
     Y.BELT = M.BELT;
     if (M.FEED && !FEED.running) {
@@ -901,9 +907,13 @@ function newTray() {
   return t;
 }
 function refill() {
-  if (FEED.running) return log("Đang cấp phôi — đợi xong rồi nạp.", "WARN");
-  while (FEED.stack.length < 8) FEED.stack.push(newTray());
-  log(`Nạp ống cấp: ${FEED.stack.length} phôi.`, "OK");
+  if (FEED.running || FEED.pending || FEED.drop > 0) return log("Đang cấp phôi — đợi xong rồi nạp.", "WARN");
+  const want = clamp(Math.round(+$("feedN").value || 0), 1, MAX_STACK);
+  $("feedN").value = want;
+  if (FEED.stack.length >= want) return log(`Ống cấp đang có ${FEED.stack.length} phôi (≥ ${want}) — không cần nạp thêm.`);
+  const add = want - FEED.stack.length;
+  while (FEED.stack.length < want) FEED.stack.push(newTray());
+  log(`Nạp thêm ${add} phôi — ống cấp có ${FEED.stack.length} / ${MAX_STACK} phôi.`, "OK");
 }
 function removeTray(t, keepCount) {
   trays = trays.filter(x => x !== t);
@@ -1368,7 +1378,7 @@ function updateUI() {
   $("mXl2s").textContent = IO.M.XL2_DN ? "· đã hạ" : IO.M.XL2_UP ? "· đã thu" : "· đang chạy…";
   const t = manualType();
   setPill("mType", t || "CHƯA XÁC ĐỊNH", t ? { "ĐẠT": "green", "LỖI 1": "amber", "LỖI 2": "red" }[t] : "");
-  $("btnRefill").disabled = FEED.running;
+  $("btnRefill").disabled = FEED.running || FEED.pending;
 }
 
 // ---------------- Nút bấm ----------------
@@ -1399,6 +1409,7 @@ function bindUI() {
     $("p1v").textContent = a + "%"; $("p2v").textContent = b + "%";
   };
   $("btnRefill").onclick = refill;
+  $("feedN").onkeydown = e => { if (e.key === "Enter") refill(); };
   $("btnClearBins").onclick = () => { for (const k in BINS) { BINS[k].forEach(t => removeTray(t, true)); BINS[k] = []; } log("Đã dọn 3 khay phân loại."); };
   $("fCB2").onchange = e => { FAULT.cb2 = e.target.checked; log(e.target.checked ? "Gây lỗi: CB2 hỏng." : "CB2 hoạt động lại.", "WARN"); };
   $("fPi").onchange = e => { FAULT.pi = e.target.checked; log(e.target.checked ? "Gây lỗi: Raspberry Pi không phản hồi." : "Raspberry Pi phản hồi lại.", "WARN"); };
