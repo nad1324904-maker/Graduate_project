@@ -174,7 +174,7 @@ int main(void)
     int32_t deadband;                               /* vung chet mac dinh (counts) */
   } cfg[CONTROL_COUNT] = {
     { &htim12, TIM_CHANNEL_1, &htim13, TIM_CHANNEL_1, &htim8, +1, MM_Z(5.0f),     MM_Z(20.0f),     191 },  /* Motor 1: Z  vit-me (mm) */
-    { &htim5,  TIM_CHANNEL_3, &htim5,  TIM_CHANNEL_1, &htim2, +1, DEG_J12(30.0f), DEG_J12(60.0f),    5 },  /* Motor 2: J1 (do)        */
+    { &htim5,  TIM_CHANNEL_3, &htim5,  TIM_CHANNEL_1, &htim2, -1, DEG_J12(30.0f), DEG_J12(60.0f),    5 },  /* Motor 2: J1 (do)        */
     { &htim5,  TIM_CHANNEL_2, &htim5,  TIM_CHANNEL_4, &htim3, +1, DEG_J12(30.0f), DEG_J12(60.0f),    5 },  /* Motor 3: J2 (do)        */
     { &htim14, TIM_CHANNEL_1, &htim12, TIM_CHANNEL_2, &htim4, +1, DEG_J3(30.0f),  DEG_J3(60.0f),     5 },  /* Motor 4: J3 (do)        */
   };
@@ -200,7 +200,9 @@ int main(void)
      Truc nao CHUA co cam bien: comment dong HomeSen_Init cua truc do (vong lap Control_SetHome ben duoi tu bo qua).
      Khi do firmware tra "ERR HOMING <id> nosensor" va PC bo qua truc do luc HOME (khong bao loi); truc do giu moc vi tri
      luc cap nguon. Lap xong cam bien thi bo comment la dung. */
-  HomeSen_Init(&home_sen[0], GPIOD, GPIO_PIN_14, 60, +1, 60000);   /* Motor 1: Z  (len)  */
+  /* TAM TAT Z de test HOME 3 truc J1/J2/J3: PC bo qua Z (nosensor), Z khong nhan lenh nen PID tat, motor dung yen.
+     Test xong thi bo comment dong duoi. */
+  /* HomeSen_Init(&home_sen[0], GPIOD, GPIO_PIN_14, 60, +1, 60000); */   /* Motor 1: Z  (len)  */
   HomeSen_Init(&home_sen[1], GPIOD, GPIO_PIN_15, 60, -1, 10000);   /* Motor 2: J1 (giam) */
   HomeSen_Init(&home_sen[2], GPIOD, GPIO_PIN_13, 60, -1, 10000);   /* Motor 3: J2 (giam) */
   HomeSen_Init(&home_sen[3], GPIOD, GPIO_PIN_11, 80, -1, 10000);   /* Motor 4: J3 (giam) */
