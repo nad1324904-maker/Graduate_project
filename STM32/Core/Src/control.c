@@ -21,6 +21,13 @@ void Control_Init(Control_t *c, uint8_t id, Motor_t *m, Encoder_t *e, PID_t *p, 
   c->homing_trip = CONTROL_HOMING_ERR_TRIP;
   c->lim_min = -CONTROL_POS_LIMIT;                             /* chua dat LIMIT: chi chan nhap sai */
   c->lim_max =  CONTROL_POS_LIMIT;
+  c->stall_pct = CONTROL_STALL_PCT;                            /* bao ve ket: chi chay khi da co stall_dist (main.c / lenh STALL) */
+  c->stall_ms  = CONTROL_STALL_MS;
+}
+
+void Control_SetStallDist(Control_t *c, int32_t dist)
+{
+  c->stall_dist = dist;
 }
 
 void Control_SetHome(Control_t *c, HomeSen_t *h)
@@ -38,6 +45,22 @@ static void latch_fault(Control_t *c, uint8_t code)
   TrapProfile_Reset(c->trap, (double)c->enc->pos);
   PID_Reset(c->pid);
   Motor_Set(c->motor, 0);
+}
+
+/* Bao ve KET / QUA TAI (goi moi ms trong ngat, khi PID dang chay, sau khi da tinh u):
+   |PWM| trung binh (loc CONTROL_STALL_TAU_S) >= stall_pct % ma truc khong di duoc stall_dist counts ke tu moc stall_anchor
+   trong stall_ms ms lien tiep -> FAULT stall. Truc con di duoc (tang toc, chay binh thuong) thi doi moc va dem lai. */
+static void stall_tick(Control_t *c, float u)
+{
+  if (!c->stall_pct || c->stall_dist <= 0) { c->stall_cnt = 0; return; }
+  c->u_avg += (CONTROL_DT / CONTROL_STALL_TAU_S) * (fabsf(u) - c->u_avg);
+  if (c->u_avg < (float)c->motor->pwm_limit * (float)c->stall_pct * 0.01f) { c->stall_cnt = 0; return; }
+  if (c->stall_cnt == 0 || labs((long)c->enc->pos - (long)c->stall_anchor) >= (long)c->stall_dist) {
+    c->stall_anchor = c->enc->pos;                             /* bat dau dem, hoac truc van di duoc du xa: dat moc moi */
+    c->stall_cnt = 1;
+    return;
+  }
+  if (++c->stall_cnt >= c->stall_ms) latch_fault(c, 3);        /* ton suc ma khong di: ket co khi / dang san -> phanh, FAULT */
 }
 
 /* E-STOP (goi trong vung gang ngat): phanh, tat PID, BO moc vi tri (homed = 0) va khoa chuyen dong cho den RESET.
@@ -105,16 +128,21 @@ void Control_Tick(Control_t *c)
         u = PID_Update(c->pid, err, c->enc->vfilt, CONTROL_DT);
       }
       Motor_Set(c->motor, iround((double)u));
+      stall_tick(c, u);                                        /* co the latch_fault (en = 0) */
 
-      c->busy = (uint8_t)(c->paused || !(done && in_db));
-      if (done && !in_db && !c->paused) {                      /* quy dao xong ma chua vao vung chet (ma sat tinh...) */
-        if (c->settle_cnt < CONTROL_SETTLE_MS) c->settle_cnt++;
-        else c->busy = 0;                                      /* du lau -> coi la da on dinh (KHONG bao loi); PID van chay */
-      } else {
-        c->settle_cnt = 0;
+      if (c->en) {
+        c->busy = (uint8_t)(c->paused || !(done && in_db));
+        if (done && !in_db && !c->paused) {                    /* quy dao xong ma chua vao vung chet (ma sat tinh...) */
+          if (c->settle_cnt < CONTROL_SETTLE_MS) c->settle_cnt++;
+          else c->busy = 0;                                    /* du lau -> coi la da on dinh (KHONG bao loi); PID van chay */
+        } else {
+          c->settle_cnt = 0;
+        }
       }
     }
   }
+
+  if (!c->en) { c->u_avg = 0.0f; c->stall_cnt = 0; }          /* PID tat: lan bat lai tinh tu dau */
 
   /* Chot mau telemetry moi CONTROL_TEL_MS */
   c->ms_tick++;
@@ -131,7 +159,7 @@ void Control_Tick(Control_t *c)
 void Control_Poll(Control_t *c, int send_tel)
 {
   if (c->fault) {
-    const char *kind = (c->fault == 2) ? "home" : "trip";
+    const char *kind = (c->fault == 2) ? "home" : (c->fault == 3) ? "stall" : "trip";
     c->fault = 0;
     char f[24];
     int m = snprintf(f, sizeof f, "FAULT %u %s\n", (unsigned)c->id, kind);
@@ -173,6 +201,17 @@ static int parse_f(const char *s, float *out)
   *out = v; return 1;
 }
 
+/* Dich moi ng co duoc phep khong (theo LIMIT): trong gioi han thi duoc; truc dang NGOAI gioi han (base = dich hien tai
+   hoac vi tri) thi chi cho di VAO phia trong (cung phia, gan gioi han hon) -- de dua truc ve vung hop le ma khong
+   phai HOMING, nhung khong bao gio cho di xa them. */
+static int goal_allowed(const Control_t *c, int64_t base, int64_t ng)
+{
+  if (ng >= c->lim_min && ng <= c->lim_max) return 1;
+  if (base > c->lim_max && ng > c->lim_max && ng < base) return 1;
+  if (base < c->lim_min && ng < c->lim_min && ng > base) return 1;
+  return 0;
+}
+
 /* Thuc thi 1 lenh cho 1 dong co (cmd, a1..a3 da tach; khong con so dong co) */
 static void exec(Control_t *c, const char *cmd, const char *a1, const char *a2, const char *a3)
 {
@@ -196,7 +235,7 @@ static void exec(Control_t *c, const char *cmd, const char *a1, const char *a2, 
       else {
         int64_t base = c->en ? c->goal : c->enc->pos;
         int64_t ng = (mode == 0) ? base + n : (mode == 1) ? (int64_t)n : 0;
-        if (ng < c->lim_min || ng > c->lim_max) err = "range";
+        if (!goal_allowed(c, base, ng)) err = "range";
         else {
           if (!c->en) {                                            /* bat PID tu vi tri hien tai */
             TrapProfile_Reset(c->trap, (double)c->enc->pos);
@@ -298,6 +337,19 @@ static void exec(Control_t *c, const char *cmd, const char *a1, const char *a2, 
     else {
       CRIT_ENTER();
       c->err_trip = (int32_t)n; c->homing_trip = (int32_t)hi;
+      CRIT_EXIT();
+      reply(c->comm, cmd, id, NULL);
+    }
+  }
+  else if (!strcmp(cmd, "STALL")) {                        /* STALL <pct> <ms> <counts>: bao ve ket; pct = 0 -> tat */
+    long ms = 0, dist = 0;
+    if (!parse_l(a1, &n) || !parse_l(a2, &ms) || !parse_l(a3, &dist)) reply(c->comm, cmd, id, "arg");
+    else if (n < 0 || n > 100 || (n > 0 && n < 10) || ms < 50 || ms > 10000 || dist < 1 || dist > CONTROL_POS_LIMIT)
+      reply(c->comm, cmd, id, "range");
+    else {
+      CRIT_ENTER();
+      c->stall_pct = (uint8_t)n; c->stall_ms = (uint16_t)ms; c->stall_dist = (int32_t)dist;
+      c->stall_cnt = 0;
       CRIT_EXIT();
       reply(c->comm, cmd, id, NULL);
     }

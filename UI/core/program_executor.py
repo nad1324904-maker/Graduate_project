@@ -21,6 +21,7 @@ reset(), và đăng ký callback để cập nhật hiển thị — không tự
 from enum import Enum
 
 from comm.backend_base import RobotStatus
+from comm.errors import UartError
 from core.program_store import describe_step
 from core.stack_store import BIN_LABELS
 
@@ -78,12 +79,27 @@ class ProgramExecutor:
         except (TypeError, KeyError, IndexError, ValueError):
             return None
 
+    def _limit_error(self, step, point):
+        """Lỗi nếu đích của Step MOVE nằm ngoài giới hạn khớp của backend (Settings → Joint Limits), ngược lại None.
+        Kiểm tra trước ở START để không chạy dở chừng rồi mới bị chặn."""
+        limits = getattr(self.backend, "joint_limits", None) or {}
+        for axis, value in point.items():
+            if axis not in limits:
+                continue
+            lo, hi = limits[axis]
+            if not (lo - 0.01 <= float(value) <= hi + 0.01):
+                unit = "mm" if axis == "Z" else "°"
+                return (f"Point '{step['point']}': {axis} = {float(value):.2f} {unit} nằm ngoài giới hạn "
+                        f"[{lo:g}, {hi:g}] — Teach lại Point hoặc sửa Settings → Joint Limits.")
+        return None
+
     def _stack_target(self, step):
-        """(point đã cộng Z, lỗi) cho Step MOVE. Không xếp chồng -> point gốc."""
+        """(point đã cộng Z, lỗi) cho Step MOVE: Z cộng thêm nếu xếp chồng, rồi kiểm tra giới hạn khớp."""
         point = self.point_store.get(step["point"])
         b = step.get("stack")
         if not b or self.stack_store is None:
-            return point, None
+            err = self._limit_error(step, point)
+            return (None, err) if err else (point, None)
         d = self.stack_store.get(b)
         label = BIN_LABELS.get(b, b)
         if d["count"] >= d["max"]:
@@ -94,7 +110,8 @@ class ProgramExecutor:
         if zmax is not None and point["Z"] > zmax + 1e-6:
             return None, (f"{label} tầng {d['count'] + 1}: Z = {point['Z']:.1f} mm vượt giới hạn "
                           f"Z max {zmax:g} mm — giảm số tầng tối đa hoặc chiều cao 1 tầng.")
-        return point, None
+        err = self._limit_error(step, point)
+        return (None, err) if err else (point, None)
 
     # ---------------- Điều khiển vòng đời (mục 17-20) ----------------
     def start(self, program_name):
@@ -108,9 +125,9 @@ class ProgramExecutor:
         if not prog["steps"]:
             raise ExecutorError("Không thể START: chương trình chưa có Step nào.")
 
-        # Xếp chồng: khay chứa đầy / vượt Z max thì báo NGAY, không chạy dở chừng
+        # Point ngoài giới hạn khớp / khay chứa đầy / xếp chồng vượt Z max: báo NGAY, không chạy dở chừng
         for step in prog["steps"]:
-            if step["type"] == "MOVE" and step.get("stack"):
+            if step["type"] == "MOVE":
                 _, err = self._stack_target(step)
                 if err:
                     raise ExecutorError(f"Không thể START: {err}")
@@ -199,9 +216,18 @@ class ProgramExecutor:
                 return
             if step.get("stack") and self.stack_store is not None:
                 self._pending_stack = step["stack"]
-            self.backend.send_absolute_target(point)
+            try:
+                self.backend.send_absolute_target(point)
+            except UartError as e:                 # bị chặn (ngoài giới hạn) / mất kết nối: dừng chương trình, báo ERROR
+                self._pending_stack = None
+                self.fail(str(e))
+                return
         elif step["type"] == "GRIP":
-            self.backend.grip(step["action"])
+            try:
+                self.backend.grip(step["action"])
+            except UartError as e:
+                self.fail(str(e))
+                return
         elif step["type"] == "DELAY":
             self._delay_left = float(step["seconds"])
             return  # hết giờ do update(dt) quyết định, không chờ backend

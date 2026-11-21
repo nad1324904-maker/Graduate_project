@@ -7,7 +7,7 @@ phụ thuộc serial/GUI. Phải khớp với control.c / control.h ở firmware
                 PING (không trả lời, nuôi watchdog)  |  WDT <ms>  |  SEL <0..4>  (0 = tắt telemetry T)
                 ESTOP <1|0>  (1 = E-STOP: phanh, tắt PID, bỏ mốc vị trí, khóa chuyển động · 0 = RESET: mở khóa, xóa FAULT)
   STM32 -> PC : OK <lệnh> <số>            |  ERR <lệnh> <số> <lý do>
-                S <ms> (st goal sp pos) x4 <grip> |  FAULT <số> trip|home  |  BOOT  |  LINKLOST
+                S <ms> (st goal sp pos) x4 <grip> |  FAULT <số> trip|home|stall  |  BOOT  |  LINKLOST
                 T <số> <ms> <en> <goal> <sp> <pos> <sv> <v>   (telemetry 50 Hz của động cơ được SEL)
 
 Đơn vị trên dây: counts, counts/s, counts/s^2 (backend đổi từ độ/mm). Không có checksum: dòng hỏng sẽ bị

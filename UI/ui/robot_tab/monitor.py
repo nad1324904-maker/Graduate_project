@@ -227,8 +227,12 @@ class MonitorMixin:
         actual = self.backend.get_actual_position()
         target = self.backend.get_target_position()
         moving = self.backend.is_moving()
+        limits = getattr(self.backend, "joint_limits", {})
         for axis in AXES:
-            self.pos_actual_labels[axis].configure(text=f"{actual[axis]:.2f}{UNITS[axis]}")
+            lo, hi = limits.get(axis, (float("-inf"), float("inf")))
+            outside = not (lo - 0.01 <= actual[axis] <= hi + 0.01)       # ngoài giới hạn khớp: tô cam (JOG chỉ đi vào trong)
+            self.pos_actual_labels[axis].configure(text=f"{actual[axis]:.2f}{UNITS[axis]}" + (" ⚠" if outside else ""),
+                                                   text_color=COL_AMBER if outside else COL_TEXT)
             self.pos_target_labels[axis].configure(text=f"{target[axis]:.2f}{UNITS[axis]}")
             self.pos_dots[axis].configure(text_color=COL_ACCENT if moving else COL_GREEN)
 

@@ -22,7 +22,8 @@ tab Cài đặt:
                      Amax CHƯA dùng vì mô phỏng hiện tại di chuyển thẳng
                      đều theo vận tốc giới hạn, chưa có pha tăng/giảm tốc —
                      lưu sẵn giá trị để dùng cho firmware thật sau này.
-  - fault_limits   : ngưỡng sai số bám (độ/mm) khi chạy (trip) và khi HOMING (home_trip) — gửi bằng TRIP.
+  - fault_limits   : ngưỡng sai số bám (độ/mm) khi chạy (trip) và khi HOMING (home_trip) — gửi bằng TRIP;
+                     bảo vệ kẹt / quá tải (stall_pct, stall_ms, stall_dist) — gửi bằng STALL.
   - pid            : Kp/Ki/Kd + deadband (counts) từng khớp — vòng PID chạy trên
                      STM32; PC chỉ nạp xuống (PID/DB) khi Connect hoặc Apply.
 
@@ -80,11 +81,13 @@ DEFAULT_CONFIG = {
     # Ngưỡng sai số bám quỹ đạo (độ / mm) — gửi xuống STM32 bằng lệnh TRIP (đổi ra counts):
     #   trip      : khi chạy bình thường, vượt -> FAULT trip (phanh, tắt PID; kẹt cơ khí / sai chiều / mất encoder)
     #   home_trip : khi HOMING, vượt -> FAULT home (trục bị chặn khi tìm cảm biến). Nhỏ hơn trip vì HOMING chạy chậm.
+    # Bảo vệ KẸT / QUÁ TẢI — gửi bằng lệnh STALL: |PWM| trung bình >= stall_pct % mà trong stall_ms ms trục đi chưa được
+    # stall_dist (độ / mm) -> FAULT stall. Bắt cả kẹt cơ khí lẫn PID "săn" qua lại (sai số vẫn dưới Trip). stall_pct = 0: tắt.
     "fault_limits": {
-        "J1": {"trip": 20.0, "home_trip": 1.6},
-        "J2": {"trip": 20.0, "home_trip": 1.6},
-        "J3": {"trip": 20.0, "home_trip": 5.0},
-        "Z": {"trip": 1.4, "home_trip": 0.11},
+        "J1": {"trip": 20.0, "home_trip": 1.6, "stall_pct": 70, "stall_ms": 500, "stall_dist": 0.5},
+        "J2": {"trip": 20.0, "home_trip": 1.6, "stall_pct": 70, "stall_ms": 500, "stall_dist": 0.5},
+        "J3": {"trip": 20.0, "home_trip": 5.0, "stall_pct": 70, "stall_ms": 500, "stall_dist": 0.5},
+        "Z": {"trip": 1.4, "home_trip": 0.11, "stall_pct": 70, "stall_ms": 500, "stall_dist": 0.2},
     },
 }
 
@@ -118,8 +121,9 @@ def counts_per_unit(axis, encoder_cfg):
     return ppr / ratio if axis == "Z" else ppr * ratio / 360.0
 
 
-# Gốc đổi đơn vị = vị trí ứng với 0 counts (lúc cấp nguồn, trước khi HOMING): J1=J2=J3=0°, Z=300 mm.
-# KHÁC với vị trí cảm biến home (config["home_position"], gửi bằng HPOS): sau HOMING encoder = home_position.
+# Gốc đổi đơn vị MẶC ĐỊNH = vị trí ứng với 0 counts (lúc cấp nguồn, trước khi HOMING). Khi Connect, UartRobotBackend
+# dùng gốc = config["home_position"] (Settings → Joint Limits + Home) thay cho giá trị này, để vị trí lúc cấp nguồn luôn
+# nằm trong giới hạn khớp: đưa robot về đúng vị trí Home trước khi cấp nguồn thì số hiển thị đúng ngay cả khi chưa HOMING.
 HOME_POSITION = {"J1": 0.0, "J2": 0.0, "J3": 0.0, "Z": 300.0}
 
 
@@ -128,15 +132,17 @@ def axis_sign(encoder_cfg):
     return -1 if encoder_cfg["direction"] == "Reverse" else 1
 
 
-def units_to_counts(axis, value, encoder_cfg):
-    """Độ/mm -> counts so với vị trí cấp nguồn (Home). Z đi xuống (< 300 mm) cho counts ÂM."""
+def units_to_counts(axis, value, encoder_cfg, origin=None):
+    """Độ/mm -> counts so với gốc `origin` (độ/mm ứng với 0 counts; None = HOME_POSITION). Dưới gốc cho counts ÂM."""
     cpu = counts_per_unit(axis, encoder_cfg)
-    return int(round(axis_sign(encoder_cfg) * (float(value) - HOME_POSITION[axis]) * cpu))
+    o = HOME_POSITION[axis] if origin is None else float(origin)
+    return int(round(axis_sign(encoder_cfg) * (float(value) - o) * cpu))
 
 
-def counts_to_units(axis, counts, encoder_cfg):
+def counts_to_units(axis, counts, encoder_cfg, origin=None):
     cpu = counts_per_unit(axis, encoder_cfg)
-    return HOME_POSITION[axis] + axis_sign(encoder_cfg) * counts / cpu
+    o = HOME_POSITION[axis] if origin is None else float(origin)
+    return o + axis_sign(encoder_cfg) * counts / cpu
 
 
 def get_default_config():
@@ -263,6 +269,15 @@ def validate_config(config):
                     errors.append(f"Fault Thresholds {axis}: {name} quá nhỏ (đổi ra < 1 count).")
                 elif counts > MAX_FIRMWARE_COUNTS:
                     errors.append(f"Fault Thresholds {axis}: {name} quá lớn (vượt {MAX_FIRMWARE_COUNTS} counts).")
+            pct = float(faults[axis]["stall_pct"])
+            ms = float(faults[axis]["stall_ms"])
+            dist = round(float(faults[axis]["stall_dist"]) * cpu)
+            if not (pct == 0 or 10 <= pct <= 100) or pct != int(pct):
+                errors.append(f"Fault Thresholds {axis}: Kẹt PWM phải là số nguyên 10–100 % (0 = tắt bảo vệ kẹt).")
+            if not (50 <= ms <= 10000) or ms != int(ms):
+                errors.append(f"Fault Thresholds {axis}: Kẹt thời gian phải là số nguyên 50–10000 ms.")
+            if not (1 <= dist <= MAX_FIRMWARE_COUNTS):
+                errors.append(f"Fault Thresholds {axis}: Kẹt quãng tối thiểu quá nhỏ hoặc quá lớn (đổi ra {dist} counts).")
         except (KeyError, TypeError, ValueError, ZeroDivisionError):
             errors.append(f"Fault Thresholds {axis}: dữ liệu không hợp lệ.")
 

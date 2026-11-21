@@ -22,6 +22,12 @@
                                           bi chan/ket -> dung, FAULT home. Bao ve khong de PID giu PWM bao hoa vao chan co khi neu cam
                                           bien khong tac dong. PC dat lai tung truc bang lenh TRIP (Settings -> Fault Thresholds). */
 #define CONTROL_SETTLE_MS   1000       /* quy dao xong ma van ngoai vung chet qua ngan nay (ms) -> coi la da on dinh (busy=0), KHONG bao loi */
+/* Bao ve KET / QUA TAI (FAULT stall): |PWM| trung binh >= stall_pct % ma trong stall_ms ms truc di chua duoc stall_dist counts
+   -> dong co dang bi chan (cham dau hanh trinh, ket co khi) hoac PID dang "san" qua lai trong khoang ro -> phanh + FAULT.
+   Bat ca 2 truong hop sai so bam van duoi TRIP nen bao ve TRIP khong ngat. PC dat lai bang lenh STALL (Settings -> Fault). */
+#define CONTROL_STALL_PCT     70       /* MAC DINH: % PWM_LIMIT */
+#define CONTROL_STALL_MS      500      /* MAC DINH: ms */
+#define CONTROL_STALL_TAU_S   0.2f     /* hang so thoi gian loc |PWM| trung binh (s): PWM doi chieu lien tuc van tinh la "dang ton suc" */
 
 typedef struct {                       /* 1 mau telemetry (counts, counts/s) */
   uint32_t ms;
@@ -47,7 +53,7 @@ typedef struct {
   volatile uint8_t  paused;            /* 1: dang PAUSE (quy dao giam toc ve pause_goal roi dung) */
   volatile uint8_t  busy;              /* 1: chua on dinh tai dich (dang chay / dang PAUSE) */
   volatile uint8_t  faulted;           /* FAULT trip con chot; xoa bang lenh CLEAR. != 0 thi tu choi JOG/GOTO/HOME */
-  volatile uint8_t  fault;             /* != 0: vua bi FAULT, chua bao: main loop se gui "FAULT <id> trip|home" (1 = trip, 2 = home) */
+  volatile uint8_t  fault;             /* != 0: vua bi FAULT, chua bao: main loop gui "FAULT <id> trip|home|stall" (1 trip, 2 home, 3 stall) */
   volatile uint8_t  estop;             /* 1: dang E-STOP (lenh ESTOP 1): khoa moi lenh chuyen dong cho den ESTOP 0 */
   double            pause_goal;        /* diem dung khi PAUSE = vi tri quy dao + quang duong phanh */
   uint16_t          settle_cnt;        /* so ms da o ngoai vung chet sau khi quy dao xong */
@@ -62,6 +68,14 @@ typedef struct {
   volatile uint8_t  homing;            /* 1: dang tim cam bien home */
   volatile uint8_t  homed;             /* 1: da HOME that (vi tri da dat theo cam bien); xoa khi bat dau HOMING hoac khi FAULT */
   uint32_t          homing_ms;         /* thoi gian da tim (ms), de bao timeout */
+
+  /* Bao ve ket / qua tai (xem CONTROL_STALL_*) */
+  volatile uint8_t  stall_pct;         /* nguong |PWM| trung binh (% PWM_LIMIT); 0 = tat bao ve */
+  volatile uint16_t stall_ms;          /* thoi gian toi da o trang thai "ton suc ma khong di" (ms) */
+  volatile int32_t  stall_dist;        /* quang toi thieu phai di duoc trong stall_ms (counts) */
+  float             u_avg;             /* |PWM| trung binh da loc (duty) */
+  uint16_t          stall_cnt;         /* so ms lien tiep |PWM| trung binh >= nguong ma chua di du stall_dist */
+  int32_t           stall_anchor;      /* vi tri encoder luc bat dau dem stall_cnt */
 } Control_t;
 
 /* id = 1..CONTROL_COUNT */
@@ -70,6 +84,9 @@ void Control_Init(Control_t *c, uint8_t id, Motor_t *m, Encoder_t *e, PID_t *p, 
 
 /* Gan cam bien home cho dong co (goi sau Control_Init; h da qua HomeSen_Init). Khong goi = dong co khong co HOMING */
 void Control_SetHome(Control_t *c, HomeSen_t *h);
+
+/* Dat quang toi thieu mac dinh cho bao ve ket (counts, theo don vi truc); PC dat lai bang lenh STALL luc Connect */
+void Control_SetStallDist(Control_t *c, int32_t dist);
 
 /* Goi moi 1 ms tu ngat TIM9 (cho tung dong co) */
 void Control_Tick(Control_t *c);

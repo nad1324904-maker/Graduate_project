@@ -176,7 +176,7 @@ int main(void)
     { &htim12, TIM_CHANNEL_1, &htim13, TIM_CHANNEL_1, &htim8, +1, MM_Z(5.0f),     MM_Z(20.0f),     191 },  /* Motor 1: Z  vit-me (mm) */
     { &htim5,  TIM_CHANNEL_3, &htim5,  TIM_CHANNEL_1, &htim2, -1, DEG_J12(30.0f), DEG_J12(60.0f),    5 },  /* Motor 2: J1 (do)        */
     { &htim5,  TIM_CHANNEL_2, &htim5,  TIM_CHANNEL_4, &htim3, +1, DEG_J12(30.0f), DEG_J12(60.0f),    5 },  /* Motor 3: J2 (do)        */
-    { &htim14, TIM_CHANNEL_1, &htim12, TIM_CHANNEL_2, &htim4, +1, DEG_J3(30.0f),  DEG_J3(60.0f),     5 },  /* Motor 4: J3 (do)        */
+    { &htim14, TIM_CHANNEL_1, &htim12, TIM_CHANNEL_2, &htim4, -1, DEG_J3(30.0f),  DEG_J3(60.0f),     5 },  /* Motor 4: J3 (do)        */
   };
 
   Comm_Init(&comm, &huart3, ControlSet_OnLine, &ctrl);       /* USART3 + DMA */
@@ -188,6 +188,13 @@ int main(void)
     TrapProfile_Init(&trap[i], cfg[i].vmax, cfg[i].amax);
     Control_Init(&ctrl.m[i], (uint8_t)(i + 1), &motor[i], &encoder[i], &pid[i], &trap[i], &comm, cfg[i].deadband);
   }
+
+  /* Bao ve KET / QUA TAI (FAULT stall, xem control.h): |PWM| trung binh >= 70 % ma trong 0,5 s truc di chua duoc quang
+     duoi day -> phanh + FAULT. Day la MAC DINH luc khoi dong; khi Connect PC gui lai bang lenh STALL (Settings -> Fault). */
+  Control_SetStallDist(&ctrl.m[0], (int32_t)MM_Z(0.2f));        /* Motor 1: Z  0,2 mm */
+  Control_SetStallDist(&ctrl.m[1], (int32_t)DEG_J12(0.5f));     /* Motor 2: J1 0,5 do */
+  Control_SetStallDist(&ctrl.m[2], (int32_t)DEG_J12(0.5f));     /* Motor 3: J2 0,5 do */
+  Control_SetStallDist(&ctrl.m[3], (int32_t)DEG_J3(0.5f));      /* Motor 4: J3 0,5 do */
 
   /* ---- Cam bien HOME (lenh "HOMING <id>" tu PC; xem home_sen.h) ----
      HomeSen_Init(cam bien, port, chan, toc do tim (% VMAX), chieu tim, timeout (ms))

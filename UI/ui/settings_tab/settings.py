@@ -145,24 +145,38 @@ class SettingsMixin:
         body = card.body
         header = ctk.CTkFrame(body, fg_color="transparent")
         header.pack(fill="x", pady=(0, 4))
-        for text, w in (("Joint", 46), ("Trip", 80), ("Home Trip", 80), ("Unit", 40)):
+        for text, w in (("Joint", 40), ("Trip", 64), ("Home Trip", 64), ("Kẹt: đi ≥", 64), ("Unit", 30)):
             ctk.CTkLabel(header, text=text, font=("Segoe UI Semibold", 10),
                          text_color=COL_TEXT_DIM, width=w, anchor="w").pack(side="left", padx=2)
         for axis in AXES:
             row = ctk.CTkFrame(body, fg_color="transparent")
             row.pack(fill="x", pady=4)
             ctk.CTkLabel(row, text=axis, font=("Segoe UI Semibold", 12),
-                         text_color=COL_TEXT, width=46, anchor="w").pack(side="left", padx=2)
-            trip_e = self._entry_row_widget(row, 76)
+                         text_color=COL_TEXT, width=40, anchor="w").pack(side="left", padx=2)
+            trip_e = self._entry_row_widget(row, 62)
             trip_e.pack(side="left", padx=2)
-            home_e = self._entry_row_widget(row, 76)
+            home_e = self._entry_row_widget(row, 62)
             home_e.pack(side="left", padx=2)
+            stall_e = self._entry_row_widget(row, 62)
+            stall_e.pack(side="left", padx=2)
             ctk.CTkLabel(row, text=UNITS[axis], font=("Segoe UI", 11), text_color=COL_TEXT_DIM,
-                         width=40, anchor="w").pack(side="left", padx=2)
-            self.set_entries["fault_limits"][axis] = {"trip": trip_e, "home_trip": home_e}
+                         width=30, anchor="w").pack(side="left", padx=2)
+            self.set_entries["fault_limits"][axis] = {"trip": trip_e, "home_trip": home_e, "stall_dist": stall_e}
+        # bảo vệ kẹt: PWM và thời gian dùng chung cho 4 trục (quãng tối thiểu riêng từng trục ở cột "Kẹt: đi ≥")
+        row = ctk.CTkFrame(body, fg_color="transparent")
+        row.pack(fill="x", pady=(6, 0))
+        ctk.CTkLabel(row, text="Kẹt khi PWM ≥", font=("Segoe UI", 11), text_color=COL_TEXT).pack(side="left", padx=2)
+        self.stall_pct_entry = self._entry_row_widget(row, 46)
+        self.stall_pct_entry.pack(side="left", padx=2)
+        ctk.CTkLabel(row, text="% trong", font=("Segoe UI", 11), text_color=COL_TEXT).pack(side="left", padx=2)
+        self.stall_ms_entry = self._entry_row_widget(row, 56)
+        self.stall_ms_entry.pack(side="left", padx=2)
+        ctk.CTkLabel(row, text="ms", font=("Segoe UI", 11), text_color=COL_TEXT).pack(side="left", padx=2)
         ctk.CTkLabel(body, text="Sai số bám quỹ đạo (đặt − thực) vượt ngưỡng thì STM32 phanh, tắt PID và báo FAULT. "
                                  "Trip: khi chạy (kẹt cơ khí, sai chiều/mất encoder). Home Trip: khi HOMING (trục bị chặn "
-                                 "khi tìm cảm biến) — tăng lên nếu bị FAULT home giả.",
+                                 "khi tìm cảm biến) — tăng lên nếu bị FAULT home giả. Kẹt: PWM trung bình cao mà trục đi "
+                                 "chưa được quãng 'Kẹt: đi ≥' trong thời gian trên (chạm đầu hành trình / PID săn) → FAULT "
+                                 "stall, chống cháy dây. PWM = 0: tắt.",
                      font=("Segoe UI", 9), text_color=COL_TEXT_DISABLED,
                      wraplength=300, justify="left").pack(anchor="w", pady=(6, 0))
         return card
@@ -265,6 +279,9 @@ class SettingsMixin:
         for axis, w in self.set_entries["fault_limits"].items():
             set_entry(w["trip"], cfg["fault_limits"][axis]["trip"])
             set_entry(w["home_trip"], cfg["fault_limits"][axis]["home_trip"])
+            set_entry(w["stall_dist"], cfg["fault_limits"][axis]["stall_dist"])
+        set_entry(self.stall_pct_entry, cfg["fault_limits"]["J1"]["stall_pct"])
+        set_entry(self.stall_ms_entry, cfg["fault_limits"]["J1"]["stall_ms"])
         for axis, w in self.set_entries["encoder"].items():
             set_entry(w["ppr"], cfg["encoder"][axis]["ppr"])
             set_entry(w["gear_ratio"], cfg["encoder"][axis]["gear_ratio"])
@@ -291,7 +308,10 @@ class SettingsMixin:
                 },
                 "home_position": {axis: float(e.get()) for axis, e in self.set_entries["home_position"].items()},
                 "fault_limits": {
-                    axis: {"trip": float(w["trip"].get()), "home_trip": float(w["home_trip"].get())}
+                    axis: {"trip": float(w["trip"].get()), "home_trip": float(w["home_trip"].get()),
+                           "stall_pct": int(float(self.stall_pct_entry.get())),
+                           "stall_ms": int(float(self.stall_ms_entry.get())),
+                           "stall_dist": float(w["stall_dist"].get())}
                     for axis, w in self.set_entries["fault_limits"].items()
                 },
                 "encoder": {

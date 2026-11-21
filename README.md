@@ -139,6 +139,10 @@ Mỗi 1 ms, ngắt TIM9 chạy lần lượt cho từng trục:
 ### Bảo vệ và trạng thái
 
 - **FAULT trip:** khi chạy, nếu |sai số bám| vượt ngưỡng *Trip* thì phanh, tắt PID và chốt lỗi cho tới khi nhận lệnh `CLEAR`. Thường do kẹt cơ khí, sai chiều encoder hoặc mất tín hiệu encoder.
+- **FAULT stall (chống cháy dây):** |PWM| trung bình ≥ 70 % mà trong 0,5 s trục đi chưa được 0,2 mm (Z) / 0,5° (J) thì
+  phanh, tắt PID, báo `FAULT stall`. Bắt hai trường hợp *Trip* không bắt được vì sai số vẫn nhỏ: **kẹt sát đích** (chạm đầu
+  hành trình) và **PID "săn"** qua lại trong khoảng rơ (Kp quá lớn / Deadband quá nhỏ). Ngưỡng chỉnh ở Settings → Fault
+  Thresholds (lệnh `STALL`).
 - **HOMING:**
   - Trục chạy chậm (một phần trăm của Vmax) về phía cảm biến.
   - Chạm cảm biến (đã lọc nhiễu 3 ms) thì **dừng ngay** và gán vị trí encoder bằng **vị trí home do PC gửi xuống**.
@@ -408,10 +412,15 @@ Mọi thông số dưới đây chỉnh trong **Settings** và lưu bằng **Sav
 | 3. Encoder | PPR (counts/vòng, đã ×4), Gear (J: tỉ số truyền, Z: mm/vòng), Direction | dùng để đổi đơn vị |
 | 4. Motion Profile | Vmax, Amax (°/s, °/s² hoặc mm/s, mm/s²) | `VMAX`, `AMAX` |
 | 5. PID + Deadband | Kp, Ki, Kd, vùng chết (counts) | `PID`, `DB` |
-| 6. Fault Thresholds | **Trip** (khi chạy) và **Home Trip** (khi HOMING), đơn vị độ/mm | `TRIP` |
+| 6. Fault Thresholds | **Trip** (khi chạy) và **Home Trip** (khi HOMING), đơn vị độ/mm; **Kẹt**: quãng tối thiểu từng trục + PWM % và thời gian (chung) | `TRIP`, `STALL` |
 
 > Đổi **Home** hoặc **Encoder** thì phải bấm **HOME** lại để vị trí được đặt theo giá trị mới.
-> Quy ước gốc đổi đơn vị: 0 counts (lúc cấp nguồn) ứng với J1 = J2 = J3 = 0°, Z = 300 mm.
+> Gốc đổi đơn vị: lúc **Connect**, vị trí cấp nguồn (0 counts) được hiểu là vị trí **Home** trong Settings. Nếu muốn
+> chạy khi chưa HOME (bật "Bỏ qua kiểm tra HOME"), hãy đưa robot về đúng tư thế Home trước khi cấp nguồn.
+>
+> **Giới hạn khớp:** đích ngoài giới hạn bị **chặn**, không kẹp về biên. JOG khi trục đang trong giới hạn thì bước cuối
+> chỉ tới đúng biên; trục đang ở ngoài giới hạn (ô vị trí tô cam ⚠) thì chỉ JOG được về phía trong, mỗi lần đúng 1 bước.
+> Move to XYZθ / Move Here / chương trình tới điểm ngoài giới hạn bị từ chối (chương trình được kiểm tra ngay lúc START).
 
 ---
 
@@ -420,7 +429,7 @@ Mọi thông số dưới đây chỉnh trong **Settings** và lưu bằng **Sav
 PC → STM32: `<LỆNH> <động cơ 1..4> [tham số]`, đơn vị counts. Các lệnh:
 
 - **Chuyển động:** `GOTO`, `JOG`, `HOME`, `HOMING`, `STOP`, `PAUSE`, `RESUME`
-- **Cấu hình:** `PID`, `VMAX`, `AMAX`, `DB`, `LIMIT`, `HPOS`, `TRIP`
+- **Cấu hình:** `PID`, `VMAX`, `AMAX`, `DB`, `LIMIT`, `HPOS`, `TRIP`, `STALL`
 - **Khác:** `CLEAR` (xóa FAULT), `SEL` (chọn trục gửi telemetry, `SEL 0` = tắt)
 - **Không kèm số động cơ:** `GRIP <0|1>`, `ESTOP <1|0>` (E-Stop / Reset), `WDT <ms>`, `PING` (không trả lời)
 
@@ -428,7 +437,7 @@ STM32 → PC:
 
 - `OK <lệnh> <id>` hoặc `ERR <lệnh> <id> <lý do>`
 - `S <ms> (st goal sp pos)×4 <grip>` (20 Hz)
-- `FAULT <id> trip|home`
+- `FAULT <id> trip|home|stall`
 - `BOOT`
 - `LINKLOST` (STM32 tự dừng vì mất tín hiệu từ PC)
 - `T …` (telemetry)
@@ -441,7 +450,7 @@ Muốn thử phần cứng không cần GUI:
 python "UI/tools/uart_tool.py" COM5        # gõ lệnh trực tiếp, vd: GOTO 2 109200
 ```
 
-> **Firmware và GUI phải cùng phiên bản.** GUI mới gửi các lệnh `HPOS`/`TRIP`/`GRIP`/`ESTOP`/`WDT`/`PING`/`SEL 0` và đọc trạng thái kẹp ở cuối dòng `S`. Dùng lệch phiên bản sẽ bị lỗi cấu hình khi Connect.
+> **Firmware và GUI phải cùng phiên bản.** GUI mới gửi các lệnh `HPOS`/`TRIP`/`STALL`/`GRIP`/`ESTOP`/`WDT`/`PING`/`SEL 0` và đọc trạng thái kẹp ở cuối dòng `S`. Dùng lệch phiên bản sẽ bị lỗi cấu hình khi Connect.
 
 ---
 
@@ -451,7 +460,9 @@ python "UI/tools/uart_tool.py" COM5        # gõ lệnh trực tiếp, vd: GOTO 
 |---|---|
 | Connect xong bị ngắt, Log báo "không nhận được dòng trạng thái (S)" | Sai cổng COM hoặc baud, STM32 chưa chạy firmware, dây TX/RX đảo |
 | `STM32 từ chối cấu hình … firmware không biết lệnh này` | Firmware trên chip là bản cũ, cần build và nạp lại |
-| `FAULT … trip` ngay khi chạy | Encoder ngược chiều (sửa `enc_sign` trong `main.c` hoặc Direction trong Settings), Vmax/Amax quá cao so với động cơ, kẹt cơ khí, ngưỡng Trip quá nhỏ |
+| `FAULT … trip` ngay khi chạy, trục vọt đi | Encoder ngược chiều so với động cơ: sửa dấu `enc_sign` trong `main.c` rồi nạp lại (ô Direction trong Settings **không** sửa được, nó chỉ đảo chiều phía PC). Hoặc Vmax/Amax quá cao so với động cơ, kẹt cơ khí, ngưỡng Trip quá nhỏ |
+| `FAULT … stall` | Trục bị chặn (đầu hành trình, kẹt cơ khí) hoặc PID săn qua lại: giảm Kp, thêm Kd, tăng Deadband (vd Z: Kp 4.2, Deadband 273 counts). Nếu bị báo giả khi chạy tải nặng/chậm thì giảm quãng "Kẹt: đi ≥" hoặc tăng thời gian |
+| JOG báo "đang ở … NGOÀI giới hạn" | Vị trí lúc cấp nguồn không nằm trong giới hạn khớp: HOME, hoặc kiểm tra Home / Min / Max trong Settings |
 | `FAULT … home` | Không thấy cảm biến trong thời gian chờ (sai chiều tìm, sai chân, cảm biến hỏng) hoặc trục bị chặn; nếu bị báo giả khi tìm nhanh thì tăng *Home Trip* |
 | Sau HOME vị trí hiển thị sai | Kiểm tra panel Encoder (PPR, Gear) đúng với cơ khí; JOG 10° rồi đo bằng thước đo góc để xác nhận |
 | JOG / START bị chặn | Chưa Connect, chưa HOME, sai chế độ (nút gạt JOG / CHƯƠNG TRÌNH trong khung Chạy chương trình), hoặc chương trình đang chạy |

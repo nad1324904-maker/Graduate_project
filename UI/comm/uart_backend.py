@@ -23,7 +23,7 @@ import serial
 import serial.tools.list_ports
 
 from comm.backend_base import RobotBackendBase, RobotStatus
-from comm.errors import UartError
+from comm.errors import LimitError, UartError
 from comm.uart_protocol import (AXES, AXIS_OF_MOTOR, MOTOR_OF_AXIS, ST_BUSY, ST_EN, ST_ESTOP, ST_FAULT, ST_HOMED,
                            ST_HOMING, ST_HSENSOR, ST_PAUSED, ProtocolError, build_cmd, fmt_float, parse_line)
 from core import robot_config
@@ -41,6 +41,7 @@ STATUS_TIMEOUT_S = 1.0       # im lặng (không có dòng S) quá lâu sau khi 
 FIRST_STATUS_TIMEOUT_S = 2.0 # chưa nhận được S nào kể từ lúc kết nối
 HEARTBEAT_PERIOD_S = 0.2     # PC gửi PING mỗi 0.2 s (luồng riêng, không phụ thuộc giao diện có đang bận hay không)
 WATCHDOG_MS = 600            # STM32 không nhận được gì quá 0.6 s (= 3 PING liên tiếp bị mất) -> tự dừng an toàn
+LIMIT_EPS = 0.01             # độ / mm: đích vượt giới hạn khớp dưới mức này coi như sai số làm tròn -> kẹp đúng về biên
 TRACE_SECONDS = 60           # giữ 60 s telemetry gần nhất (50 Hz) cho đồ thị / xuất CSV
 # lệnh làm đổi trạng thái chạy/dừng (GRIP cũng tính: Step GRIP chỉ xong khi STM32 đã OK + có dòng S mới)
 MOTION_CMDS = ("GOTO", "JOG", "HOME", "HOMING", "STOP", "PAUSE", "RESUME", "GRIP")
@@ -59,6 +60,8 @@ ERR_TEXT = {
 FAULT_TEXT = {
     "trip": "sai số bám vượt ngưỡng Trip (kẹt cơ khí / sai chiều encoder / mất encoder / Vmax-Amax quá cao) — đã phanh và tắt PID",
     "home": "HOMING thất bại (quá thời gian chưa thấy cảm biến, hoặc sai số bám vượt ngưỡng Home Trip vì bị chặn/kẹt) — đã phanh và tắt PID",
+    "stall": "motor bị KẸT / QUÁ TẢI: PWM cao kéo dài mà trục gần như không di chuyển (chạm đầu hành trình, kẹt cơ khí, "
+             "hoặc PID đang 'săn' qua lại — giảm Kp / tăng Deadband) — đã phanh và tắt PID",
 }
 
 
@@ -78,6 +81,7 @@ class UartRobotBackend(RobotBackendBase):
         self._write_lock = threading.Lock()
 
         self._enc = robot_config.get_default_config()["encoder"]      # cập nhật bởi configure()
+        self._origin = dict(HOME_POSITION)    # độ/mm ứng với 0 counts; = Settings Home khi Connect (configure lần đầu)
         self.actual = dict(HOME_POSITION)
         self.target = dict(HOME_POSITION)
         self.status = RobotStatus.READY
@@ -231,11 +235,16 @@ class UartRobotBackend(RobotBackendBase):
 
     # ==================== Cấu hình Settings -> STM32 ====================
     def configure(self, cfg, on_result=None):
-        """Gửi cấu hình xuống STM32, mỗi động cơ: PID, VMAX, AMAX, DB, LIMIT, HPOS, TRIP (đơn vị counts).
+        """Gửi cấu hình xuống STM32, mỗi động cơ: PID, VMAX, AMAX, DB, LIMIT, HPOS, TRIP, STALL (đơn vị counts).
         HPOS = vị trí home (độ/mm trong cfg['home_position']) đổi ra counts bằng ĐÚNG hệ số encoder dùng cho GOTO,
         nên sau HOMING vị trí hiển thị trên GUI khớp giá trị đã đặt.
         on_result(ok: bool, message: str) được gọi từ update() khi đã có phản hồi cho TẤT CẢ lệnh."""
         self._enc = copy.deepcopy(cfg["encoder"])
+        if not self._configured:
+            # Lần cấu hình đầu sau Connect: gốc đổi đơn vị = Home trong Settings -> vị trí lúc cấp nguồn (encoder = 0)
+            # nằm trong giới hạn khớp. Apply sau đó KHÔNG đổi gốc (đang chạy mà đổi gốc thì vị trí hiển thị bị nhảy).
+            self._origin = {a: float(cfg["home_position"][a]) for a in AXES}
+            self._resync_pending = True
         self._config_cb = on_result
         self._config_err = None
         self._config_left = 0
@@ -244,14 +253,15 @@ class UartRobotBackend(RobotBackendBase):
             enc, lim = self._enc[axis], cfg["joint_limits"][axis]
             mp, pid = cfg["motion_profile"][axis], cfg["pid"][axis]
             cpu = robot_config.counts_per_unit(axis, enc)
-            lo = robot_config.units_to_counts(axis, lim["min"], enc)
-            hi = robot_config.units_to_counts(axis, lim["max"], enc)
+            lo = self._u2c(axis, lim["min"])
+            hi = self._u2c(axis, lim["max"])
             lo, hi = min(lo, hi), max(lo, hi)
-            home = robot_config.units_to_counts(axis, cfg["home_position"][axis], enc)
+            home = self._u2c(axis, cfg["home_position"][axis])
             fl = cfg["fault_limits"][axis]
             trip, home_trip = int(round(fl["trip"] * cpu)), int(round(fl["home_trip"] * cpu))
             if trip <= 0 or home_trip <= 0:
                 raise ValueError(f"{axis}: ngưỡng Trip/Home Trip quá nhỏ (đổi ra counts ≤ 0).")
+            stall = (int(fl["stall_pct"]), int(fl["stall_ms"]), max(1, int(round(float(fl["stall_dist"]) * cpu))))
             vmax, amax = int(round(mp["vmax"] * cpu)), int(round(mp["amax"] * cpu))
             if vmax <= 0 or amax <= 0:
                 raise ValueError(f"{axis}: Vmax/Amax quá nhỏ (đổi ra counts ≤ 0).")
@@ -260,7 +270,8 @@ class UartRobotBackend(RobotBackendBase):
                     ("DB", (int(round(float(pid["deadband"]))),)),
                     ("LIMIT", (lo, hi)),
                     ("HPOS", (home,)),
-                    ("TRIP", (trip, home_trip))]
+                    ("TRIP", (trip, home_trip)),
+                    ("STALL", stall)]
             for cmd, args in cmds:
                 self._send(cmd, m, *args, tag="cfg")
                 self._config_left += 1
@@ -315,9 +326,9 @@ class UartRobotBackend(RobotBackendBase):
         enc = self._enc[axis]
         k = robot_config.axis_sign(enc) / robot_config.counts_per_unit(axis, enc)
         self._trace.append((d["ms"] / 1000.0,
-                            robot_config.counts_to_units(axis, d["goal"], enc),
-                            robot_config.counts_to_units(axis, d["sp"], enc),
-                            robot_config.counts_to_units(axis, d["pos"], enc),
+                            self._c2u(axis, d["goal"]),
+                            self._c2u(axis, d["sp"]),
+                            self._c2u(axis, d["pos"]),
                             d["sv"] * k, d["v"] * k))
 
     # ==================== E-STOP / RESET (báo cho STM32 biết) ====================
@@ -375,20 +386,43 @@ class UartRobotBackend(RobotBackendBase):
             self._finish_home(success=False)     # bị STOP giữa chừng -> HOME_ERROR
 
     # ==================== Di chuyển khớp ====================
-    def _clamp_joint(self, axis, value):
-        lo, hi = self.joint_limits[axis]
-        return max(lo, min(hi, value))
+    def _u2c(self, axis, value):
+        return robot_config.units_to_counts(axis, value, self._enc[axis], self._origin[axis])
 
-    def send_absolute_target(self, targets: dict):
-        """GOTO tuyệt đối cho từng trục có trong `targets` (đã kẹp theo giới hạn PC-side). Các trục được ĐỒNG BỘ:
-        cùng xuất phát và cùng tới đích (xem _sync_profiles), nên đầu công tác đi gần đường thẳng khi bước ngắn."""
+    def _c2u(self, axis, counts):
+        return robot_config.counts_to_units(axis, counts, self._enc[axis], self._origin[axis])
+
+    def _check_joint(self, axis, value, jog=False):
+        """Kiểm tra đích 1 trục theo giới hạn khớp, trả về đích (độ/mm) được phép gửi; vi phạm -> LimitError.
+        - Đích trong giới hạn (dung sai làm tròn LIMIT_EPS): nhận, kẹp đúng về biên.
+        - JOG khi trục đang TRONG giới hạn mà bước vượt biên: chỉ chạy tới đúng biên (quãng đi < 1 bước).
+        - JOG khi trục đang NGOÀI giới hạn: chỉ cho đi VÀO phía trong (cùng phía, gần giới hạn hơn), đúng 1 bước.
+        - Còn lại (MOVE / chương trình tới điểm ngoài giới hạn, JOG ra xa hơn): chặn hẳn, KHÔNG kẹp về biên."""
+        lo, hi = self.joint_limits[axis]
+        if lo - LIMIT_EPS <= value <= hi + LIMIT_EPS:
+            return max(lo, min(hi, value))
+        cur = self.target[axis]
+        unit = "mm" if axis == "Z" else "°"
+        if jog:
+            if lo - LIMIT_EPS <= cur <= hi + LIMIT_EPS:
+                return lo if value < lo else hi
+            if (cur > hi and hi < value < cur) or (cur < lo and cur < value < lo):
+                return value
+            raise LimitError(f"{axis} đang ở {cur:.2f} {unit}, NGOÀI giới hạn [{lo:g}, {hi:g}] — chỉ JOG được về "
+                             f"phía trong giới hạn (hoặc HOME / kiểm tra Settings → Joint Limits + Home).")
+        raise LimitError(f"{axis} = {value:.2f} {unit} nằm ngoài giới hạn [{lo:g}, {hi:g}] — lệnh bị chặn, robot "
+                         f"không chạy (kiểm tra Point / Settings → Joint Limits).")
+
+    def send_absolute_target(self, targets: dict, jog=False):
+        """GOTO tuyệt đối cho từng trục có trong `targets`, sau khi kiểm tra giới hạn khớp (_check_joint: đích ngoài
+        giới hạn bị CHẶN, không kẹp về biên). Các trục được ĐỒNG BỘ: cùng xuất phát và cùng tới đích (xem _sync_profiles),
+        nên đầu công tác đi gần đường thẳng khi bước ngắn."""
+        checked = {axis: self._check_joint(axis, float(value), jog)
+                   for axis, value in targets.items() if axis in MOTOR_OF_AXIS}   # kiểm tra HẾT trước khi gửi trục nào
         goals = {}
-        for axis, value in targets.items():
-            if axis not in MOTOR_OF_AXIS:
-                continue
-            value = self._clamp_joint(axis, float(value))
-            goals[axis] = (value, robot_config.units_to_counts(axis, value, self._enc[axis]))
-        self._sync_profiles({axis: abs(counts - robot_config.units_to_counts(axis, self.target[axis], self._enc[axis]))
+        for axis, value in checked.items():
+            goals[axis] = (value, self._u2c(axis, value))
+        self._sync_profiles({axis: abs(counts - self._u2c(axis, self.target[axis]))
                              for axis, (_, counts) in goals.items()})
         for axis, (value, counts) in goals.items():
             self._send_motion("GOTO", MOTOR_OF_AXIS[axis], counts)
@@ -436,7 +470,7 @@ class UartRobotBackend(RobotBackendBase):
     def jog(self, axis, direction, step):
         if axis not in MOTOR_OF_AXIS:
             return
-        self.send_absolute_target({axis: self.target[axis] + direction * step})
+        self.send_absolute_target({axis: self.target[axis] + direction * step}, jog=True)
 
     # ==================== HOME ====================
     def home(self):
@@ -457,11 +491,12 @@ class UartRobotBackend(RobotBackendBase):
         self.target = dict(self.actual)
 
     def go_home_position(self):
-        """(Cách HOME cũ, không dùng cảm biến) đi tới vị trí 0 counts = J1=J2=J3=0°, Z=300 mm bằng lệnh HOME (GOTO 0)."""
+        """(Cách HOME cũ, không dùng cảm biến) đi tới vị trí 0 counts = gốc đổi đơn vị (vị trí lúc cấp nguồn) bằng
+        lệnh HOME (GOTO 0)."""
         self._restore_full_profiles()
         for motor in AXIS_OF_MOTOR:
             self._send_motion("HOME", motor)
-        self.target = dict(HOME_POSITION)
+        self.target = dict(self._origin)
 
     def is_homed(self):
         return self._is_homed
@@ -520,12 +555,13 @@ class UartRobotBackend(RobotBackendBase):
 
     # ==================== Cấu hình runtime ====================
     def set_joint_limits(self, limits: dict):
-        """Lưu giới hạn phía PC (kẹp target khi JOG/MOVE). Giới hạn trên STM32 được gửi bằng configure()."""
+        """Lưu giới hạn phía PC (kiểm tra đích khi JOG/MOVE). Giới hạn trên STM32 được gửi bằng configure().
+        KHÔNG kẹp target hiện tại vào giới hạn mới: trục đang ở ngoài giới hạn mà kẹp target về biên thì lần JOG kế tiếp
+        sẽ tính từ biên -> trục nhảy một đoạn dài (lỗi trục Z chạy 58 mm)."""
         for axis, (lo, hi) in limits.items():
             if axis not in self.actual:
                 continue
             self.joint_limits[axis] = (float(lo), float(hi))
-            self.target[axis] = self._clamp_joint(axis, self.target[axis])
 
     def set_max_velocity(self, velocities: dict):
         for axis, value in velocities.items():
@@ -667,7 +703,7 @@ class UartRobotBackend(RobotBackendBase):
         for motor, (st, goal, sp, pos) in data["motors"].items():
             axis = AXIS_OF_MOTOR[motor]
             enc = self._enc[axis]
-            self.actual[axis] = robot_config.counts_to_units(axis, pos, enc)
+            self.actual[axis] = self._c2u(axis, pos)
             self._telemetry[axis] = {"flags": st, "goal": goal, "sp": sp, "pos": pos}
             any_fault |= bool(st & ST_FAULT)
             any_busy |= bool(st & ST_BUSY)
@@ -737,9 +773,9 @@ class UartRobotBackend(RobotBackendBase):
                 state = "HOLD"
             else:
                 state = "OFF"
-            goal = robot_config.counts_to_units(axis, t["goal"], enc)
-            sp = robot_config.counts_to_units(axis, t["sp"], enc)
-            actual = robot_config.counts_to_units(axis, t["pos"], enc)
+            goal = self._c2u(axis, t["goal"])
+            sp = self._c2u(axis, t["sp"])
+            actual = self._c2u(axis, t["pos"])
             out[axis] = {"state": state, "goal": goal, "setpoint": sp, "actual": actual,
                          "error": sp - actual, "counts": t["pos"],
                          "homed": bool(flags & ST_HOMED), "home_sensor": bool(flags & ST_HSENSOR)}
