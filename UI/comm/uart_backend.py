@@ -117,6 +117,7 @@ class UartRobotBackend(RobotBackendBase):
         self._telemetry = {a: {"flags": 0, "goal": 0, "sp": 0, "pos": 0} for a in AXES}
         self._since_status = 0.0
         self._have_status = False
+        self._sensor_state = {}           # trạng thái cảm biến home lần trước (bit ST_HSENSOR) -> Log khi đổi
         self._configured = False
         self._config_cb = None
         self._config_left = 0
@@ -144,6 +145,7 @@ class UartRobotBackend(RobotBackendBase):
             raise UartError(f"Không mở được cổng {self.port_name}: {e}")
         self._since_status = 0.0
         self._have_status = False
+        self._sensor_state = {}           # kết nối mới: dòng S đầu tiên chỉ ghi nhận, chạm sẵn thì báo
         self._rx_stop.clear()
         self._rx_thread = threading.Thread(target=self._rx_loop, daemon=True)
         self._rx_thread.start()
@@ -672,6 +674,7 @@ class UartRobotBackend(RobotBackendBase):
             any_fault |= bool(st & ST_FAULT)
             any_busy |= bool(st & ST_BUSY)
             any_estop |= bool(st & ST_ESTOP)
+            self._log_home_sensor(axis, bool(st & ST_HSENSOR))
             if axis not in self._no_sensor:       # trục chưa có cảm biến home (vd J3) không tính vào "đã HOME"
                 sensor_axes += 1
                 all_homed &= bool(st & ST_HOMED)
@@ -686,6 +689,19 @@ class UartRobotBackend(RobotBackendBase):
             self._set_gripper("ON" if data["grip"] else "OFF")
         self._is_homed = sensor_axes > 0 and all_homed               # "đã HOME" = cả 4 trục đã tham chiếu theo cảm biến (firmware xóa khi FAULT/HOMING lại)
         self._evaluate_status()
+
+    def _log_home_sensor(self, axis, active):
+        """Ghi Log mỗi khi STM32 báo cảm biến home của một trục đổi trạng thái (bit 64 trong dòng S, đã lọc nhiễu
+        3 ms trong firmware) — để kiểm tra STM32 có nhận được tín hiệu cảm biến không (chạm tay vào cảm biến).
+        Trục chưa HomeSen_Init trong firmware thì bit này luôn 0 nên không bao giờ có Log."""
+        old = self._sensor_state.get(axis)
+        self._sensor_state[axis] = active
+        if old == active or (old is None and not active) or not self._on_info:
+            return
+        if old is None:
+            self._on_info(f"Cảm biến home {axis}: ĐANG CHẠM ngay lúc kết nối")
+        else:
+            self._on_info(f"Cảm biến home {axis}: {'ĐANG CHẠM' if active else 'đã nhả'}")
 
     def _evaluate_status(self):
         if self._any_fault or self._any_estop:
