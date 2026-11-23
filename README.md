@@ -362,13 +362,18 @@ Nhấp đúp file **`mo_phong_scara.html`** ở thư mục gốc để mở bằ
 Nhấp đúp **`mo_phong_he_thong.html`** (Chrome / Edge; lần đầu cần Internet để tải three.js). Chỉ dùng để giải thích quy
 trình cho nhóm, **không** phải phần mềm điều khiển thật.
 
-- **Mô hình:**
-  - băng tải 1000 × 150 mm cao 150 mm, 3 cảm biến CB1 / CB2 / CB3;
-  - cấp phôi tay quay – con trượt (động cơ bước 1 vòng = 1 phôi), tháp chứa khay vàng;
-  - trạm kiểm tra: camera, xi lanh 1 (thanh chặn gỗ), xi lanh 2 (2 đầu kim cấp nguồn vào terminal);
+- **Mô hình** (bố trí theo bản 3D SolidWorks của nhóm, kích thước ước lượng từ ảnh CAD):
+  - tấm đế cam đỡ toàn bộ hệ thống; băng tải 1000 × 150 mm cao 150 mm, thành bên xanh tím, trụ chỉnh thanh dẫn;
+    3 cảm biến CB1 (x = 70) / CB2 (336, sát thanh chặn) / CB3 (678);
+  - cấp phôi tay quay – con trượt (động cơ bước 1 vòng = 1 phôi), hộp chứa phôi màu đen (10 khay);
+  - trạm kiểm tra ở x ≈ 300: camera, xi lanh 1 (thanh chặn gỗ, x = 340), xi lanh 2 (2 đầu kim cấp nguồn vào terminal);
   - PCB 70 × 70 trong khay; LED 7 đoạn đếm **0 → 9** khi được cấp nguồn;
-  - robot SCARA (động học, Vmax / Amax, quỹ đạo đồng bộ khớp theo `robot_config.json`), 3 khay Đạt / Lỗi 1 / Lỗi 2;
-  - đèn tháp.
+  - robot SCARA đứng **bên hông băng tải** (đế tròn, 3 trục dẫn, vít me Z ở giữa, động cơ Z trên đỉnh), gắp ở x = 640;
+    động học, Vmax / Amax, quỹ đạo đồng bộ khớp theo `robot_config.json`;
+  - 3 hộp chứa hở 110 × 110 mm **xếp 1 hàng vuông góc băng tải** trên 1 bàn: xanh (Đạt) sát băng tải, vàng (Lỗi 1),
+    đỏ (Lỗi 2). CAD vẽ hộp ~150 mm nhưng tay robot hiện tại (h1 180, l1 180, l2 85; J1/J2 −30…180°) không với tới hộp
+    đỏ, nên mô phỏng dùng 110 mm (vị trí robot / hộp / chỗ gắp được dò bằng chính động học ngược của trang);
+  - đèn tháp (CAD không có, giữ lại để báo trạng thái).
 - **Điều khiển giống app master:**
   - E-STOP (bấm lại để nhả), AUTO / MANUAL, START / STOP / RESET;
   - MANUAL có giữ để chạy băng tải, cấp 1 PCB, thu / hạ xi lanh, test chức năng, chụp ảnh, robot phân loại, robot về home;
@@ -390,7 +395,7 @@ trình cho nhóm, **không** phải phần mềm điều khiển thật.
   "Thả vào khay Đạt"… Robot chạy đúng tốc độ cài đặt (trục Z 7 mm/s nên một lần gắp – xếp mất khoảng 1,5 phút; dùng ×5
   cho nhanh). Nút **📋 Xem step chương trình** hiện từng step bằng lời, giá trị khớp và step robot đang chạy.
 - **Xếp chồng vào khay chứa** (app master cũng đã có, xem mục 6.3 bước 4b):
-  - khay chứa có 4 cột dẫn ở góc, mặt đỡ cao 45 mm; tối đa **7 tầng** (giới hạn trục Z), chỉnh được từng khay;
+  - khay vàng xếp chồng giữa hộp chứa, đáy hộp cao 85 mm; tối đa **5 tầng** (giới hạn trục Z), chỉnh được từng khay;
   - **Z thả = điểm thả tầng 1 + độ cao 1 tầng (25 mm) × số khay đang có**, chỉ teach điểm thả tầng 1;
   - Step MOVE có `"stack": "DAT" | "LOI1" | "LOI2"` mới được cộng Z (tên Point đặt gì cũng được);
   - bộ đếm tăng sau khi khay đã nằm trong khay chứa; báo "sắp đầy" khi còn 1 chỗ; **đầy thì dây chuyền tạm dừng** (đèn

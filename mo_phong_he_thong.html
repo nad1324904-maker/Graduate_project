@@ -305,17 +305,21 @@ const EMBEDDED_CONFIG = {
 // =====================================================================================================================
 const LAY = {
   beltLen: 1000, beltW: 150, beltZ: 150,
-  cb: { CB1: 70, CB2: 424, CB3: 950 },            // vị trí cảm biến (mm theo X); CB2 sát thanh chặn
-  stopFace: 428,                                   // mặt thanh chặn khi hạ (đầu khay không vượt quá đây)
-  station: 390,                                    // tâm khay khi tì sát thanh chặn = vị trí kiểm tra (camera, 2 đầu kim)
+  cb: { CB1: 70, CB2: 336, CB3: 678 },            // vị trí cảm biến (mm theo X); CB2 sát thanh chặn; CB3 = chỗ gắp + 38
+  stopFace: 340,                                   // mặt thanh chặn khi hạ (đầu khay không vượt quá đây)
+  station: 302,                                    // tâm khay khi tì sát thanh chặn = vị trí kiểm tra (camera, 2 đầu kim)
   tray: { w: 76, h: 25, wall: 3, floor: 2 }, pcb: 70,
   feedX: -60, crankX: -330, crankR: 55, rodL: 150, pusherL: 135,
-  robot: { x: 1250, y: -240, phi: 120 },           // đế robot (gốc tọa độ robot) + góc xoay trục X robot
-  bins: { DAT: { x: 1064, y: 31 }, LOI1: { x: 972, y: -153 }, LOI2: { x: 1074, y: 151 } },
-  binFloor: 45,                                    // mặt đỡ khay chứa (xếp chồng: tầng 1 nằm ở đây)
+  // Theo bản 3D của nhóm (số ước lượng từ ảnh CAD): robot đứng BÊN HÔNG băng tải (phía -Y), 3 hộp chứa xếp 1 hàng
+  // vuông góc băng tải (xanh sát băng tải, rồi vàng, đỏ). Vị trí robot / hộp / chỗ gắp đã dò bằng chính ik() bên dưới để
+  // tay robot (h1 180, l1 180, l2 85, J1/J2 -30..180°) với tới hết: hộp 150 mm như CAD thì KHÔNG với tới hộp đỏ -> 110 mm.
+  robot: { x: 390, y: -260, phi: 5 },              // đế robot (tâm trục vít me Z = gốc tọa độ robot) + góc xoay trục X robot
+  bins: { DAT: { x: 800, y: -150 }, LOI1: { x: 800, y: -260 }, LOI2: { x: 800, y: -370 } },
+  binSize: 110,                                    // hộp chứa hở 110 × 110 mm (khay vàng 76 mm nằm giữa)
+  binFloor: 85,                                    // mặt đáy hộp chứa (bàn cao 80 + đáy 5) — tầng 1 nằm ở đây
   zUp: 240, zDn: 155,                              // TCP: độ cao di chuyển / độ cao gắp ở CB3
   zPlace: 45 + 3 + 5,                              // TCP thả tầng 1: đáy khay cách mặt đỡ 3 mm (đầu ngón cao hơn đáy khay 5 mm)
-  pick: { x: 912, y: 0 },
+  pick: { x: 640, y: 0 },                          // chỗ robot gắp khay trên băng tải (băng dừng nhờ CB3)
 };
 // Thông số thời gian (giả định hợp lý; đổi ở đây)
 const TC = { beltV: 60, strokeT: 0.6, cylTimer: 1.0, feedT: 2.0, piVisT: 1.0, ledStep: 0.5, piStall: 2.0, gripT: 0.3,
@@ -415,6 +419,7 @@ const BIN_NAME = { DAT: "Đạt", LOI1: "Lỗi 1", LOI2: "Lỗi 2" };
 const STACK = { n: { DAT: 0, LOI1: 0, LOI2: 0 }, max: { DAT: 7, LOI1: 7, LOI2: 7 }, layerH: 25 };
 // Số tầng tối đa vật lý: khay đang mang (đáy = TCP − 5) phải bay cao hơn đỉnh chồng ≥ 10 mm ở độ cao di chuyển zUp
 const maxLayers = () => Math.max(1, Math.floor((LAY.zUp - 5 - 10 - LAY.binFloor) / STACK.layerH));
+for (const k in STACK.max) STACK.max[k] = Math.min(STACK.max[k], maxLayers());
 function saveStack() { try { localStorage.setItem("pcb-sim-stack", JSON.stringify(STACK)); } catch (_) { /* không lưu được thì thôi */ } }
 function loadStack() {
   try {
@@ -422,7 +427,7 @@ function loadStack() {
     if (!o) return;
     if (o.layerH >= 15 && o.layerH <= 40) STACK.layerH = +o.layerH;
     for (const k in STACK.n) {
-      STACK.max[k] = clamp(Math.round(+(o.max || {})[k] || 7), 1, maxLayers());
+      STACK.max[k] = clamp(Math.round(+(o.max || {})[k] || maxLayers()), 1, maxLayers());
       STACK.n[k] = clamp(Math.round(+(o.n || {})[k] || 0), 0, STACK.max[k]);
     }
   } catch (_) { /* dữ liệu hỏng: dùng mặc định */ }
@@ -1064,11 +1069,16 @@ function setupScene() {
     steel: std(0x9aa6b5, 0.3, 0.8), yellow: std(0xf6b81c, 0.55, 0.05), wood: std(0xc8a06a, 0.75, 0), white: std(0xf1f5f9, 0.5, 0.1),
     pcb: std(0xc98a3c, 0.6, 0.05), green: std(0x2f9e57, 0.5, 0.05), ic: std(0x1b1d22, 0.45, 0.2), blue: std(0x2d5bd3, 0.45, 0.1),
     beige: std(0xe2c79b, 0.6, 0), cap: std(0x2a2f3a, 0.4, 0.3), pin: std(0xd4d8de, 0.3, 0.9), red: std(0xdc2626, 0.5, 0.1),
-    motor: std(0x1f2937, 0.45, 0.35), accent: std(0x2563eb, 0.4, 0.2), link: std(0xf8fafc, 0.42, 0.08), link2: std(0xe6ecf4, 0.42, 0.08),
+    motor: std(0x1f2937, 0.45, 0.35), accent: std(0x2563eb, 0.4, 0.2), link: std(0x2b2f36, 0.5, 0.2), link2: std(0x3a3f48, 0.5, 0.2),
     tool: std(0x475569, 0.45, 0.4), finger: std(0x94a3b8, 0.45, 0.3), brass: std(0xc59a52, 0.4, 0.6),
+    // màu theo bản 3D của nhóm
+    board: std(0xb45c1c, 0.8, 0), panel: std(0x4347a8, 0.5, 0.15), plate: std(0x7c80e0, 0.5, 0.15), servo: std(0xd6d3c4, 0.5, 0.2),
+    copper: std(0xb8743a, 0.45, 0.5), bush: std(0xc2410c, 0.5, 0.2), pink: std(0xc99a96, 0.7, 0), tan: std(0xd8b07a, 0.6, 0),
+    rodGreen: std(0x5cb85c, 0.5, 0.1), armDark: std(0x2b2f36, 0.5, 0.2), armDark2: std(0x3a3f48, 0.5, 0.2),
   });
   mesh(new THREE.PlaneGeometry(4000, 2600), M.floor, scene, 450, 0, 0).castShadow = false;
   const grid = new THREE.GridHelper(4000, 40, 0xd5dde8, 0xe4e9f0); grid.rotation.x = Math.PI / 2; grid.position.set(450, 0, 0.3); scene.add(grid);
+  mesh(box(1560, 760, 20), M.board, scene, 300, -130, -9).castShadow = false;
   for (const k of ["line", "trays", "robot"]) { G[k] = new THREE.Group(); scene.add(G[k]); }
   buildConveyor(); buildFeeder(); buildStation(); buildBins(); buildTower();
   G.robotRoot = new THREE.Group(); G.robotRoot.position.set(LAY.robot.x, LAY.robot.y, 0); G.robotRoot.rotation.z = LAY.robot.phi * DEG;
@@ -1089,7 +1099,7 @@ function resize() {
 
 function buildConveyor() {
   const g = G.line, L = LAY.beltLen, Wd = LAY.beltW, Z = LAY.beltZ;
-  for (const s of [-1, 1]) mesh(box(L + 20, 8, Z), M.black, g, L / 2, s * (Wd / 2 + 10), Z / 2);       // khung thép đen 2 bên
+  for (const s of [-1, 1]) mesh(box(L + 20, 8, Z), M.panel, g, L / 2, s * (Wd / 2 + 10), Z / 2);       // thành bên (tấm xanh tím như CAD)
   mesh(box(L, Wd, 4), M.black, g, L / 2, 0, Z - 8);
   for (const x of [0, L]) mesh(ycyl(14, Wd + 4), M.steel, g, x, 0, Z - 14);                          // rulo 2 đầu
   // Băng tải xanh: texture có vạch, dịch theo vận tốc băng
@@ -1101,8 +1111,13 @@ function buildConveyor() {
   mesh(box(L, Wd, 3), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7 }), g, L / 2, 0, Z - 1.5);
   // Thanh dẫn hướng màu xám 2 bên (phía -Y chừa chỗ cho thanh chặn)
   mesh(box(950, 6, 34), M.grey, g, 515, Wd / 2 + 6, Z + 17);
-  mesh(box(330, 6, 34), M.grey, g, 205, -(Wd / 2 + 6), Z + 17);
-  mesh(box(520, 6, 34), M.grey, g, 730, -(Wd / 2 + 6), Z + 17);
+  const gx = LAY.stopFace + 4;
+  for (const [a, b] of [[40, gx - 40], [gx + 40, 990]]) mesh(box(b - a, 6, 34), M.grey, g, (a + b) / 2, -(Wd / 2 + 6), Z + 17);
+  // Trụ chỉnh độ cao thanh dẫn (như CAD): thanh đứng màu đồng + kẹp xám, 2 bên băng tải
+  for (const x of [110, 560]) for (const s of [-1, 1]) {
+    mesh(vcyl(5, 140), M.copper, g, x, s * (Wd / 2 + 24), Z - 20);
+    mesh(box(24, 20, 14), M.grey, g, x, s * (Wd / 2 + 16), Z + 17);
+  }
   // Cảm biến CB1..CB3 (gắn trên thanh dẫn phía +Y) + tia quét
   G.beams = {};
   for (const [k, x] of Object.entries(LAY.cb)) {
@@ -1112,31 +1127,31 @@ function buildConveyor() {
     G.beams[k] = { led, beam };
     const lb = label(k, "#0f172a", 15); lb.position.set(x, Wd / 2 + 22, Z + 56); g.add(lb);
   }
-  const lb = label("Băng tải 1000 × 150 mm", "#475569", 14); lb.position.set(700, -Wd / 2 - 40, Z + 30); g.add(lb);
+  const lb = label("Băng tải 1000 × 150 mm", "#475569", 14); lb.position.set(860, Wd / 2 + 60, Z + 30); g.add(lb);
 }
 
 function buildFeeder() {
   const g = new THREE.Group(); G.line.add(g); const Z = LAY.beltZ;
   // Chân nhôm + tấm đế đen ngang mặt băng tải
-  mesh(box(420, 150, 6), M.black, g, -215, 0, Z - 3);
+  mesh(box(420, 150, 6), M.pink, g, -215, 0, Z - 3);
   for (const x of [-410, -20]) for (const y of [-60, 60]) mesh(box(20, 20, Z - 6), M.alu, g, x, y, (Z - 6) / 2);
   // Ray dẫn con trượt
   mesh(box(160, 14, 6), M.steel, g, -185, 0, Z + 3);
   // Đĩa tay quay (động cơ bước bên dưới)
   G.crank = new THREE.Group(); G.crank.position.set(LAY.crankX, 0, Z + 2); g.add(G.crank);
-  mesh(vcyl(72, 4, 48), M.black, G.crank, 0, 0, 2);
+  mesh(vcyl(72, 4, 48), M.tan, G.crank, 0, 0, 2);
   mesh(vcyl(6, 10), M.steel, G.crank, LAY.crankR, 0, 7);
   mesh(vcyl(8, 8), M.steel, G.crank, 0, 0, 6);
   mesh(vcyl(26, 40), M.motor, g, LAY.crankX, 0, Z - 26);
-  G.rod = mesh(box(LAY.rodL, 12, 6), M.grey, g, 0, 0, Z + 12);
+  G.rod = mesh(box(LAY.rodL, 12, 6), M.rodGreen, g, 0, 0, Z + 12);
   G.slider = new THREE.Group(); g.add(G.slider);
   mesh(box(40, 34, 14), M.steel, G.slider, 0, 0, Z + 13);
   mesh(box(LAY.pusherL, 56, 10), M.brass, G.slider, LAY.pusherL / 2, 0, Z + 6);
-  // Tháp chứa phôi màu vàng (trong 82 mm), cửa ra phía băng tải, khe sau cho thanh đẩy
-  const fx = LAY.feedX, inner = 82, t = 5, H = 270;
-  mesh(box(t, inner + 2 * t, H - 30), M.yellow, g, fx + inner / 2 + t / 2, 0, Z + 30 + (H - 30) / 2);
-  mesh(box(t, inner + 2 * t, H - 14), M.yellow, g, fx - inner / 2 - t / 2, 0, Z + 14 + (H - 14) / 2);
-  for (const s of [-1, 1]) mesh(box(inner + 2 * t, t, H), M.yellow, g, fx, s * (inner / 2 + t / 2), Z + H / 2);
+  // Hộp chứa phôi màu đen (như CAD, ngoài ~102 mm, trong 82 mm), cửa ra phía băng tải, khe sau cho thanh đẩy
+  const fx = LAY.feedX, inner = 82, t = 10, H = 270;
+  mesh(box(t, inner + 2 * t, H - 30), M.black, g, fx + inner / 2 + t / 2, 0, Z + 30 + (H - 30) / 2);
+  mesh(box(t, inner + 2 * t, H - 14), M.black, g, fx - inner / 2 - t / 2, 0, Z + 14 + (H - 14) / 2);
+  for (const s of [-1, 1]) mesh(box(inner + 2 * t, t, H), M.black, g, fx, s * (inner / 2 + t / 2), Z + H / 2);
   const lb = label("Cấp phôi: tay quay – con trượt", "#0f172a", 15); lb.position.set(-200, 0, Z + 330); g.add(lb);
 }
 
@@ -1170,18 +1185,22 @@ function buildStation() {
 
 function buildBins() {
   G.binLabels = {};
-  const col = { DAT: 0x16a34a, LOI1: 0xd97706, LOI2: 0xdc2626 }, name = { DAT: "Đạt", LOI1: "Lỗi 1", LOI2: "Lỗi 2" };
-  // Khay chứa xếp chồng: bệ thấp (mặt đỡ ở binFloor) + 4 cột dẫn ở 4 góc (khay vàng luôn thẳng hàng theo trục X/Y,
-  // 2 ngón kẹp ôm giữa 2 thành khay nên không vướng cột ở góc)
-  const postH = maxLayers() * LAY.tray.h + 10, c = LAY.tray.w / 2 + 4;
+  const col = { DAT: 0x16a34a, LOI1: 0xd4c21c, LOI2: 0xdc2626 }, name = { DAT: "Đạt", LOI1: "Lỗi 1", LOI2: "Lỗi 2" };
+  // Như CAD: 3 hộp hở xếp 1 hàng vuông góc băng tải trên 1 bàn nhôm chung. Khay vàng xếp chồng giữa hộp (thành hộp cao
+  // 55 mm, khay chồng lên cao hơn thành vẫn đứng vững vì robot đặt thẳng tâm).
+  const S = LAY.binSize, top = LAY.binFloor - 5, wallH = 55, t = 3, bs = Object.values(LAY.bins);
+  const x0 = Math.min(...bs.map(b => b.x)) - S / 2 - 6, x1 = Math.max(...bs.map(b => b.x)) + S / 2 + 6;
+  const y0 = Math.min(...bs.map(b => b.y)) - S / 2 - 6, y1 = Math.max(...bs.map(b => b.y)) + S / 2 + 6;
+  mesh(box(x1 - x0, y1 - y0, 6), M.black, G.line, (x0 + x1) / 2, (y0 + y1) / 2, top - 3);
+  for (const x of [x0 + 12, x1 - 12]) for (const y of [y0 + 12, y1 - 12]) mesh(box(20, 20, top - 6), M.black, G.line, x, y, (top - 6) / 2);
   for (const [k, b] of Object.entries(LAY.bins)) {
     const g = new THREE.Group(); g.position.set(b.x, b.y, 0); G.line.add(g);
     const mat = std(col[k], 0.5, 0.05);
-    mesh(box(100, 100, LAY.binFloor - 6), M.alu, g, 0, 0, (LAY.binFloor - 6) / 2);
-    mesh(box(100, 100, 6), mat, g, 0, 0, LAY.binFloor - 3);
-    for (const sx of [-1, 1]) for (const sy of [-1, 1]) mesh(box(6, 6, postH), mat, g, sx * c, sy * c, LAY.binFloor + postH / 2);
+    mesh(box(S, S, 5), mat, g, 0, 0, top + 2.5);                                                    // đáy hộp
+    for (const [dx, dy, a, w] of [[0, S / 2 - t / 2, S, t], [0, -S / 2 + t / 2, S, t], [S / 2 - t / 2, 0, t, S], [-S / 2 + t / 2, 0, t, S]])
+      mesh(box(a, w, wallH), mat, g, dx, dy, top + wallH / 2);
     const lb = label(`${name[k]}: 00 / 00 tầng`, "#" + col[k].toString(16).padStart(6, "0"), 17);   // rộng sẵn cho số đếm
-    lb.position.set(0, 0, LAY.binFloor + postH + 30);
+    lb.position.set(80, 0, LAY.binFloor + maxLayers() * LAY.tray.h + 40);
     g.add(lb); G.binLabels[k] = lb;
   }
 }
@@ -1239,17 +1258,26 @@ function buildRobot() {
   const root = G.robotRoot;
   for (const ch of [...root.children]) root.remove(ch);
   const { h1, l1, l2, h2 } = R.p, zMax = R.lim.Z[1], colTop = Math.max(zMax + 80, 220);
-  mesh(box(230, 190, 24), std(0x334155, 0.65, 0.2), root, 0, 0, 12);
-  mesh(box(62, 62, colTop - 24), M.alu, root, 0, 0, 24 + (colTop - 24) / 2);
-  mesh(vcyl(30, 64), M.motor, root, 0, 0, colTop + 32);
-  const zg = new THREE.Group(); root.add(zg); G.z = zg;
-  mesh(box(100, 116, 62), M.accent, zg, 0, -8, 0);
-  if (h1 > 56) mesh(box(h1 - 44, 46, 34), M.alu, zg, 44 + (h1 - 44) / 2 - 6, 0, 0);
+  // Khung tháp như bản 3D: đế tròn Ø310, 3 trục dẫn (tránh hướng +X của tay), vít me Z ở tâm, tấm tròn trên đỡ động cơ Z
+  const rodA = [60, 180, 300].map(a => a * DEG), rodR = 120;
+  mesh(vcyl(155, 14, 48), M.plate, root, 0, 0, 7);
+  mesh(vcyl(155, 10, 48), M.plate, root, 0, 0, colTop + 5);
+  for (const a of rodA) {
+    mesh(vcyl(8, colTop - 14), M.steel, root, rodR * Math.cos(a), rodR * Math.sin(a), 14 + (colTop - 14) / 2);
+    for (const z of [20, colTop - 6]) mesh(vcyl(15, 12), M.servo, root, rodR * Math.cos(a), rodR * Math.sin(a), z);   // gối đỡ trục
+  }
+  mesh(vcyl(6, colTop - 14), M.brass, root, 0, 0, 14 + (colTop - 14) / 2);                  // vít me trục Z
+  mesh(box(56, 56, 70), M.servo, root, 0, 0, colTop + 45);                                  // động cơ Z trên đỉnh
+  const zg = new THREE.Group(); root.add(zg); G.z = zg;                                     // cụm trượt theo Z
+  mesh(vcyl(140, 10, 48), M.armDark, zg, 0, 0, -12);                                        // tấm mang trượt trên 3 trục
+  for (const a of rodA) mesh(vcyl(14, 34), M.bush, zg, rodR * Math.cos(a), rodR * Math.sin(a), -12);   // bạc trượt (cam)
+  mesh(vcyl(12, 24), M.brass, zg, 0, 0, -12);                                               // đai ốc vít me
+  if (h1 > 56) mesh(box(h1 - 20, 60, 10), M.armDark, zg, (h1 - 20) / 2 + 10, 0, -12);      // tay đỡ khớp J1
   const j1 = new THREE.Group(); j1.position.set(h1, 0, 0); zg.add(j1); G.j1 = j1;
-  mesh(vcyl(34, 58), M.motor, j1, 0, 0, -6);
+  mesh(vcyl(32, 52), M.servo, j1, 0, 0, -34);                                               // động cơ J1 treo dưới tay đỡ
   mesh(linkGeo(l1, 66, 26), M.link, j1, 0, 0, 18);
   const j2 = new THREE.Group(); j2.position.set(l1, 0, 0); j1.add(j2); G.j2 = j2;
-  mesh(vcyl(25, 42), M.motor, j2, 0, 0, 52);
+  mesh(vcyl(25, 42), M.servo, j2, 0, 0, 52);
   mesh(linkGeo(l2, 54, 22), M.link2, j2, 0, 0, -8);
   const w = new THREE.Group(); w.position.set(l2, 0, 0); j2.add(w); G.w = w;
   mesh(vcyl(18, 34), M.motor, w, 0, 0, 20);
@@ -1326,8 +1354,8 @@ function snapshot(tray, live) {
 // ---- Camera xoay / dời / phóng ----
 const orbit = { target: null, r: 2200, az: -60 * DEG, el: 30 * DEG };
 const VIEWS = {
-  all: [[520, -30, 60], 2350, -78, 44], feed: [[-170, 0, 220], 950, -120, 22], station: [[LAY.station, 0, 190], 620, -58, 26],
-  robot: [[1080, -20, 170], 1150, 40, 40], top: [[520, -40, 0], 2500, -90, 89.5],
+  all: [[320, -110, 60], 2300, -72, 42], feed: [[-170, 0, 220], 950, -120, 22], station: [[LAY.station, 0, 190], 620, -58, 26],
+  robot: [[620, -200, 190], 1150, -35, 36], top: [[300, -130, 0], 2400, -90, 89.5],
 };
 function applyOrbit() {
   const ce = Math.cos(orbit.el), t = orbit.target;
@@ -1713,7 +1741,7 @@ function loadData(d, labelText) {
 function runSelftest() {
   seed(12345); $("p1").value = 30; $("p2").value = 30;
   for (const t of [...trays]) removeTray(t); FEED.stack = []; refill();
-  for (const k in BINS) { BINS[k] = []; STACK.n[k] = 0; STACK.max[k] = 7; } STACK.layerH = 25;   // không dùng số đã lưu
+  STACK.layerH = 25; for (const k in BINS) { BINS[k] = []; STACK.n[k] = 0; STACK.max[k] = maxLayers(); }   // không dùng số đã lưu
   const out = { events: [] }; const t0 = SIM.t;
   const run = (sec, until) => { const end = SIM.t + sec; while (SIM.t < end) { step(0.02); if (until && until()) return true; } return false; };
   out.initOk = run(120, () => ST.sys === "READY");
